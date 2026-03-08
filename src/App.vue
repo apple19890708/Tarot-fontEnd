@@ -137,8 +137,8 @@ onMounted(() => {
         </div>
       </section>
 
-      <section class="grid flex-1 gap-6 lg:grid-cols-[380px_1fr]">
-        <aside class="rounded-[2rem] border border-white/10 bg-slate-950/45 p-6 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur">
+      <section class="flex flex-col md:flex-row flex-1 gap-6 min-h-0 md:h-[680px]">
+        <aside class="rounded-[2rem] border border-white/10 bg-slate-950/45 p-6 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur w-full md:flex-shrink-0 md:w-[380px]">
           <div class="space-y-2">
             <p class="text-xs uppercase tracking-[0.35em] text-stone-300/60">占卜設定</p>
             <h2 class="text-2xl font-semibold text-stone-50">抽一組目前最需要的訊息</h2>
@@ -186,7 +186,7 @@ onMounted(() => {
           </p>
         </aside>
 
-        <section class="rounded-[2rem] border border-white/10 bg-white/6 p-6 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur">
+        <section class="rounded-[2rem] border border-white/10 bg-white/6 p-6 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur flex-1 min-h-0 overflow-y-auto max-h-[calc(100vh-300px)] md:max-h-full">
           <div v-if="reading" class="space-y-6">
             <div class="flex flex-col gap-4 border-b border-white/10 pb-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
