@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  font-family: 'Noto Serif TC', 'Microsoft JhengHei', serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background:
+    radial-gradient(circle at top, rgba(251, 191, 36, 0.16), transparent 24%),
+    radial-gradient(circle at right, rgba(244, 114, 182, 0.14), transparent 26%),
+    linear-gradient(145deg, #120f1d 0%, #191425 42%, #0b1020 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: transparent;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: auto;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(18px);
+}
+
+body::before {
+  top: 10%;
+  left: 8%;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 9999px;
+  background: rgba(251, 191, 36, 0.12);
+}
+
+body::after {
+  right: 5%;
+  bottom: 6%;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 9999px;
+  background: rgba(251, 113, 133, 0.12);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+select option {
+  color: #111827;
+}
