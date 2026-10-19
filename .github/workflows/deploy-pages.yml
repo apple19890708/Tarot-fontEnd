@@ -1,0 +1,76 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # 需要時可以到 Actions 分頁手動重跑
+  workflow_dispatch:
+
+# 用官方的 Pages 部署（Settings > Pages > Source 要選 GitHub Actions）。
+# 這個做法不需要 gh-pages 分支，也不必自己給 token。
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時只跑一個部署；排隊中的舊的直接取消，但不中斷進行中的那次
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Vite 7 需要 Node 20.19+ 或 22.12+，不能用 18
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # VITE_API_BASE_URL 預設由版控中的 .env 提供（指向 Render 的後端）。
+      # repo 若設了同名的 Variable 就以它為準；兩邊都空的話直接讓 build 失敗——
+      # 空值會讓前端去打 github.io/api，整站的 API 都會 404，而且畫面上看不出原因。
+      - name: Resolve API base URL
+        env:
+          OVERRIDE: ${{ vars.VITE_API_BASE_URL }}
+        run: |
+          if [ -n "$OVERRIDE" ]; then
+            echo "VITE_API_BASE_URL=$OVERRIDE" >> "$GITHUB_ENV"
+            echo "使用 repo variable 的 VITE_API_BASE_URL"
+          elif grep -qE '^VITE_API_BASE_URL=.+' .env 2>/dev/null; then
+            echo "使用 .env 裡的 VITE_API_BASE_URL"
+          else
+            echo "::error::VITE_API_BASE_URL 沒有設定。請在 .env 填好，或在 repo 的 Settings > Secrets and variables > Actions > Variables 新增同名變數。"
+            exit 1
+          fi
+
+      - name: Build
+        run: npm run build
+
+      # GitHub Pages 是純靜態主機，直接開 /login 這種路徑會 404。
+      # 複製一份 index.html 當 404 頁，瀏覽器拿到它之後 vue-router 會接手。
+      - name: Add SPA fallback
+        run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

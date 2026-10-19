@@ -31,6 +31,12 @@
 - **帶 token**：`api.ts` 的 `request()` 會自動加 Authorization；不走 `request()` 的呼叫（例如 `streamNarration`）要自己帶 `authHeaders()`。收到 401 一律當成登出。
 - 非同步請求要處理載入中、失敗兩種狀態；可能被重複觸發的請求要忽略過期的回應（參考 `loadNarration` 的 request id 作法）。
 
+## 部署
+
+- 線上站是 GitHub Pages：`https://apple19890708.github.io/Tarot-fontEnd/`，push 到 main 由 `.github/workflows/deploy-pages.yml` 自動部署。
+- `vite.config.ts` 的 `base` 只在 `npm run build` 時生效（`/Tarot-fontEnd/`），dev server 維持 `/`。路徑一律用 `import.meta.env.BASE_URL` 或 router 的相對路徑，不要寫死開頭的 `/`。
+- 後端的 `CLIENT_URL` 要含 GitHub Pages 的網域，否則 API 會被 CORS 擋掉。細節見 `doc/deploy-github-pages.md`。
+
 ## 環境設定
 
 - `.env`：`VITE_API_BASE_URL` 指向 Render 上的後端。
