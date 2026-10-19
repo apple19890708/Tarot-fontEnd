@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import { useRouter } from 'vue-router'
+
 import StepDraw from '../components/StepDraw.vue'
 import StepQuestion from '../components/StepQuestion.vue'
 import StepResult from '../components/StepResult.vue'
@@ -12,6 +14,7 @@ import {
   fetchSpreads,
   streamNarration,
 } from '../lib/api'
+import { canUseAi, isLoggedIn } from '../lib/auth'
 import type {
   CardSummary,
   CustomPosition,
@@ -273,7 +276,101 @@ async function loadNarration(current: ReadingResponse) {
   }
 }
 
+const router = useRouter()
+
+// ---- 結果快照 ----
+// 從結果頁離開去登入（或重新整理）會把元件卸載，抽到的牌就不見了。
+// 用 sessionStorage 把結果暫存起來，回來時原樣還原；分頁關掉就自然清掉。
+const RESULT_SNAPSHOT_KEY = 'tarot_result_snapshot'
+// 太舊的快照不還原，免得隔很久回到這個分頁，看到的是上次的牌
+const RESULT_SNAPSHOT_TTL_MS = 2 * 60 * 60 * 1000
+
+interface ResultSnapshot {
+  reading: ReadingResponse
+  question: string
+  domain: QuestionDomain | ''
+  narrationText: string
+  savedAt: number
+}
+
+function saveResultSnapshot() {
+  try {
+    if (!reading.value) {
+      sessionStorage.removeItem(RESULT_SNAPSHOT_KEY)
+      return
+    }
+    const snapshot: ResultSnapshot = {
+      reading: reading.value,
+      question: question.value,
+      domain: selectedDomain.value,
+      narrationText: narrationText.value,
+      savedAt: Date.now(),
+    }
+    sessionStorage.setItem(RESULT_SNAPSHOT_KEY, JSON.stringify(snapshot))
+  } catch {
+    // 無痕視窗或容量不足時存不起來，就只是沒有還原功能，不影響其他流程
+  }
+}
+
+function clearResultSnapshot() {
+  try {
+    sessionStorage.removeItem(RESULT_SNAPSHOT_KEY)
+  } catch {
+    // 同上
+  }
+}
+
+function restoreResultSnapshot() {
+  try {
+    const raw = sessionStorage.getItem(RESULT_SNAPSHOT_KEY)
+    if (!raw) {
+      return false
+    }
+    const snapshot = JSON.parse(raw) as ResultSnapshot
+    if (!snapshot?.reading?.cards?.length) {
+      clearResultSnapshot()
+      return false
+    }
+    if (!snapshot.savedAt || Date.now() - snapshot.savedAt > RESULT_SNAPSHOT_TTL_MS) {
+      clearResultSnapshot()
+      return false
+    }
+
+    reading.value = snapshot.reading
+    question.value = snapshot.question || snapshot.reading.question || ''
+    selectedDomain.value = snapshot.domain || ''
+    narrationText.value = snapshot.narrationText || ''
+    // AI 寫到一半被中斷的文字也留著，狀態標成已停止，使用者可以再按一次繼續
+    narrationStatus.value = snapshot.narrationText
+      ? 'stopped'
+      : snapshot.reading.analysis
+        ? 'ready'
+        : 'idle'
+    step.value = 3
+    return true
+  } catch {
+    clearResultSnapshot()
+    return false
+  }
+}
+
+// 結果或 AI 文字一變就存檔，這樣重新整理也救得回來
+watch([reading, narrationText], saveResultSnapshot)
+
 function requestNarration() {
+  // AI 解讀限 admin 與被開通的會員；未登入時不擋按鈕，改把人帶去登入頁並記住現在的位置
+  if (!isLoggedIn.value) {
+    // 先把這次的結果存起來，登入回來才不會變成空白的第一步
+    saveResultSnapshot()
+    router.push({ path: '/login', query: { redirect: '/' } })
+    return
+  }
+
+  // 已登入但沒被開通：畫面本來就不會給按鈕，這裡只是最後一道保險
+  if (!canUseAi.value) {
+    return
+  }
+
   const isNarrating = narrationStatus.value === 'loading' || narrationStatus.value === 'streaming'
   if (reading.value && !isNarrating) {
     loadNarration(reading.value)
@@ -366,6 +463,7 @@ async function handleManualSubmit() {
 // 回到步驟 1：結果直接丟棄，不跳確認
 function restart() {
   cancelNarration()
+  clearResultSnapshot()
   reading.value = null
   narrationText.value = ''
   narrationStatus.value = 'idle'
@@ -378,6 +476,7 @@ function restart() {
 // 重抽：保留問題與牌陣，只清結果與已選的牌，牌堆重洗
 async function redraw() {
   cancelNarration()
+  clearResultSnapshot()
   reading.value = null
   narrationText.value = ''
   narrationStatus.value = 'idle'
@@ -391,6 +490,8 @@ async function redraw() {
 }
 
 onMounted(() => {
+  // 先還原結果，再去載牌陣與牌庫；還原成功的話會直接停在步驟 3
+  restoreResultSnapshot()
   bootstrap()
 })
 

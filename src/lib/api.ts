@@ -1,4 +1,7 @@
 import type {
+  AdminUsersResponse,
+  AuthResponse,
+  AuthUser,
   CardSummary,
   CustomPosition,
   HealthResponse,
@@ -8,6 +11,7 @@ import type {
   ReadingResponse,
   Spread,
 } from '../types'
+import { getToken, notifyUnauthorized } from './session'
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 
@@ -16,10 +20,20 @@ export function imageUrl(image?: string) {
   return image ? `${API_BASE_URL}${image}` : ''
 }
 
+// 登入後的請求一律帶 Authorization；沒登入就不帶，後端的公開路由照樣能用
+export function authHeaders(): Record<string, string> {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+// token 過期或被撤銷時後端回 401：清掉本機狀態，不要停在半登入的畫面
+export class UnauthorizedError extends Error {}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      ...authHeaders(),
       ...(options?.headers || {}),
     },
     ...options,
@@ -27,6 +41,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { message?: string } | null
+    if (response.status === 401) {
+      notifyUnauthorized()
+      throw new UnauthorizedError(payload?.message || '請先登入。')
+    }
     throw new Error(payload?.message || 'API request failed')
   }
 
@@ -35,6 +53,46 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export function fetchHealth() {
   return request<HealthResponse>('/api/health')
+}
+
+// ===== 會員與權限（v12）=====
+
+export function registerRequest(payload: { email: string; password: string; displayName?: string }) {
+  return request<AuthResponse>('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function loginRequest(payload: { email: string; password: string }) {
+  return request<AuthResponse>('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchMe() {
+  return request<{ user: AuthUser }>('/api/auth/me')
+}
+
+// 開通／收回某個會員的 AI 解析權限（admin 專用）
+export function setUserAiAccess(userId: string, allowed: boolean) {
+  return request<{ user: AuthUser }>(`/api/admin/users/${userId}/ai-access`, {
+    method: 'PATCH',
+    body: JSON.stringify({ allowed }),
+  })
+}
+
+export function fetchAdminUsers(params: { page?: number; pageSize?: number } = {}) {
+  const query = new URLSearchParams()
+  if (params.page) {
+    query.set('page', String(params.page))
+  }
+  if (params.pageSize) {
+    query.set('pageSize', String(params.pageSize))
+  }
+  const suffix = query.toString() ? `?${query}` : ''
+  return request<AdminUsersResponse>(`/api/admin/users${suffix}`)
 }
 
 export function fetchSpreads() {
@@ -76,7 +134,8 @@ export async function streamNarration(
 ): Promise<{ model: string }> {
   const response = await fetch(`${API_BASE_URL}/api/readings/narrate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // 這支不走 request()，Authorization 要自己帶；AI 解讀限會員使用
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({
       question: reading.question,
       spreadKey: reading.spread.key,
@@ -95,6 +154,10 @@ export async function streamNarration(
 
   if (!response.ok || !response.body) {
     const payload = (await response.json().catch(() => null)) as { message?: string } | null
+    if (response.status === 401) {
+      notifyUnauthorized()
+      throw new UnauthorizedError(payload?.message || '請先登入後再使用 AI 解讀。')
+    }
     throw new Error(payload?.message || 'AI 解讀暫時無法使用')
   }
 

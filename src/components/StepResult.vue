@@ -3,6 +3,8 @@ import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { computed } from 'vue'
 
+import { canUseAi, isLoggedIn } from '../lib/auth'
+
 import QuantPanel from './QuantPanel.vue'
 import ReadingAnalysisPanel from './ReadingAnalysisPanel.vue'
 import SpreadLayout from './SpreadLayout.vue'
@@ -197,12 +199,37 @@ function formatSuit(suit: string | null) {
           更完整的白話解讀嗎？AI 會綜合牌義、元素與數字，針對你的問題整理成一篇說明。文字會陸續出現，隨時可以停止。
         </p>
         <button
+          v-if="canUseAi"
           class="cursor-pointer rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:scale-[1.01]"
           type="button"
           @click="emit('requestNarration')"
         >
           請 AI 解讀這組牌
         </button>
+
+        <!-- 未登入：按鈕照樣顯示，點了會帶去登入頁 -->
+        <template v-else-if="!isLoggedIn">
+          <button
+            class="cursor-pointer rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:scale-[1.01]"
+            type="button"
+            @click="emit('requestNarration')"
+          >
+            請 AI 解讀這組牌（需登入）
+          </button>
+          <p class="text-xs text-stone-300/60">
+            抽牌與上面的組合分析不需要帳號；AI 解讀會產生費用，所以要登入後才能用。
+          </p>
+        </template>
+
+        <!-- 已登入但還沒被開通：不要給一個按了也沒用的按鈕 -->
+        <template v-else>
+          <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+            <p class="text-sm font-medium text-stone-100">AI 解讀尚未開通</p>
+            <p class="mt-1 text-xs leading-6 text-stone-300/70">
+              這項功能需要管理者逐一開通，請聯絡管理者。上面的牌義與組合分析不受影響，可以照常看。
+            </p>
+          </div>
+        </template>
       </div>
 
       <template v-else>

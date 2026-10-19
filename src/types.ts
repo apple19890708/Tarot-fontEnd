@@ -279,3 +279,29 @@ export type NarrationStreamEvent =
 export interface ApiError {
   message: string
 }
+
+// ===== 會員與權限（v12）=====
+// 後端 /api/auth/* 回傳；Render 上的舊版後端沒有這些 API，前端要容忍 404
+export type UserRole = 'member' | 'admin'
+
+export interface AuthUser {
+  id: string
+  email: string
+  displayName: string
+  role: UserRole
+  // AI 解析權限：admin 一律 true，member 要由管理者開通；舊版後端沒有這個欄位
+  aiAccess?: boolean
+  createdAt?: string
+}
+
+export interface AuthResponse {
+  token: string
+  user: AuthUser
+}
+
+export interface AdminUsersResponse {
+  page: number
+  pageSize: number
+  total: number
+  users: AuthUser[]
+}

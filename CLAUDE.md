@@ -18,12 +18,17 @@
 - `src/components/ReadingAnalysisPanel.vue`：規則引擎的組合分析（可折疊的「判斷依據」）
 - `src/lib/api.ts`：所有後端呼叫集中在這裡
 - `src/types.ts`：對應後端回傳的型別
+- `src/lib/session.ts`：token（localStorage）與登入狀態；`src/lib/auth.ts`：login／register／logout／restore，元件只 import 這一個
+- `src/pages/LoginView.vue`、`RegisterView.vue`、`AdminUsers.vue`：會員與管理者頁
 
 ## 編輯規則
 
 - **解讀文字由後端產生**：牌義、組合分析、AI 解讀都直接顯示後端的 `text`。前端只用結構化欄位做標籤、顏色、統計，不自行組句子，也不在前端重寫規則（例如大牌元素表）。
 - **型別跟著後端走**：後端回傳格式改了，同步更新 `src/types.ts`。新增的欄位設為可選（`?`），因為 Render 上的後端可能還是舊版。
 - **沿用既有樣式**：深色玻璃質感（`bg-white/5`、`border-white/10`、`rounded-[1.75rem]`、amber／rose 點綴）。延續現有 Tailwind class，不另外寫 CSS。
+- **AI 解析權限**：`canUseAi`（admin 或被開通的 member）只用來決定畫面顯示哪一種提示，真正的放行在後端；收到 403 要把原因顯示出來，不要只說失敗。
+- **權限**：路由用 `meta.auth`／`meta.role`／`meta.guest` 宣告，判斷集中在 `router.beforeEach`，元件不要自己擋。守衛會先 `await restore()`，不要繞過它。
+- **帶 token**：`api.ts` 的 `request()` 會自動加 Authorization；不走 `request()` 的呼叫（例如 `streamNarration`）要自己帶 `authHeaders()`。收到 401 一律當成登出。
 - 非同步請求要處理載入中、失敗兩種狀態；可能被重複觸發的請求要忽略過期的回應（參考 `loadNarration` 的 request id 作法）。
 
 ## 環境設定

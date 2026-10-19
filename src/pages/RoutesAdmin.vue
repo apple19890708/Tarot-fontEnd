@@ -21,7 +21,13 @@ function addRoute() {
   const routePath = path.value.startsWith('/') ? path.value : `/${path.value}`
 
   // create a simple placeholder component for dynamic routes
-  router.addRoute({ name: routeName, path: routePath, component: () => import('./GenericRoute.vue'), meta: { custom: true, permission: permission.value } })
+  // private 的自訂路由等同要登入，交給 router.beforeEach 的 meta.auth 判斷
+  router.addRoute({
+    name: routeName,
+    path: routePath,
+    component: () => import('./GenericRoute.vue'),
+    meta: { custom: true, permission: permission.value, auth: permission.value === 'private', title: routeName },
+  })
   name.value = ''
   path.value = ''
 }
