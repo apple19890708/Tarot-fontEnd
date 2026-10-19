@@ -50,7 +50,7 @@ function removeRoute(rname: string) {
             <span class="ml-3 text-xs text-stone-300/70">{{ r.permission }}</span>
           </div>
           <div>
-            <button v-if="r.removable" @click="removeRoute(r.name)" class="rounded px-3 py-1 text-sm bg-rose-400/10">移除</button>
+            <button v-if="r.removable" @click="removeRoute(r.name)" class="cursor-pointer rounded px-3 py-1 text-sm bg-rose-400/10">移除</button>
           </div>
         </li>
       </ul>
@@ -66,7 +66,7 @@ function removeRoute(rname: string) {
           <option value="private">private</option>
         </select>
         <div class="pt-2">
-          <button @click="addRoute" class="rounded bg-amber-300 px-4 py-2 text-sm">新增</button>
+          <button @click="addRoute" class="cursor-pointer rounded bg-amber-300 px-4 py-2 text-sm">新增</button>
         </div>
       </div>
     </div>
