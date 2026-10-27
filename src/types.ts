@@ -111,6 +111,10 @@ export interface DeckCard extends CardSummary {
 // 步驟 2 的三種抽牌方式：系統抽／從扇形牌背挑／輸入在別處抽到的牌
 export type DrawMode = 'auto' | 'fan' | 'input'
 
+// 手動抽牌扇形的階段。shuffling：循環洗牌，等使用者按「切牌」；splitting：切開的動畫；
+// cutting：等使用者選一落；dealing：發牌展開；ready：可以選牌
+export type FanPhase = 'shuffling' | 'splitting' | 'cutting' | 'dealing' | 'ready'
+
 // idle：沒有可解讀的結果；ready：等使用者按按鈕才呼叫 AI（每次呼叫都有費用）
 // loading：等第一段文字；streaming：文字陸續送達；stopped：使用者中途停止
 export type NarrationStatus = 'idle' | 'ready' | 'loading' | 'streaming' | 'done' | 'stopped' | 'error'

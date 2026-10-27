@@ -5,7 +5,7 @@ import FanDeck from './FanDeck.vue'
 import FlyingCard from './FlyingCard.vue'
 import { imageUrl } from '../lib/api'
 import { prefersReducedMotion, type CardPose } from '../lib/motion'
-import type { CardSummary, CustomPosition, DeckCard, DrawMode, Spread } from '../types'
+import type { CardSummary, CustomPosition, DeckCard, DrawMode, FanPhase, Spread } from '../types'
 
 const props = defineProps<{
   mode: DrawMode
@@ -58,6 +58,13 @@ const slots = computed(() =>
 )
 
 const positionLabels = computed(() => slots.value.map((slot) => slot.label))
+
+// 手動抽牌的切牌落數：自由牌陣（不指定牌陣）或 5 張以上的牌陣切兩落，其餘切三落
+const pileCount = computed<2 | 3>(() => (!props.spread || props.targetCount >= 5 ? 2 : 3))
+
+// 扇形目前的階段；位置格等切完牌、開始發牌時才顯示
+const fanPhase = ref<FanPhase>('shuffling')
+const showSlots = computed(() => fanPhase.value === 'dealing' || fanPhase.value === 'ready')
 
 // ---- 手動抽牌的飛牌動畫 ----
 // 資料照常立刻更新（選取／收回），動畫只是在最上層放一張替身飛過去；
@@ -226,7 +233,8 @@ const cardGroups = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-5">
+  <!-- 撐滿步驟卡片的高度，手動抽牌時牌堆才能在剩下的空間置中 -->
+  <div class="flex flex-1 flex-col space-y-5">
     <div class="flex items-center justify-between gap-3">
       <button
         class="cursor-pointer text-sm text-stone-400 transition hover:text-stone-100"
@@ -274,7 +282,7 @@ const cardGroups = computed(() => {
     </div>
 
     <!-- 二、手動抽牌：扇形牌堆 -->
-    <div v-else-if="mode === 'fan'" class="space-y-4">
+    <div v-else-if="mode === 'fan'" class="flex flex-1 flex-col space-y-4">
       <div class="flex items-center justify-between gap-3">
         <p class="text-sm text-stone-200/85">
           已選 {{ picked.length }} / {{ targetCount }} 張
@@ -298,13 +306,28 @@ const cardGroups = computed(() => {
         </div>
       </div>
 
+      <!-- 牌堆、按鈕與位置格在剩下的空間裡垂直置中，上面那一列維持在頂端 -->
+      <div class="flex flex-1 flex-col justify-center space-y-4">
       <FanDeck
         ref="fanRef"
         :deck="deck"
         :can-pick="!pickedEnough"
         :hidden-ids="returningIds"
+        :pile-count="pileCount"
         @pick="onPick"
+        @phase="fanPhase = $event"
       />
+
+      <!-- 洗牌會一直循環，使用者覺得可以了再按 -->
+      <div v-if="fanPhase === 'shuffling'" class="flex justify-center pt-2">
+        <button
+          type="button"
+          class="cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-6 py-2 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25"
+          @click="fanRef?.cut()"
+        >
+          切牌
+        </button>
+      </div>
 
       <FlyingCard
         v-for="flight in flights"
@@ -317,9 +340,14 @@ const cardGroups = computed(() => {
         @done="landFlight(flight.key)"
       />
 
-      <!-- 已放入牌陣的位置 -->
+      <!-- 已放入牌陣的位置：洗牌、切牌時先不顯示，牌攤開後才淡入 -->
       <!-- 每格尺寸固定：選牌前後高度不變，下方的按鈕才不會跟著跳 -->
-      <ul class="flex flex-wrap gap-2">
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="opacity-0 translate-y-2"
+        enter-to-class="opacity-100 translate-y-0"
+      >
+      <ul v-if="showSlots" class="flex flex-wrap gap-2">
         <li
           v-for="(label, index) in positionLabels"
           :key="label + index"
@@ -364,8 +392,11 @@ const cardGroups = computed(() => {
           </span>
         </li>
       </ul>
+      </Transition>
 
+      <!-- 和位置格一樣，切完牌才出現 -->
       <button
+        v-if="showSlots"
         class="w-full cursor-pointer rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
         type="button"
         :disabled="isLoading || !pickedEnough"
@@ -373,6 +404,7 @@ const cardGroups = computed(() => {
       >
         {{ isLoading ? '解讀中…' : pickedEnough ? '看結果' : `還要再選 ${targetCount - picked.length} 張` }}
       </button>
+      </div>
     </div>
 
     <!-- 三、輸入已抽到的牌 -->

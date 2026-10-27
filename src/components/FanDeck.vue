@@ -3,10 +3,10 @@ import { gsap } from 'gsap'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { motionDuration, prefersReducedMotion, type CardPose } from '../lib/motion'
-import type { DeckCard } from '../types'
+import type { DeckCard, FanPhase } from '../types'
 
 // 攤成扇形的牌背。使用者看不到是什麼牌，點了才翻到牌陣上。
-// 流程：洗牌（代表牌交錯插入）→ 切成三落讓使用者選一落 → 只把那一落發成扇形 → 選牌。
+// 流程：洗牌（代表牌交錯插入）→ 切成兩或三落讓使用者選一落 → 只把那一落發成扇形 → 選牌。
 // 牌的順序與正逆位都由外層決定，這裡只決定「顯示哪一落」；對外發出的 index 一律是 deck 裡的位置。
 const props = defineProps<{
   deck: DeckCard[]
@@ -14,9 +14,12 @@ const props = defineProps<{
   canPick: boolean
   // 正在飛回扇形的牌（收回時）：飛行期間先藏起來，抵達後再出現
   hiddenIds?: Set<string>
+  // 切成幾落（2 或 3），由外層依牌陣決定
+  pileCount: 2 | 3
 }>()
 
-const emit = defineEmits<{ pick: [index: number] }>()
+// phase：階段改變時通知外層（例如切牌結束前先不顯示位置格）
+const emit = defineEmits<{ pick: [index: number]; phase: [value: FanPhase] }>()
 
 // 扇形展開的總角度。半徑由 --fan-r 控制，在不同斷點給不同值（見 template）
 const FAN_ANGLE = 116
@@ -29,16 +32,15 @@ const NEIGHBOR_PUSH_PX = 6
 
 // 洗牌只用少量代表牌示意；78 張一起動容易卡頓，也看不出動作
 const PROXY_COUNT = 10
-// 三落牌的水平位置（相對扇形寬度，0 為正中央）
-const PILE_OFFSETS = [-0.28, 0, 0.28]
+// 各落牌的水平位置（相對扇形寬度，0 為正中央）
+const pileOffsets = computed(() => (props.pileCount === 2 ? [-0.2, 0.2] : [-0.28, 0, 0.28]))
 
-// shuffling：循環洗牌，等使用者按「切牌」；splitting：切成三落的動畫；cutting：等使用者選一落
-type Phase = 'shuffling' | 'splitting' | 'cutting' | 'dealing' | 'ready'
-const phase = ref<Phase>('shuffling')
+const phase = ref<FanPhase>('shuffling')
+watch(phase, (value) => emit('phase', value), { immediate: true })
 const pile = ref<number | null>(null)
 
-// 每一落的張數；78 張切成三落各 26 張，牌陣最多 10 張，一落就夠選
-const pileSize = computed(() => Math.ceil(props.deck.length / PILE_OFFSETS.length))
+// 每一落的張數：三落各 26 張、兩落各 39 張；張數多的牌陣切兩落，攤開時選擇比較多
+const pileSize = computed(() => Math.ceil(props.deck.length / pileOffsets.value.length))
 
 // 目前攤開的牌在 deck 裡的位置
 const visible = computed(() => {
@@ -157,7 +159,7 @@ async function startShuffle() {
   )
 }
 
-// ---- 二、切牌：收攏後切成三落，等使用者選一落 ----
+// ---- 二、切牌：收攏後切成兩或三落，等使用者選一落 ----
 function startCut() {
   if (phase.value !== 'shuffling') {
     return
@@ -178,8 +180,8 @@ function startCut() {
       // 所有代表牌同時往各自那一落移動
       tl.to(proxies, {
         x: (i: number) => {
-          const group = Math.min(PILE_OFFSETS.length - 1, Math.floor((i * PILE_OFFSETS.length) / proxies.length))
-          return (PILE_OFFSETS[group] ?? 0) * width
+          const group = Math.min(pileOffsets.value.length - 1, Math.floor((i * pileOffsets.value.length) / proxies.length))
+          return (pileOffsets.value[group] ?? 0) * width
         },
         duration: t(0.4),
         ease: 'power2.inOut',
@@ -204,7 +206,7 @@ function choosePile(index: number) {
     (tl) => {
       tl.to(others, { opacity: 0, scale: 0.9, duration: t(0.22) }, 0)
       if (chosen && fan) {
-        tl.to(chosen, { x: -(PILE_OFFSETS[index] ?? 0) * fan.clientWidth, duration: t(0.3), ease: 'power2.inOut' }, 0)
+        tl.to(chosen, { x: -(pileOffsets.value[index] ?? 0) * fan.clientWidth, duration: t(0.3), ease: 'power2.inOut' }, 0)
       }
     },
     () => {
@@ -468,7 +470,8 @@ function cardPose(deckIndex: number): CardPose | null {
   }
 }
 
-defineExpose({ cardPose })
+// cut：「切牌」按鈕放在扇形區外面（由外層排版），按下後呼叫這個
+defineExpose({ cardPose, cut: startCut })
 
 const hintText = computed(() => {
   if (phase.value === 'cutting') {
@@ -508,7 +511,7 @@ const statusText = computed(() => {
     @keydown="onKeydown"
     @blur="resetPointer"
   >
-    <!-- 洗牌與切成三落時用的代表牌 -->
+    <!-- 洗牌與切開時用的代表牌 -->
     <template v-if="phase === 'shuffling' || phase === 'splitting'">
       <span
         v-for="n in PROXY_COUNT"
@@ -520,10 +523,10 @@ const statusText = computed(() => {
       </span>
     </template>
 
-    <!-- 切牌：三落牌，位置與洗牌最後切開的位置相同，看起來是同一批牌 -->
+    <!-- 切牌：兩或三落牌，位置與洗牌最後切開的位置相同，看起來是同一批牌 -->
     <template v-else-if="phase === 'cutting'">
       <button
-        v-for="(offset, index) in PILE_OFFSETS"
+        v-for="(offset, index) in pileOffsets"
         :key="`pile-${index}`"
         :ref="(el) => setEl(pileEls, index, el)"
         type="button"
@@ -577,15 +580,6 @@ const statusText = computed(() => {
       </div>
     </template>
 
-    <!-- 洗牌會一直循環，使用者覺得可以了再按 -->
-    <button
-      v-if="phase === 'shuffling'"
-      type="button"
-      class="absolute bottom-1 left-1/2 z-[100] -translate-x-1/2 cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-1.5 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25"
-      @click.stop="startCut"
-    >
-      切牌
-    </button>
 
     <p
       v-if="hintText"

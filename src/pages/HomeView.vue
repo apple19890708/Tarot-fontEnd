@@ -594,7 +594,7 @@ onBeforeUnmount(cancelNarration)
 
       <!-- 步驟 1 內容不多，收窄並置中；輸入已抽到的牌是左右並排、牌名要放得下，和步驟 3 一樣用整個寬度 -->
       <section
-        class="w-full rounded-[2rem] border border-white/10 bg-slate-950/45 p-6 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur flex-1"
+        class="w-full rounded-[2rem] border border-white/10 bg-slate-950/45 p-6 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur flex flex-1 flex-col"
         :class="step === 3 || (step === 2 && drawMode === 'input') ? '' : 'mx-auto max-w-2xl'"
       >
         <StepQuestion
