@@ -46,3 +46,44 @@
 - 區塊標題全面口語化（整體在說什麼／這件事有多大／牌跟牌之間的關係／走到哪個階段等）；阻力只在指向分析顯示一次
 - 下拉選單改為自製的 `SelectField.vue`（button + listbox）：原生 select 的箭頭不受 padding 影響、選項清單也無法套深色樣式，只能自行實作。支援鍵盤操作（上下鍵、Home/End、Enter、Esc）、點外面關閉、選中打勾；問題類型與牌陣兩處共用
 - 牌跟牌之間的關係：牌名旁補上正位／逆位標籤（逆位用紅色區別）
+
+## 2026-10-27
+
+### Claude 規範
+- 新增 `.claude/`：agents（`vue-ui-dev`、`api-type-sync`）與 skills（`verify`、`dev-server`、`worklog`）
+- `CLAUDE.md` 增列「Claude 規範」段落；後端 `../Tbackend/.claude/` 有對稱的一套
+
+### 輸入已抽到的牌：清單改版
+- 選牌清單從膠囊換行改為格狀，數字牌一排五張（一到十剛好兩排），**宮廷牌獨立一區**一排四張（一排正好一個花色）
+- 宮廷牌由後端新的 `kind` 欄位判斷（編號在不同牌組不一致）；舊版後端沒有這個欄位時退回用小牌編號 11～14 判斷
+- 版面加寬：這個模式改用整頁寬度（原本被壓在 `max-w-5xl`），右欄 28rem／xl 34rem，牌名不再被截成「權…」
+
+### 手動抽牌：動畫與互動
+- `FanDeck.vue` 改寫：進場時牌從中央疊牌逐張轉開成扇形（每張延遲 10ms），重新洗牌會再播一次；
+  動畫期間關閉 pointer events，免得牌還在飛就被判定成 hover
+- 滑鼠移到牌上（或鍵盤 focus）時該張抬起並放大，邊框與花紋亮起
+- **hover 的命中區固定不動**：牌與牌重疊很密，如果讓按鈕本身跟著位移放大，游標會在
+  「牌移開 → 離開 → 牌歸位 → 又進入」之間反覆觸發；改成按鈕只負責扇形定位，
+  抬起與放大做在內層牌面（`pointer-events-none`）上，並取消原本鄰牌讓位的效果
+- 已選取的牌縮小淡出；抽到的牌進入位置時淡入放大（`<Transition>` ＋ Tailwind class，沒有自訂 CSS）
+- 全部用 transform／opacity 過渡，`motion-reduce` 時不做動畫
+
+### 我的紀錄（v13）
+- 結果頁新增「保存紀錄」按鈕：占卜結果預設不留存，按了才存。未登入時先把結果存進 sessionStorage 快照、
+  帶去登入頁，回來還是同一組牌且按鈕狀態正確（已保存就不會再存一次）
+- 保存時若已經產生 AI 解讀，會一起送出保存；先保存再請 AI 解讀的話，帶 `readingId` 由後端寫回同一筆
+- 新增 `/history` 頁（`meta.auth`）與 `HistoryView.vue`：列表、分頁、點開回顧、刪除
+- 刪除採二段式（點一次變「確定刪除？」），不用瀏覽器 confirm
+- 詳情直接重用 `StepResult.vue`（新增 `hideFlowActions` 隱藏重抽／重新開始與保存）
+- 有 AI 解讀的紀錄直接顯示存下來的那一份；沒有的仍可在這裡請 AI 解讀，解讀完成後存回同一筆
+- `api.ts` 新增 `saveReadingRecord`、`fetchReadingHistory`、`fetchReadingDetail`、`deleteReading`；
+  `streamNarration` 可帶 `readingId`
+- `types.ts` 新增 `ReadingSummary`、`ReadingDetail`、`SaveStatus` 等型別；`CardSummary.kind`／`courtRank`
+  設為可選（相容舊版後端）
+- 導覽列排除未登入時看不到的頁面（`meta.auth`）
+
+### 其他
+- 驗證：`npm run build` 通過；沒有新增套件
+
+### 待辦
+- 紀錄的搜尋與匯出（等後端 v13 階段 5）

@@ -11,6 +11,8 @@ const navRoutes = computed(() =>
   router
     .getRoutes()
     .filter((route) => route.name && !route.meta?.guest)
+    // 要登入才進得去的頁面（例如我的紀錄），沒登入就不列出來
+    .filter((route) => !route.meta?.auth || isLoggedIn.value)
     .filter((route) => !route.meta?.role || route.meta.role === currentUser.value?.role)
     .map((route) => ({
       name: String(route.name),

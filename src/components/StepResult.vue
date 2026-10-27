@@ -9,7 +9,7 @@ import QuantPanel from './QuantPanel.vue'
 import ReadingAnalysisPanel from './ReadingAnalysisPanel.vue'
 import SpreadLayout from './SpreadLayout.vue'
 import { imageUrl } from '../lib/api'
-import type { Element, NarrationStatus, ReadingResponse, Spread } from '../types'
+import type { Element, NarrationStatus, ReadingResponse, SaveStatus, Spread } from '../types'
 
 const props = defineProps<{
   reading: ReadingResponse
@@ -18,6 +18,11 @@ const props = defineProps<{
   narrationStatus: NarrationStatus
   narrationText: string
   narrationError: string
+  // 回顧舊紀錄時沒有「重抽／重新開始」可言，由外層自己放刪除與返回
+  hideFlowActions?: boolean
+  // 保存紀錄；回顧舊紀錄時不給（本來就已經是紀錄了）
+  saveStatus?: SaveStatus
+  saveError?: string
 }>()
 
 const emit = defineEmits<{
@@ -25,7 +30,19 @@ const emit = defineEmits<{
   redraw: []
   requestNarration: []
   stopNarration: []
+  saveReading: []
 }>()
+
+// 未登入時按鈕照樣顯示，點了會先存快照再帶去登入頁
+const saveLabel = computed(() => {
+  if (props.saveStatus === 'saving') {
+    return '保存中…'
+  }
+  if (props.saveStatus === 'saved') {
+    return '已保存'
+  }
+  return isLoggedIn.value ? '保存紀錄' : '保存紀錄（需登入）'
+})
 
 // AI 回覆是 Markdown；轉成 HTML 後一定要經過 DOMPurify 清理再用 v-html 顯示
 const narrationHtml = computed(() =>
@@ -70,7 +87,22 @@ function formatSuit(suit: string | null) {
           <p class="text-xs uppercase tracking-[0.35em] text-stone-300/60">Reading Result</p>
           <h2 class="mt-2 text-3xl font-semibold text-stone-50">{{ reading.spread.name }}</h2>
         </div>
-        <div class="flex gap-2">
+        <div v-if="!hideFlowActions" class="flex flex-wrap gap-2">
+          <!-- 占卜結果預設不留存，按這個才會存進「我的紀錄」 -->
+          <button
+            v-if="saveStatus"
+            class="cursor-pointer rounded-full border px-4 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60"
+            :class="
+              saveStatus === 'saved'
+                ? 'border-amber-200/40 bg-amber-200/15 text-amber-50'
+                : 'border-amber-200/30 bg-amber-200/10 text-amber-50 hover:bg-amber-200/20'
+            "
+            type="button"
+            :disabled="saveStatus === 'saving' || saveStatus === 'saved'"
+            @click="emit('saveReading')"
+          >
+            {{ saveLabel }}
+          </button>
           <button
             class="cursor-pointer rounded-full border border-white/15 px-4 py-1.5 text-sm text-stone-200 transition hover:bg-white/10"
             type="button"
@@ -91,6 +123,16 @@ function formatSuit(suit: string | null) {
       <!-- 問題是整頁的主詞，放在牌面清單上方並給足字級，不要縮在角落 -->
       <p class="text-xl font-medium leading-relaxed text-amber-50">
         {{ reading.question || '未填寫問題，這次抽牌以當下整體能量為主。' }}
+      </p>
+
+      <p
+        v-if="saveError"
+        class="rounded-3xl border border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100"
+      >
+        {{ saveError }}
+      </p>
+      <p v-else-if="saveStatus === 'saved'" class="text-sm text-stone-300/75">
+        已經存進「我的紀錄」，之後可以回去重看這次的牌與分析。
       </p>
 
       <!-- 牌面一覽：牌名為主、位置含意用小字換色跟在後面。正位是常態，只標逆位 -->

@@ -95,7 +95,14 @@ const inputEnough = computed(() => props.inputCards.length === props.targetCount
 
 const selectedInputIds = computed(() => new Set(props.inputCards.map((card) => card.id)))
 
-// 依搜尋字串過濾，再依大牌／四花色分組
+// 宮廷牌由後端的 kind 判斷（編號在不同牌組不一致）；
+// 舊版後端沒有這個欄位時，退回用小牌編號 11～14 粗略判斷
+function isCourt(card: CardSummary) {
+  return card.kind ? card.kind === 'court' : card.arcanaType === 'minor' && card.number >= 11
+}
+
+// 依搜尋字串過濾，再依大牌／四花色數字牌／宮廷牌分組。
+// 宮廷牌單獨成一區：它們是「人」或性格，和一到十的進程是兩回事，混在花色裡不好找。
 const cardGroups = computed(() => {
   const keyword = props.cardSearch.trim().toLowerCase()
   const match = (card: CardSummary) =>
@@ -103,17 +110,23 @@ const cardGroups = computed(() => {
     card.nameZh.toLowerCase().includes(keyword) ||
     (card.nameEn || '').toLowerCase().includes(keyword)
 
-  const groups: { key: string; label: string; cards: CardSummary[] }[] = [
-    { key: 'major', label: '大阿爾克那', cards: [] },
-    { key: 'wands', label: '權杖', cards: [] },
-    { key: 'cups', label: '聖杯', cards: [] },
-    { key: 'swords', label: '寶劍', cards: [] },
-    { key: 'pentacles', label: '錢幣', cards: [] },
+  // cols 寫死兩種：數字牌一排五張（一到十剛好兩排），宮廷牌一排四張（一排正好一個花色）
+  const groups: { key: string; label: string; cols: 4 | 5; cards: CardSummary[] }[] = [
+    { key: 'major', label: '大阿爾克那', cols: 5, cards: [] },
+    { key: 'wands', label: '權杖', cols: 5, cards: [] },
+    { key: 'cups', label: '聖杯', cols: 5, cards: [] },
+    { key: 'swords', label: '寶劍', cols: 5, cards: [] },
+    { key: 'pentacles', label: '錢幣', cols: 5, cards: [] },
+    { key: 'court', label: '宮廷牌', cols: 4, cards: [] },
   ]
   const byKey = Object.fromEntries(groups.map((group) => [group.key, group]))
 
   props.allCards.filter(match).forEach((card) => {
-    const bucket = card.arcanaType === 'major' ? byKey.major : byKey[card.suit ?? '']
+    const bucket = card.arcanaType === 'major'
+      ? byKey.major
+      : isCourt(card)
+        ? byKey.court
+        : byKey[card.suit ?? '']
     bucket?.cards.push(card)
   })
 
@@ -205,14 +218,21 @@ const cardGroups = computed(() => {
           :class="picked[index] ? 'border-amber-200/40 bg-amber-100/8' : 'border-dashed border-white/15 bg-black/10'"
         >
           <span class="text-[11px] text-stone-400">{{ index + 1 }}. {{ label }}</span>
-          <img
-            v-if="picked[index] && imageUrl(picked[index].image)"
-            :src="imageUrl(picked[index].image)"
-            :alt="picked[index].nameZh"
-            class="h-12 w-8 rounded object-cover"
-            :class="{ 'rotate-180': picked[index].orientation === 'reversed' }"
-          />
-          <span v-else class="flex h-12 w-8 items-center justify-center text-stone-600">·</span>
+          <!-- 剛抽到的牌淡入並放大一下，讓人看得出牌是飛到哪個位置 -->
+          <Transition
+            enter-active-class="transition duration-300 ease-out"
+            enter-from-class="opacity-0 scale-50"
+            enter-to-class="opacity-100 scale-100"
+          >
+            <img
+              v-if="picked[index] && imageUrl(picked[index].image)"
+              :src="imageUrl(picked[index].image)"
+              :alt="picked[index].nameZh"
+              class="h-12 w-8 rounded object-cover"
+              :class="{ 'rotate-180': picked[index].orientation === 'reversed' }"
+            />
+            <span v-else class="flex h-12 w-8 items-center justify-center text-stone-600">·</span>
+          </Transition>
           <span v-if="picked[index]" class="text-[10px] leading-tight text-stone-300">
             {{ picked[index].nameZh }}
             <span class="block text-stone-500">
@@ -239,8 +259,9 @@ const cardGroups = computed(() => {
       </p>
 
       <!-- 左右並排：左邊是位置與已輸入的牌，右邊是選牌清單。
-           以前選牌排在最下面，每加一張都要捲到底。768px 以下寬度不夠分欄，改回上下排列。 -->
-      <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] md:items-start">
+           以前選牌排在最下面，每加一張都要捲到底。768px 以下寬度不夠分欄，改回上下排列。
+           右欄要放得下一排五張、四個字的牌名，所以給得比左欄寬鬆。 -->
+      <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] md:items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,34rem)]">
         <div class="space-y-4">
         <!-- 有牌陣：先把每個位置代表什麼攤開，否則使用者不知道該依什麼順序輸入 -->
         <div v-if="spread" class="rounded-3xl border border-white/10 bg-black/15 p-4">
@@ -367,15 +388,20 @@ const cardGroups = computed(() => {
               <p class="sticky top-0 bg-slate-950/80 py-1 text-xs uppercase tracking-[0.2em] text-stone-400">
                 {{ group.label }}
               </p>
-              <div class="flex flex-wrap gap-1.5 pt-1">
+              <!-- Tailwind 不會產生動態組出來的 class，欄數只能寫死兩種 -->
+              <div
+                class="grid gap-1.5 pt-1"
+                :class="group.cols === 4 ? 'grid-cols-4' : 'grid-cols-5'"
+              >
                 <button
                   v-for="card in group.cards"
                   :key="card.id"
-                  class="cursor-pointer rounded-full border px-3 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-40"
+                  class="cursor-pointer truncate rounded-xl border px-2 py-1.5 text-center text-sm transition disabled:cursor-not-allowed disabled:opacity-40"
                   :class="selectedInputIds.has(card.id)
                     ? 'border-amber-200/40 bg-amber-200/20 text-amber-50'
                     : 'border-white/10 bg-white/5 text-stone-200 hover:bg-white/10'"
                   type="button"
+                  :title="card.nameZh"
                   :disabled="selectedInputIds.has(card.id) || inputCards.length >= targetCount"
                   @click="emit('addInputCard', card)"
                 >

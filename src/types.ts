@@ -91,6 +91,9 @@ export interface CardSummary {
   arcanaType: 'major' | 'minor'
   number: number
   image: string
+  // v13：牌的種類由後端判斷（宮廷牌靠牌名，編號在不同牌組不一致）。舊版後端沒有這兩個欄位
+  kind?: 'major' | 'court' | 'pip'
+  courtRank?: CourtRank | null
 }
 
 // 手動選牌送出的單張：牌 id 與正逆位
@@ -305,3 +308,50 @@ export interface AdminUsersResponse {
   total: number
   users: AuthUser[]
 }
+
+// ===== 占卜紀錄（v13）=====
+// 後端只存牌與正逆位，分析在讀取時重算；AI 解讀則原樣保存
+
+export interface ReadingHistoryCard {
+  id: string
+  nameZh: string
+  orientation: 'upright' | 'reversed'
+}
+
+// 列表用的摘要，不含分析與 AI 文字
+export interface ReadingSummary {
+  id: string
+  question: string
+  domain: QuestionDomain | null
+  spreadKey: string | null
+  spreadName: string
+  cardCount: number
+  cards: ReadingHistoryCard[]
+  hasNarration: boolean
+  createdAt: string
+}
+
+export interface ReadingHistoryResponse {
+  page: number
+  pageSize: number
+  total: number
+  readings: ReadingSummary[]
+}
+
+export interface SavedNarration {
+  text: string
+  model: string
+  createdAt: string
+}
+
+// 單筆回顧：reading 由後端重算，narration 是當初存下來的 AI 解讀
+export interface ReadingDetail {
+  id: string
+  createdAt: string
+  domain: QuestionDomain | null
+  reading: ReadingResponse
+  narration: SavedNarration | null
+}
+
+// 結果頁「保存紀錄」的狀態
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'

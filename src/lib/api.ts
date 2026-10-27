@@ -8,6 +8,8 @@ import type {
   ManualCardPick,
   NarrationStreamEvent,
   QuestionDomain,
+  ReadingDetail,
+  ReadingHistoryResponse,
   ReadingResponse,
   Spread,
 } from '../types'
@@ -126,11 +128,57 @@ export function createManualReading(payload: {
   })
 }
 
+// ===== 占卜紀錄（v13）=====
+// 要不要留存由使用者在結果頁決定，不是自動存
+
+// 只送輸入（問題、牌與正逆位、牌陣或自訂位置），分析由後端在回顧時重算。
+// AI 解讀無法重算，所以已經產生好的要一起送回去存。
+export function saveReadingRecord(payload: {
+  question: string
+  cards: ManualCardPick[]
+  domain?: QuestionDomain
+  spreadKey?: string
+  positions?: CustomPosition[]
+  narration?: { text: string; model?: string }
+}) {
+  return request<{ id: string; createdAt: string }>('/api/readings', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchReadingHistory(params: { page?: number; pageSize?: number } = {}) {
+  const query = new URLSearchParams()
+  if (params.page) {
+    query.set('page', String(params.page))
+  }
+  if (params.pageSize) {
+    query.set('pageSize', String(params.pageSize))
+  }
+  const suffix = query.toString() ? `?${query}` : ''
+  return request<ReadingHistoryResponse>(`/api/readings${suffix}`)
+}
+
+// 單筆回顧：分析由後端依當時的牌重算，AI 解讀則是當初存下來的那一份
+export function fetchReadingDetail(id: string) {
+  return request<ReadingDetail>(`/api/readings/${id}`)
+}
+
+export function deleteReading(id: string) {
+  return request<{ deleted: boolean }>(`/api/readings/${id}`, { method: 'DELETE' })
+}
+
 // 以串流接收 AI 解讀：每收到一段文字就呼叫 onDelta。
 // 傳入的 signal 被中斷時，後端會跟著中斷 AI 生成（停止計費），這裡會丟出 AbortError。
 export async function streamNarration(
   reading: ReadingResponse,
-  options: { signal: AbortSignal; onDelta: (text: string) => void; domain?: QuestionDomain },
+  options: {
+    signal: AbortSignal
+    onDelta: (text: string) => void
+    domain?: QuestionDomain
+    // 已經保存成紀錄時帶上它的 id，後端會在解讀完整產生後存回那筆紀錄
+    readingId?: string
+  },
 ): Promise<{ model: string }> {
   const response = await fetch(`${API_BASE_URL}/api/readings/narrate`, {
     method: 'POST',
@@ -147,6 +195,8 @@ export async function streamNarration(
           }))
         : undefined,
       domain: options.domain,
+      // 後端完整產生後會把文字存回這筆紀錄；還沒保存就只是不存檔，解讀照常
+      readingId: options.readingId,
       cards: reading.cards.map((entry) => ({ id: entry.card.id, orientation: entry.orientation })),
     }),
     signal: options.signal,

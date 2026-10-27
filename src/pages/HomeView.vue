@@ -12,6 +12,7 @@ import {
   fetchCards,
   fetchHealth,
   fetchSpreads,
+  saveReadingRecord,
   streamNarration,
 } from '../lib/api'
 import { canUseAi, isLoggedIn } from '../lib/auth'
@@ -25,6 +26,7 @@ import type {
   NarrationStatus,
   QuestionDomain,
   ReadingResponse,
+  SaveStatus,
   Spread,
 } from '../types'
 
@@ -119,6 +121,12 @@ const narrationStatus = ref<NarrationStatus>('idle')
 const narrationError = ref('')
 // 進行中的 AI 請求；中斷它會讓後端一併停止 AI 生成
 let narrationController: AbortController | null = null
+
+// 保存紀錄：預設不存，使用者在結果頁自己決定。存成功後記住 id，
+// 之後產生的 AI 解讀才知道要存回哪一筆
+const savedReadingId = ref('')
+const saveStatus = ref<SaveStatus>('idle')
+const saveError = ref('')
 
 const health = ref<HealthResponse | null>(null)
 const errorMessage = ref('')
@@ -252,6 +260,8 @@ async function loadNarration(current: ReadingResponse) {
     await streamNarration(current, {
       signal: controller.signal,
       domain: domainParam.value,
+      // 已經保存過才有 id；後端會在完整產生後把解讀存回那筆紀錄
+      readingId: savedReadingId.value || undefined,
       onDelta: (text) => {
         if (controller === narrationController) {
           narrationText.value += text
@@ -290,6 +300,8 @@ interface ResultSnapshot {
   question: string
   domain: QuestionDomain | ''
   narrationText: string
+  // 已經保存成紀錄的話，登入回來不要又變成沒存過
+  savedReadingId: string
   savedAt: number
 }
 
@@ -304,6 +316,7 @@ function saveResultSnapshot() {
       question: question.value,
       domain: selectedDomain.value,
       narrationText: narrationText.value,
+      savedReadingId: savedReadingId.value,
       savedAt: Date.now(),
     }
     sessionStorage.setItem(RESULT_SNAPSHOT_KEY, JSON.stringify(snapshot))
@@ -340,6 +353,9 @@ function restoreResultSnapshot() {
     question.value = snapshot.question || snapshot.reading.question || ''
     selectedDomain.value = snapshot.domain || ''
     narrationText.value = snapshot.narrationText || ''
+    savedReadingId.value = snapshot.savedReadingId || ''
+    saveStatus.value = snapshot.savedReadingId ? 'saved' : 'idle'
+    saveError.value = ''
     // AI 寫到一半被中斷的文字也留著，狀態標成已停止，使用者可以再按一次繼續
     narrationStatus.value = snapshot.narrationText
       ? 'stopped'
@@ -382,6 +398,53 @@ function stopNarration() {
   narrationStatus.value = narrationText.value ? 'stopped' : 'ready'
 }
 
+// ---- 保存紀錄 ----
+
+// 自訂牌陣的位置含意只存在於這次結果裡，後端查不到，要一起送回去
+function customPositionsOf(current: ReadingResponse) {
+  if (current.spread.key !== 'custom') {
+    return undefined
+  }
+  return current.cards.every((entry) => entry.position)
+    ? current.cards.map((entry) => ({ label: entry.position!.label, prompt: entry.position!.prompt }))
+    : undefined
+}
+
+// 占卜結果預設不留存，按了才存。未登入時先存快照再帶去登入頁，回來還是同一組牌。
+async function handleSaveReading() {
+  const current = reading.value
+  if (!current || saveStatus.value === 'saving' || saveStatus.value === 'saved') {
+    return
+  }
+
+  if (!isLoggedIn.value) {
+    saveResultSnapshot()
+    router.push({ path: '/login', query: { redirect: '/' } })
+    return
+  }
+
+  saveStatus.value = 'saving'
+  saveError.value = ''
+
+  try {
+    const { id } = await saveReadingRecord({
+      question: current.question,
+      cards: current.cards.map((entry) => ({ id: entry.card.id, orientation: entry.orientation })),
+      domain: domainParam.value,
+      spreadKey: current.spread.key,
+      positions: customPositionsOf(current),
+      // 分析之後由後端重算，但 AI 解讀無法重算，已經產生好的要一起存
+      narration:
+        narrationStatus.value === 'done' && narrationText.value ? { text: narrationText.value } : undefined,
+    })
+    savedReadingId.value = id
+    saveStatus.value = 'saved'
+  } catch (error) {
+    saveError.value = error instanceof Error ? error.message : '保存失敗，請稍後再試一次'
+    saveStatus.value = 'error'
+  }
+}
+
 // ---- 流程 ----
 
 function onReadingReady(result: ReadingResponse) {
@@ -390,6 +453,10 @@ function onReadingReady(result: ReadingResponse) {
   narrationText.value = ''
   narrationError.value = ''
   narrationStatus.value = result.analysis ? 'ready' : 'idle'
+  // 新的一次占卜是新的結果，保存狀態重來
+  savedReadingId.value = ''
+  saveStatus.value = 'idle'
+  saveError.value = ''
   step.value = 3
 }
 
@@ -467,6 +534,9 @@ function restart() {
   reading.value = null
   narrationText.value = ''
   narrationStatus.value = 'idle'
+  savedReadingId.value = ''
+  saveStatus.value = 'idle'
+  saveError.value = ''
   picked.value = []
   inputCards.value = []
   deck.value = []
@@ -480,6 +550,9 @@ async function redraw() {
   reading.value = null
   narrationText.value = ''
   narrationStatus.value = 'idle'
+  savedReadingId.value = ''
+  saveStatus.value = 'idle'
+  saveError.value = ''
   picked.value = []
   inputCards.value = []
   step.value = 2
@@ -541,10 +614,10 @@ onBeforeUnmount(cancelNarration)
         </template>
       </ol>
 
-      <!-- 步驟 1 內容不多，收窄並置中；輸入已抽到的牌是左右並排，要給足寬度；步驟 3 的結果用整個寬度 -->
+      <!-- 步驟 1 內容不多，收窄並置中；輸入已抽到的牌是左右並排、牌名要放得下，和步驟 3 一樣用整個寬度 -->
       <section
         class="w-full rounded-[2rem] border border-white/10 bg-slate-950/45 p-6 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur"
-        :class="step === 3 ? '' : step === 2 && drawMode === 'input' ? 'mx-auto max-w-5xl' : 'mx-auto max-w-2xl'"
+        :class="step === 3 || (step === 2 && drawMode === 'input') ? '' : 'mx-auto max-w-2xl'"
       >
         <StepQuestion
           v-if="step === 1"
@@ -592,6 +665,9 @@ onBeforeUnmount(cancelNarration)
           :narration-status="narrationStatus"
           :narration-text="narrationText"
           :narration-error="narrationError"
+          :save-status="saveStatus"
+          :save-error="saveError"
+          @save-reading="handleSaveReading"
           @restart="restart"
           @redraw="redraw"
           @request-narration="requestNarration"
