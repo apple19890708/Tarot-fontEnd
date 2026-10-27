@@ -10,18 +10,18 @@ import {
   createManualReading,
   createReading,
   fetchCards,
-  fetchHealth,
   fetchSpreads,
   saveReadingRecord,
   streamNarration,
 } from '../lib/api'
-import { canUseAi, isLoggedIn } from '../lib/auth'
+import { canUseAi, isLoggedIn, onLogout } from '../lib/auth'
+import { refreshHealth } from '../lib/health'
+import { clearResultSnapshot, RESULT_SNAPSHOT_KEY } from '../lib/resultSnapshot'
 import type {
   CardSummary,
   CustomPosition,
   DeckCard,
   DrawMode,
-  HealthResponse,
   ManualCardPick,
   NarrationStatus,
   QuestionDomain,
@@ -128,7 +128,6 @@ const savedReadingId = ref('')
 const saveStatus = ref<SaveStatus>('idle')
 const saveError = ref('')
 
-const health = ref<HealthResponse | null>(null)
 const errorMessage = ref('')
 const isLoading = ref(false)
 const isBootstrapping = ref(true)
@@ -138,22 +137,13 @@ const resultSpread = computed(
   () => spreads.value.find((spread) => spread.key === reading.value?.spread.key) || null,
 )
 
-const statusLabel = computed(() => {
-  if (!health.value) {
-    return '正在檢查後端狀態'
-  }
-  return health.value.database.ready
-    ? `MongoDB 已連線，已載入 ${health.value.database.cardCount} 張牌`
-    : 'MongoDB 尚未連線，請先完成 seed'
-})
-
+// 後端狀態改由 top bar（App.vue）載入與顯示，這裡只載牌陣
 async function bootstrap() {
   isBootstrapping.value = true
   errorMessage.value = ''
 
   try {
-    const [healthResponse, spreadResponse] = await Promise.all([fetchHealth(), fetchSpreads()])
-    health.value = healthResponse
+    const spreadResponse = await fetchSpreads()
     spreads.value = spreadResponse
 
     if (!spreadResponse.some((spread) => spread.key === selectedSpreadKey.value) && spreadResponse[0]) {
@@ -290,8 +280,7 @@ const router = useRouter()
 
 // ---- 結果快照 ----
 // 從結果頁離開去登入（或重新整理）會把元件卸載，抽到的牌就不見了。
-// 用 sessionStorage 把結果暫存起來，回來時原樣還原；分頁關掉就自然清掉。
-const RESULT_SNAPSHOT_KEY = 'tarot_result_snapshot'
+// 用 sessionStorage 把結果暫存起來，回來時原樣還原；分頁關掉、登出就清掉。
 // 太舊的快照不還原，免得隔很久回到這個分頁，看到的是上次的牌
 const RESULT_SNAPSHOT_TTL_MS = 2 * 60 * 60 * 1000
 
@@ -322,14 +311,6 @@ function saveResultSnapshot() {
     sessionStorage.setItem(RESULT_SNAPSHOT_KEY, JSON.stringify(snapshot))
   } catch {
     // 無痕視窗或容量不足時存不起來，就只是沒有還原功能，不影響其他流程
-  }
-}
-
-function clearResultSnapshot() {
-  try {
-    sessionStorage.removeItem(RESULT_SNAPSHOT_KEY)
-  } catch {
-    // 同上
   }
 }
 
@@ -490,7 +471,7 @@ async function handleAutoDraw() {
         domain: domainParam.value,
       }),
     )
-    health.value = await fetchHealth()
+    void refreshHealth()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '抽牌失敗'
   } finally {
@@ -519,7 +500,7 @@ async function handleManualSubmit() {
         positions: customPositionsParam.value,
       }),
     )
-    health.value = await fetchHealth()
+    void refreshHealth()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '解讀失敗'
   } finally {
@@ -562,6 +543,16 @@ async function redraw() {
   }
 }
 
+// 在占卜頁直接按登出時元件不會重新掛載，要自己回到步驟 1。
+// 只接使用者主動登出；token 過期（401）時保留結果，讓人重新登入後還能保存
+// restart 會保留問題方便重問；登出連問題一起清掉
+const offLogout = onLogout(() => {
+  restart()
+  question.value = ''
+  selectedDomain.value = ''
+})
+onBeforeUnmount(offLogout)
+
 onMounted(() => {
   // 先還原結果，再去載牌陣與牌庫；還原成功的話會直接停在步驟 3
   restoreResultSnapshot()
@@ -573,28 +564,15 @@ onBeforeUnmount(cancelNarration)
 </script>
 
 <template>
-  <main class="min-h-screen text-stone-100">
-    <div class="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-5 py-8 md:px-8">
-      <header class="flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p class="text-xs uppercase tracking-[0.35em] text-amber-100/70">Tarot Divination Studio</p>
-          <h1 class="mt-2 text-2xl font-semibold text-stone-50">塔羅占卜</h1>
-          <p class="mt-1 text-sm text-stone-300/75">{{ statusLabel }}</p>
-        </div>
-        <button
-          class="shrink-0 cursor-pointer rounded-full border border-amber-200/30 bg-amber-200/10 px-4 py-2 text-sm font-medium text-amber-50 transition hover:bg-amber-200/20"
-          type="button"
-          @click="bootstrap"
-        >
-          重新檢查 API
-        </button>
-      </header>
+  <!-- 滿版：撐滿 App 主內容區的高度，結果卡片（section）再吃掉步驟列以外的空間 -->
+  <div class="flex min-h-full flex-col text-stone-100">
+    <div class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-5 py-2 md:px-8">
 
       <!-- 步驟指示只顯示目前走到哪，不能點。要回到前面一律用「重新開始」 -->
-      <ol class="flex flex-wrap items-center justify-center gap-2" aria-label="占卜步驟">
+      <ol class="flex flex-wrap items-center justify-center gap-1 sm:gap-2" aria-label="占卜步驟">
         <template v-for="(item, index) in STEPS" :key="item.value">
           <li
-            class="flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm select-none"
+            class="flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs select-none sm:gap-2 sm:px-4 sm:py-1.5 sm:text-sm"
             :class="
               step === item.value
                 ? 'border-amber-200/50 bg-amber-200/15 text-amber-50'
@@ -616,7 +594,7 @@ onBeforeUnmount(cancelNarration)
 
       <!-- 步驟 1 內容不多，收窄並置中；輸入已抽到的牌是左右並排、牌名要放得下，和步驟 3 一樣用整個寬度 -->
       <section
-        class="w-full rounded-[2rem] border border-white/10 bg-slate-950/45 p-6 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur"
+        class="w-full rounded-[2rem] border border-white/10 bg-slate-950/45 p-6 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur flex-1"
         :class="step === 3 || (step === 2 && drawMode === 'input') ? '' : 'mx-auto max-w-2xl'"
       >
         <StepQuestion
@@ -679,5 +657,5 @@ onBeforeUnmount(cancelNarration)
         </p>
       </section>
     </div>
-  </main>
+  </div>
 </template>

@@ -1,10 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { currentUser, isAdmin, isLoggedIn, logout } from './lib/auth'
+import { healthLabel, refreshHealth } from './lib/health'
 
 const router = useRouter()
+const route = useRoute()
+
+onMounted(refreshHealth)
+
+// 目前所在的頁面亮起；用路由名稱比對，網址帶 query（例如紀錄頁的 ?id=）也算同一頁
+function navClass(name: string) {
+  return route.name === name ? 'font-medium text-amber-200' : 'text-stone-200/80 hover:text-amber-200'
+}
 
 // 導覽列只顯示目前角色進得去的頁面
 const navRoutes = computed(() =>
@@ -28,12 +37,17 @@ function signOut() {
 </script>
 
 <template>
-	<div class="min-h-screen bg-neutral-900 text-stone-100">
+	<!-- 兩列格線：top bar 依內容高度，主內容撐滿剩下的畫面，頁面可以用 min-h-full 做滿版 -->
+	<div class="grid min-h-screen grid-rows-[auto_1fr] bg-neutral-900 text-stone-100">
 		<header class="border-b border-white/6 bg-black/10">
-			<div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4">
-				<div class="font-semibold">Tarot Studio</div>
-				<nav class="flex items-center gap-4">
-					<router-link v-for="r in navRoutes" :key="r.name" :to="r.path" class="text-sm text-stone-200/80 hover:text-amber-200">{{ r.label }}</router-link>
+			<div class="mx-auto flex flex-wrap items-center justify-between gap-4 px-5 py-3">
+				<div class="leading-tight">
+					<p class="text-[10px] uppercase tracking-[0.3em] text-amber-100/70">Tarot Divination Studio</p>
+					<p class="text-base font-semibold text-stone-50">塔羅占卜</p>
+					<p class="text-xs text-stone-300/75">{{ healthLabel }}</p>
+				</div>
+				<nav class="flex flex-wrap items-center gap-x-3 gap-y-1 whitespace-nowrap sm:gap-x-4">
+					<router-link v-for="r in navRoutes" :key="r.name" :to="r.path" class="text-sm transition" :class="navClass(r.name)">{{ r.label }}</router-link>
 
 					<template v-if="isLoggedIn">
 						<span class="text-sm text-stone-300/70">
@@ -43,14 +57,14 @@ function signOut() {
 						<button class="cursor-pointer text-sm text-stone-200/80 hover:text-rose-200" @click="signOut">登出</button>
 					</template>
 					<template v-else>
-						<router-link to="/login" class="text-sm text-stone-200/80 hover:text-amber-200">登入</router-link>
+						<router-link to="/login" class="text-sm transition" :class="navClass('login')">登入</router-link>
 						<router-link to="/register" class="rounded-xl border border-amber-200/30 bg-amber-200/10 px-3 py-1 text-sm text-amber-100 hover:bg-amber-200/20">註冊</router-link>
 					</template>
 				</nav>
 			</div>
 		</header>
 
-		<main class="mx-auto max-w-7xl p-5">
+		<main class="mx-auto w-full max-w-7xl p-5">
 			<router-view />
 		</main>
 	</div>

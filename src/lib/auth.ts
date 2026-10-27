@@ -1,5 +1,6 @@
 // 登入狀態的進入點。元件只 import 這個檔案，不直接碰 session.ts 或 api.ts。
 import { fetchMe, loginRequest, registerRequest } from './api'
+import { clearResultSnapshot } from './resultSnapshot'
 import {
   clearSession,
   getToken,
@@ -34,9 +35,22 @@ export async function register(email: string, password: string, displayName?: st
   return user
 }
 
+// 使用者主動登出時要通知的對象（例如占卜頁把畫面上的結果清掉）。401 不算，見 onUnauthorized
+const logoutListeners = new Set<() => void>()
+
+export function onLogout(listener: () => void) {
+  logoutListeners.add(listener)
+  return () => {
+    logoutListeners.delete(listener)
+  }
+}
+
 export function logout() {
   clearSession()
+  // 暫存的占卜結果屬於上一個人，一起清掉
+  clearResultSnapshot()
   session.ready = true
+  logoutListeners.forEach((listener) => listener())
 }
 
 // 重新整理後用 token 向後端換回使用者。沒有這一步，守衛會把已登入的 admin 誤判成未登入。

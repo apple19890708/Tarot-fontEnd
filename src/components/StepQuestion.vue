@@ -49,7 +49,7 @@ const freeCountOptions = computed(() =>
 <template>
   <div class="space-y-5">
     <label class="block space-y-2">
-      <span class="text-sm font-medium text-stone-200">問題核心</span>
+      <span class="block text-sm font-medium text-stone-200">問題核心</span>
       <textarea
         :value="question"
         rows="3"

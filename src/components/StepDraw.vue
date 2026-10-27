@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 
 import FanDeck from './FanDeck.vue'
+import FlyingCard from './FlyingCard.vue'
 import { imageUrl } from '../lib/api'
+import { prefersReducedMotion, type CardPose } from '../lib/motion'
 import type { CardSummary, CustomPosition, DeckCard, DrawMode, Spread } from '../types'
 
 const props = defineProps<{
@@ -57,6 +59,91 @@ const slots = computed(() =>
 
 const positionLabels = computed(() => slots.value.map((slot) => slot.label))
 
+// ---- 手動抽牌的飛牌動畫 ----
+// 資料照常立刻更新（選取／收回），動畫只是在最上層放一張替身飛過去；
+// 飛行期間把終點那張藏起來，抵達後再出現。
+const fanRef = ref<InstanceType<typeof FanDeck> | null>(null)
+// 位置格裡放牌圖的框，依 index 存放（v-for 的 ref 陣列不保證順序）
+const slotBoxes: HTMLElement[] = []
+
+function setSlotBox(index: number, el: unknown) {
+  if (el instanceof HTMLElement) {
+    slotBoxes[index] = el
+  }
+}
+
+interface Flight {
+  key: number
+  card: DeckCard
+  from: CardPose
+  to: CardPose
+  reveal: boolean
+}
+
+const flights = ref<Flight[]>([])
+let flightKey = 0
+
+// 正在飛往位置格的牌（位置格先不顯示）與正在飛回扇形的牌（扇形先不顯示）
+const landingIds = computed(() => new Set(flights.value.filter((f) => f.reveal).map((f) => f.card.id)))
+const returningIds = computed(() => new Set(flights.value.filter((f) => !f.reveal).map((f) => f.card.id)))
+
+function slotPose(index: number, card: DeckCard, fromRotation: number): CardPose | null {
+  const box = slotBoxes[index]
+  if (!box) {
+    return null
+  }
+  const rect = box.getBoundingClientRect()
+  // 逆位在位置格裡是倒過來的；從扇形的哪一側飛來，就往那一側轉半圈，不要繞遠路
+  const rotation = card.orientation === 'reversed' ? (fromRotation < 0 ? -180 : 180) : 0
+  return {
+    cx: rect.left + rect.width / 2,
+    cy: rect.top + rect.height / 2,
+    width: box.offsetWidth,
+    height: box.offsetHeight,
+    rotation,
+  }
+}
+
+function launch(card: DeckCard, from: CardPose | null, to: CardPose | null, reveal: boolean) {
+  if (!from || !to) {
+    return
+  }
+  flights.value.push({ key: (flightKey += 1), card, from, to, reveal })
+}
+
+function landFlight(key: number) {
+  flights.value = flights.value.filter((flight) => flight.key !== key)
+}
+
+async function onPick(index: number) {
+  const card = props.deck[index]
+  const slotIndex = props.picked.length
+  const from = fanRef.value?.cardPose(index) ?? null
+  emit('pick', index)
+  if (!card || prefersReducedMotion()) {
+    return
+  }
+  // 等位置格更新後再量終點
+  await nextTick()
+  launch(card, from, slotPose(slotIndex, card, from?.rotation ?? 0), true)
+}
+
+async function onUndoPick() {
+  const slotIndex = props.picked.length - 1
+  const card = props.picked[slotIndex]
+  if (!card) {
+    return
+  }
+  const deckIndex = props.deck.findIndex((item) => item.id === card.id)
+  const fanPose = fanRef.value?.cardPose(deckIndex) ?? null
+  const from = slotPose(slotIndex, card, fanPose?.rotation ?? 0)
+  emit('undoPick')
+  if (prefersReducedMotion()) {
+    return
+  }
+  launch(card, from, fanPose, false)
+}
+
 // 拖曳調整牌的順序。位置名稱固定在原地不跟著動，移動的是落在那個位置上的牌。
 const dragIndex = ref<number | null>(null)
 const dropIndex = ref<number | null>(null)
@@ -101,8 +188,9 @@ function isCourt(card: CardSummary) {
   return card.kind ? card.kind === 'court' : card.arcanaType === 'minor' && card.number >= 11
 }
 
-// 依搜尋字串過濾，再依大牌／四花色數字牌／宮廷牌分組。
-// 宮廷牌單獨成一區：它們是「人」或性格，和一到十的進程是兩回事，混在花色裡不好找。
+// 依搜尋字串過濾，再依大牌／四花色分組。
+// 每個花色裡數字牌在上、宮廷牌另起一排接在下面：同花色的牌放在一起好找，
+// 宮廷牌又和一到十的進程分開一排，不會混在一起。
 const cardGroups = computed(() => {
   const keyword = props.cardSearch.trim().toLowerCase()
   const match = (card: CardSummary) =>
@@ -110,27 +198,30 @@ const cardGroups = computed(() => {
     card.nameZh.toLowerCase().includes(keyword) ||
     (card.nameEn || '').toLowerCase().includes(keyword)
 
-  // cols 寫死兩種：數字牌一排五張（一到十剛好兩排），宮廷牌一排四張（一排正好一個花色）
-  const groups: { key: string; label: string; cols: 4 | 5; cards: CardSummary[] }[] = [
-    { key: 'major', label: '大阿爾克那', cols: 5, cards: [] },
-    { key: 'wands', label: '權杖', cols: 5, cards: [] },
-    { key: 'cups', label: '聖杯', cols: 5, cards: [] },
-    { key: 'swords', label: '寶劍', cols: 5, cards: [] },
-    { key: 'pentacles', label: '錢幣', cols: 5, cards: [] },
-    { key: 'court', label: '宮廷牌', cols: 4, cards: [] },
+  // 數字牌一排五張（一到十剛好兩排），宮廷牌一排四張（侍者到國王剛好一排）
+  const groups: { key: string; label: string; cards: CardSummary[]; courts: CardSummary[] }[] = [
+    { key: 'major', label: '大阿爾克那', cards: [], courts: [] },
+    { key: 'wands', label: '權杖', cards: [], courts: [] },
+    { key: 'cups', label: '聖杯', cards: [], courts: [] },
+    { key: 'swords', label: '寶劍', cards: [], courts: [] },
+    { key: 'pentacles', label: '錢幣', cards: [], courts: [] },
   ]
   const byKey = Object.fromEntries(groups.map((group) => [group.key, group]))
 
   props.allCards.filter(match).forEach((card) => {
-    const bucket = card.arcanaType === 'major'
-      ? byKey.major
-      : isCourt(card)
-        ? byKey.court
-        : byKey[card.suit ?? '']
-    bucket?.cards.push(card)
+    if (card.arcanaType === 'major') {
+      byKey.major?.cards.push(card)
+      return
+    }
+    const bucket = byKey[card.suit ?? '']
+    if (isCourt(card)) {
+      bucket?.courts.push(card)
+    } else {
+      bucket?.cards.push(card)
+    }
   })
 
-  return groups.filter((group) => group.cards.length > 0)
+  return groups.filter((group) => group.cards.length > 0 || group.courts.length > 0)
 })
 </script>
 
@@ -154,7 +245,7 @@ const cardGroups = computed(() => {
       <button
         v-for="tab in MODES"
         :key="tab.key"
-        class="cursor-pointer rounded-full px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-35"
+        class="cursor-pointer whitespace-nowrap rounded-full px-1 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-35 sm:px-3 sm:text-sm"
         :class="mode === tab.key ? 'bg-amber-200/90 text-slate-950' : 'text-stone-300/80 hover:text-stone-100'"
         type="button"
         :disabled="!tab.enabled"
@@ -193,7 +284,7 @@ const cardGroups = computed(() => {
             class="cursor-pointer rounded-full border border-white/15 px-3 py-1 text-xs text-stone-200 transition hover:bg-white/10 disabled:opacity-40"
             type="button"
             :disabled="picked.length === 0"
-            @click="emit('undoPick')"
+            @click="onUndoPick"
           >
             收回最後一張
           </button>
@@ -207,9 +298,27 @@ const cardGroups = computed(() => {
         </div>
       </div>
 
-      <FanDeck :deck="deck" :can-pick="!pickedEnough" @pick="emit('pick', $event)" />
+      <FanDeck
+        ref="fanRef"
+        :deck="deck"
+        :can-pick="!pickedEnough"
+        :hidden-ids="returningIds"
+        @pick="onPick"
+      />
+
+      <FlyingCard
+        v-for="flight in flights"
+        :key="flight.key"
+        :image="imageUrl(flight.card.image)"
+        :alt="flight.card.nameZh"
+        :from="flight.from"
+        :to="flight.to"
+        :reveal="flight.reveal"
+        @done="landFlight(flight.key)"
+      />
 
       <!-- 已放入牌陣的位置 -->
+      <!-- 每格尺寸固定：選牌前後高度不變，下方的按鈕才不會跟著跳 -->
       <ul class="flex flex-wrap gap-2">
         <li
           v-for="(label, index) in positionLabels"
@@ -218,26 +327,40 @@ const cardGroups = computed(() => {
           :class="picked[index] ? 'border-amber-200/40 bg-amber-100/8' : 'border-dashed border-white/15 bg-black/10'"
         >
           <span class="text-[11px] text-stone-400">{{ index + 1 }}. {{ label }}</span>
-          <!-- 剛抽到的牌淡入並放大一下，讓人看得出牌是飛到哪個位置 -->
-          <Transition
-            enter-active-class="transition duration-300 ease-out"
-            enter-from-class="opacity-0 scale-50"
-            enter-to-class="opacity-100 scale-100"
+          <!-- 佔位點與牌圖疊在同一個固定大小的框裡，替換時不會有兩個同時撐開版面 -->
+          <!-- 飛牌途中先藏起牌圖，替身抵達時才出現 -->
+          <span
+            :ref="(el) => setSlotBox(index, el)"
+            class="relative h-12 w-8"
+            :class="picked[index] && landingIds.has(picked[index].id) ? 'invisible' : ''"
           >
-            <img
-              v-if="picked[index] && imageUrl(picked[index].image)"
-              :src="imageUrl(picked[index].image)"
-              :alt="picked[index].nameZh"
-              class="h-12 w-8 rounded object-cover"
-              :class="{ 'rotate-180': picked[index].orientation === 'reversed' }"
-            />
-            <span v-else class="flex h-12 w-8 items-center justify-center text-stone-600">·</span>
-          </Transition>
-          <span v-if="picked[index]" class="text-[10px] leading-tight text-stone-300">
-            {{ picked[index].nameZh }}
-            <span class="block text-stone-500">
-              {{ picked[index].orientation === 'upright' ? '正位' : '逆位' }}
-            </span>
+            <span
+              v-if="!picked[index]"
+              class="absolute inset-0 flex items-center justify-center text-stone-600"
+            >·</span>
+            <!-- 剛抽到的牌淡入並放大一下，讓人看得出牌是飛到哪個位置 -->
+            <Transition
+              enter-active-class="transition duration-300 ease-out"
+              enter-from-class="opacity-0 scale-50"
+              enter-to-class="opacity-100 scale-100"
+            >
+              <img
+                v-if="picked[index] && imageUrl(picked[index].image)"
+                :src="imageUrl(picked[index].image)"
+                :alt="picked[index].nameZh"
+                class="absolute inset-0 h-12 w-8 rounded object-cover"
+                :class="{ 'rotate-180': picked[index].orientation === 'reversed' }"
+              />
+            </Transition>
+          </span>
+          <!-- 牌名與正逆位兩行，沒選牌時也先佔好高度 -->
+          <span class="h-[1.6rem] text-[10px] leading-tight text-stone-300">
+            <template v-if="picked[index]">
+              {{ picked[index].nameZh }}
+              <span class="block text-stone-500">
+                {{ picked[index].orientation === 'upright' ? '正位' : '逆位' }}
+              </span>
+            </template>
           </span>
         </li>
       </ul>
@@ -388,13 +511,18 @@ const cardGroups = computed(() => {
               <p class="sticky top-0 bg-slate-950/80 py-1 text-xs uppercase tracking-[0.2em] text-stone-400">
                 {{ group.label }}
               </p>
-              <!-- Tailwind 不會產生動態組出來的 class，欄數只能寫死兩種 -->
+              <!-- 數字牌（或大牌）一排五張，宮廷牌接在下面一排四張；手機放不下牌名，一律一排兩張 -->
               <div
-                class="grid gap-1.5 pt-1"
-                :class="group.cols === 4 ? 'grid-cols-4' : 'grid-cols-5'"
+                v-for="row in [
+                  { key: 'cards', cols: 'grid-cols-2 sm:grid-cols-5', cards: group.cards },
+                  { key: 'courts', cols: 'grid-cols-2 sm:grid-cols-4', cards: group.courts },
+                ].filter((item) => item.cards.length > 0)"
+                :key="row.key"
+                class="grid gap-1.5 pt-1.5"
+                :class="row.cols"
               >
                 <button
-                  v-for="card in group.cards"
+                  v-for="card in row.cards"
                   :key="card.id"
                   class="cursor-pointer truncate rounded-xl border px-2 py-1.5 text-center text-sm transition disabled:cursor-not-allowed disabled:opacity-40"
                   :class="selectedInputIds.has(card.id)
