@@ -12,6 +12,23 @@
 - `npm run build`：型別檢查（vue-tsc）＋打包。改完程式一律用它驗證，不需要啟動 dev server。
 - 沒有測試框架；不要自行加入新套件，除非先詢問。
 
+## Claude 規範（`.claude/`）
+
+這個專案的分工規範放在 `.claude/`，後端 `../Tbackend/.claude/` 有對稱的一套。
+
+**agents**（複雜工作交給專責代理）
+
+- `vue-ui-dev`：畫面與元件開發（沿用深色玻璃樣式、文字一律來自後端）
+- `api-type-sync`：後端回傳格式改變時同步 `src/types.ts` 與 `src/lib/api.ts`
+
+**skills**（固定流程照著走）
+
+- `verify`：改完程式的驗證流程（`npm run build` ＋ 套件、路徑檢查）
+- `dev-server`：非開不可時，用 port 5180／後端 4100 啟動並**自行關閉**測試伺服器
+- `worklog`：寫 `doc/worklog.md`
+
+規範之間若有衝突，以本檔（CLAUDE.md）為準。
+
 ## 程式結構
 
 - `src/pages/HomeView.vue`：主畫面（抽牌、牌卡、AI 解讀、組合分析）
