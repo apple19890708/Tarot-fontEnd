@@ -1,11 +1,23 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { gsap } from 'gsap'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import FanDeck from './FanDeck.vue'
 import FlyingCard from './FlyingCard.vue'
+import SpreadSlots from './SpreadSlots.vue'
 import { imageUrl } from '../lib/api'
-import { prefersReducedMotion, type CardPose } from '../lib/motion'
-import type { CardSummary, CustomPosition, DeckCard, DrawMode, FanPhase, Spread } from '../types'
+import { motionDuration, prefersReducedMotion, type CardPose } from '../lib/motion'
+import type {
+  CardSummary,
+  CustomPosition,
+  DeckCard,
+  DrawMode,
+  FanPhase,
+  InputCard,
+  ReadingResponse,
+  SlotCard,
+  Spread,
+} from '../types'
 
 const props = defineProps<{
   mode: DrawMode
@@ -14,14 +26,16 @@ const props = defineProps<{
   // 手動抽牌：洗好的牌堆與已依序選出的牌
   deck: DeckCard[]
   picked: DeckCard[]
-  // 輸入已抽到的：全牌清單與已挑選的牌
+  // 輸入已抽到的：全牌清單，與放在各個位置上的牌（空位是 undefined）
   allCards: CardSummary[]
-  inputCards: (CardSummary & { orientation: 'upright' | 'reversed' })[]
+  inputCards: (InputCard | undefined)[]
   cardSearch: string
   cardsError: string
   isLoading: boolean
   // 不指定牌陣時，使用者自己定義的位置；長度與 targetCount 一致
   customPositions: CustomPosition[]
+  // 自動抽牌的結果。拿到之後才知道抽到什麼，動畫才有牌可以發；跑完通知外層進結果頁
+  autoResult: ReadingResponse | null
 }>()
 
 const emit = defineEmits<{
@@ -33,17 +47,20 @@ const emit = defineEmits<{
   pick: [index: number]
   undoPick: []
   addInputCard: [card: CardSummary]
+  setInputCard: [index: number, card: CardSummary]
   removeInputCard: [index: number]
   toggleInputOrientation: [index: number]
   updateCustomPosition: [index: number, patch: Partial<CustomPosition>]
   reorderInputCards: [from: number, to: number]
+  autoDealDone: []
   submit: []
 }>()
 
-// 自動抽牌走 /api/readings/draw，那支端點一定要牌陣；不指定牌陣時只能手動
+// 手動抽牌是這裡的主角（自己洗牌、切牌、挑牌），排在最前面；
+// 自動抽牌走 /api/readings/draw，那支端點一定要牌陣，不指定牌陣時只能手動
 const MODES = computed(() => [
-  { key: 'auto' as const, label: '自動抽牌', enabled: Boolean(props.spread) },
   { key: 'fan' as const, label: '手動抽牌', enabled: true },
+  { key: 'auto' as const, label: '自動抽牌', enabled: Boolean(props.spread) },
   { key: 'input' as const, label: '輸入已抽到的', enabled: true },
 ])
 
@@ -70,18 +87,12 @@ const showSlots = computed(() => fanPhase.value === 'dealing' || fanPhase.value 
 // 資料照常立刻更新（選取／收回），動畫只是在最上層放一張替身飛過去；
 // 飛行期間把終點那張藏起來，抵達後再出現。
 const fanRef = ref<InstanceType<typeof FanDeck> | null>(null)
-// 位置格裡放牌圖的框，依 index 存放（v-for 的 ref 陣列不保證順序）
-const slotBoxes: HTMLElement[] = []
-
-function setSlotBox(index: number, el: unknown) {
-  if (el instanceof HTMLElement) {
-    slotBoxes[index] = el
-  }
-}
+const fanSlotsRef = ref<InstanceType<typeof SpreadSlots> | null>(null)
+const autoSlotsRef = ref<InstanceType<typeof SpreadSlots> | null>(null)
 
 interface Flight {
   key: number
-  card: DeckCard
+  card: SlotCard
   from: CardPose
   to: CardPose
   reveal: boolean
@@ -94,24 +105,21 @@ let flightKey = 0
 const landingIds = computed(() => new Set(flights.value.filter((f) => f.reveal).map((f) => f.card.id)))
 const returningIds = computed(() => new Set(flights.value.filter((f) => !f.reveal).map((f) => f.card.id)))
 
-function slotPose(index: number, card: DeckCard, fromRotation: number): CardPose | null {
-  const box = slotBoxes[index]
-  if (!box) {
+function slotPose(
+  slots: InstanceType<typeof SpreadSlots> | null,
+  index: number,
+  card: SlotCard,
+  fromRotation: number,
+): CardPose | null {
+  const pose = slots?.poseOf(index) ?? null
+  if (!pose) {
     return null
   }
-  const rect = box.getBoundingClientRect()
-  // 逆位在位置格裡是倒過來的；從扇形的哪一側飛來，就往那一側轉半圈，不要繞遠路
-  const rotation = card.orientation === 'reversed' ? (fromRotation < 0 ? -180 : 180) : 0
-  return {
-    cx: rect.left + rect.width / 2,
-    cy: rect.top + rect.height / 2,
-    width: box.offsetWidth,
-    height: box.offsetHeight,
-    rotation,
-  }
+  // 逆位在位置格裡是倒過來的；從哪一側飛來就往那一側轉半圈，不要繞遠路
+  return { ...pose, rotation: card.orientation === 'reversed' ? (fromRotation < 0 ? -180 : 180) : 0 }
 }
 
-function launch(card: DeckCard, from: CardPose | null, to: CardPose | null, reveal: boolean) {
+function launch(card: SlotCard, from: CardPose | null, to: CardPose | null, reveal: boolean) {
   if (!from || !to) {
     return
   }
@@ -132,7 +140,7 @@ async function onPick(index: number) {
   }
   // 等位置格更新後再量終點
   await nextTick()
-  launch(card, from, slotPose(slotIndex, card, from?.rotation ?? 0), true)
+  launch(card, from, slotPose(fanSlotsRef.value, slotIndex, card, from?.rotation ?? 0), true)
 }
 
 async function onUndoPick() {
@@ -143,13 +151,140 @@ async function onUndoPick() {
   }
   const deckIndex = props.deck.findIndex((item) => item.id === card.id)
   const fanPose = fanRef.value?.cardPose(deckIndex) ?? null
-  const from = slotPose(slotIndex, card, fanPose?.rotation ?? 0)
+  const from = slotPose(fanSlotsRef.value, slotIndex, card, fanPose?.rotation ?? 0)
   emit('undoPick')
   if (prefersReducedMotion()) {
     return
   }
   launch(card, from, fanPose, false)
 }
+
+// ---- 自動抽牌的動畫 ----
+// 按下之後要等後端回傳才知道抽到什麼，所以先洗牌佔住這段等待；
+// 結果回來後再一張一張從牌堆飛到牌陣位置上翻開，看起來像是當場發牌。
+type AutoPhase = 'idle' | 'shuffling' | 'dealing' | 'done'
+
+const autoPhase = ref<AutoPhase>('idle')
+const autoDeckEl = ref<HTMLElement | null>(null)
+// 已經發到位置上的牌；飛行途中就先放進來，位置格會等替身抵達才顯示
+const autoLanded = ref<(SlotCard | undefined)[]>([])
+
+let autoShuffle: gsap.core.Timeline | null = null
+
+function stopAutoShuffle() {
+  autoShuffle?.kill()
+  autoShuffle = null
+}
+
+function startAutoShuffle() {
+  stopAutoShuffle()
+  const el = autoDeckEl.value
+  if (!el || prefersReducedMotion()) {
+    return
+  }
+  // 左右擺動並微微傾斜，表示牌還在洗
+  autoShuffle = gsap
+    .timeline({ repeat: -1, yoyo: true })
+    .to(el, { x: -7, rotation: -4, duration: 0.26, ease: 'power1.inOut' })
+    .to(el, { x: 7, rotation: 4, duration: 0.52, ease: 'power1.inOut' })
+}
+
+function autoDeckPose(): CardPose | null {
+  const el = autoDeckEl.value
+  if (!el) {
+    return null
+  }
+  const rect = el.getBoundingClientRect()
+  return {
+    cx: rect.left + rect.width / 2,
+    cy: rect.top + rect.height / 2,
+    width: el.offsetWidth,
+    height: el.offsetHeight,
+    rotation: 0,
+  }
+}
+
+function delay(seconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, motionDuration(seconds) * 1000))
+}
+
+function onAutoDraw() {
+  if (autoPhase.value !== 'idle') {
+    return
+  }
+  autoLanded.value = []
+  autoPhase.value = 'shuffling'
+  emit('autoDraw')
+  void nextTick(startAutoShuffle)
+}
+
+async function runAutoDeal(result: ReadingResponse) {
+  stopAutoShuffle()
+  autoPhase.value = 'dealing'
+  // 等位置格畫出來才量得到終點
+  await nextTick()
+
+  const cards: SlotCard[] = result.cards.map((entry, index) => ({
+    // 同一次占卜不會有重複的牌，但位置才是這裡的身分，所以把 index 一起帶上
+    id: `${entry.card.id}-${index}`,
+    nameZh: entry.card.nameZh,
+    image: entry.card.image ?? '',
+    orientation: entry.orientation,
+  }))
+
+  for (const [index, card] of cards.entries()) {
+    launch(card, autoDeckPose(), slotPose(autoSlotsRef.value, index, card, 0), true)
+    // 量不到位置時 launch 會略過動畫，這裡照樣把牌放上去，不要卡住流程
+    autoLanded.value = cards.slice(0, index + 1)
+    await delay(0.17)
+  }
+  // 最後一張飛完再停一下，讓人看清楚整個牌陣
+  await delay(0.9)
+  finishAutoDeal()
+}
+
+function finishAutoDeal() {
+  autoPhase.value = 'done'
+  emit('autoDealDone')
+}
+
+function resetAuto() {
+  stopAutoShuffle()
+  autoPhase.value = 'idle'
+  autoLanded.value = []
+}
+
+watch(
+  () => props.autoResult,
+  (result) => {
+    if (!result || autoPhase.value === 'dealing' || autoPhase.value === 'done') {
+      return
+    }
+    if (prefersReducedMotion()) {
+      finishAutoDeal()
+      return
+    }
+    void runAutoDeal(result)
+  },
+)
+
+// 抽牌失敗：沒有結果、也不在載入中，就把牌堆收起來讓使用者再按一次
+watch(
+  () => props.isLoading,
+  (loading) => {
+    if (!loading && autoPhase.value === 'shuffling' && !props.autoResult) {
+      resetAuto()
+    }
+  },
+)
+
+// 切去別的抽牌方式再切回來時，從頭開始
+watch(() => props.mode, () => {
+  resetAuto()
+  closePicker()
+})
+
+onBeforeUnmount(stopAutoShuffle)
 
 // 拖曳調整牌的順序。位置名稱固定在原地不跟著動，移動的是落在那個位置上的牌。
 const dragIndex = ref<number | null>(null)
@@ -184,10 +319,71 @@ function onDragEnd() {
   dropIndex.value = null
 }
 
-const pickedEnough = computed(() => props.picked.length === props.targetCount)
-const inputEnough = computed(() => props.inputCards.length === props.targetCount)
+// ---- 手機的選牌視窗 ----
+// 手機放不下「位置清單 ＋ 常駐選牌清單」，改成點某個位置才跳出滿版的選牌視窗，
+// 選完就關掉；桌機維持左右並排，清單一直看得到。
+const MOBILE_QUERY = '(max-width: 767px)'
+const isMobile = ref(typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches)
+let mobileQuery: MediaQueryList | null = null
 
-const selectedInputIds = computed(() => new Set(props.inputCards.map((card) => card.id)))
+function onMobileChange(event: MediaQueryListEvent) {
+  isMobile.value = event.matches
+  if (!isMobile.value) {
+    pickerIndex.value = null
+  }
+}
+
+onMounted(() => {
+  mobileQuery = window.matchMedia(MOBILE_QUERY)
+  isMobile.value = mobileQuery.matches
+  mobileQuery.addEventListener('change', onMobileChange)
+})
+
+// 正在選牌的位置；null 表示沒開視窗
+const pickerIndex = ref<number | null>(null)
+
+function openPicker(index: number) {
+  if (!isMobile.value) {
+    return
+  }
+  // 每次重新開始找，不要延續上一個位置的關鍵字
+  emit('update:cardSearch', '')
+  pickerIndex.value = index
+}
+
+function closePicker() {
+  pickerIndex.value = null
+}
+
+function chooseCard(card: CardSummary) {
+  const index = pickerIndex.value
+  if (index === null) {
+    return
+  }
+  emit('setInputCard', index, card)
+  closePicker()
+}
+
+// 這張牌已經放在別的位置上了（放在目前這個位置的不算，點它等於不換）
+function usedElsewhere(card: CardSummary) {
+  return selectedInputIds.value.has(card.id) && props.inputCards[pickerIndex.value ?? -1]?.id !== card.id
+}
+
+// 視窗打開時擋住背景捲動，不然手指滑清單會連背後的頁面一起動
+watch(pickerIndex, (index) => {
+  document.body.style.overflow = index === null ? '' : 'hidden'
+})
+
+onBeforeUnmount(() => {
+  mobileQuery?.removeEventListener('change', onMobileChange)
+  document.body.style.overflow = ''
+})
+
+const pickedEnough = computed(() => props.picked.length === props.targetCount)
+const inputFilled = computed(() => props.inputCards.filter(Boolean).length)
+const inputEnough = computed(() => inputFilled.value === props.targetCount)
+
+const selectedInputIds = computed(() => new Set(props.inputCards.filter(Boolean).map((card) => card!.id)))
 
 // 宮廷牌由後端的 kind 判斷（編號在不同牌組不一致）；
 // 舊版後端沒有這個欄位時，退回用小牌編號 11～14 粗略判斷
@@ -235,15 +431,26 @@ const cardGroups = computed(() => {
 <template>
   <!-- 撐滿步驟卡片的高度，手動抽牌時牌堆才能在剩下的空間置中 -->
   <div class="flex flex-1 flex-col space-y-5">
+    <!-- 飛行中的替身牌：自動抽牌與手動抽牌共用（teleport 到 body，不受這裡的版面影響） -->
+    <FlyingCard
+      v-for="flight in flights"
+      :key="flight.key"
+      :image="imageUrl(flight.card.image)"
+      :alt="flight.card.nameZh"
+      :from="flight.from"
+      :to="flight.to"
+      :reveal="flight.reveal"
+      @done="landFlight(flight.key)"
+    />
     <div class="flex items-center justify-between gap-3">
       <button
-        class="cursor-pointer text-sm text-stone-400 transition hover:text-stone-100"
+        class="cursor-pointer text-xs text-stone-400 transition hover:text-stone-100 sm:text-sm"
         type="button"
         @click="emit('back')"
       >
         ← 回到問題
       </button>
-      <span class="text-xs text-stone-400">
+      <span class="text-[11px] text-stone-400 sm:text-xs">
         {{ spread ? `${spread.name}・${targetCount} 張` : `不指定牌陣・${targetCount} 張` }}
       </span>
     </div>
@@ -253,7 +460,7 @@ const cardGroups = computed(() => {
       <button
         v-for="tab in MODES"
         :key="tab.key"
-        class="cursor-pointer whitespace-nowrap rounded-full px-1 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-35 sm:px-3 sm:text-sm"
+        class="cursor-pointer whitespace-nowrap rounded-full px-1 py-2 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-35 sm:px-3 sm:text-sm"
         :class="mode === tab.key ? 'bg-amber-200/90 text-slate-950' : 'text-stone-300/80 hover:text-stone-100'"
         type="button"
         :disabled="!tab.enabled"
@@ -267,29 +474,57 @@ const cardGroups = computed(() => {
     </p>
 
     <!-- 一、自動抽牌 -->
-    <div v-if="mode === 'auto'" class="space-y-4">
-      <p class="rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-stone-200/80">
-        由系統抽出 {{ targetCount }} 張牌並決定正逆位，直接填入{{ spread?.name }}的各個位置。
-      </p>
-      <button
-        class="w-full cursor-pointer rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
-        type="button"
-        :disabled="isLoading"
-        @click="emit('autoDraw')"
-      >
-        {{ isLoading ? '抽牌中…' : '開始占卜' }}
-      </button>
+    <div v-if="mode === 'auto'" class="flex flex-1 flex-col space-y-4">
+      <template v-if="autoPhase === 'idle'">
+        <p class="rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-stone-200/80">
+          由系統抽出 {{ targetCount }} 張牌並決定正逆位，直接填入{{ spread?.name }}的各個位置。
+        </p>
+        <button
+          class="w-full cursor-pointer rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+          type="button"
+          :disabled="isLoading"
+          @click="onAutoDraw"
+        >
+          開始占卜
+        </button>
+      </template>
+
+      <!-- 洗牌等後端回應，結果回來後一張一張飛到牌陣位置上翻開 -->
+      <div v-else class="flex flex-1 flex-col justify-center space-y-5">
+        <div class="flex h-[7.5rem] items-center justify-center">
+          <div ref="autoDeckEl" class="relative h-[4.5rem] w-12">
+            <span
+              v-for="layer in 3"
+              :key="layer"
+              class="absolute inset-0 rounded-md border border-amber-200/20 bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950"
+              :style="{ transform: `translateY(${(3 - layer) * 2}px)` }"
+            />
+            <span
+              class="relative flex h-full w-full items-center justify-center rounded-md border border-amber-200/30 bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 shadow-lg shadow-black/50"
+            >
+              <span class="text-[13px] leading-none text-amber-200/50">✦</span>
+            </span>
+          </div>
+        </div>
+
+        <p class="text-center text-xs tracking-[0.2em] text-amber-100/70" aria-live="polite">
+          {{ autoPhase === 'shuffling' ? '洗牌中…' : '正在把牌放上牌陣' }}
+        </p>
+
+        <SpreadSlots ref="autoSlotsRef" :labels="positionLabels" :cards="autoLanded" :hidden-ids="landingIds" />
+      </div>
     </div>
 
     <!-- 二、手動抽牌：扇形牌堆 -->
     <div v-else-if="mode === 'fan'" class="flex flex-1 flex-col space-y-4">
-      <div class="flex items-center justify-between gap-3">
-        <p class="text-sm text-stone-200/85">
+      <!-- 手機寬度放不下一整列，讓按鈕整顆換行而不是把字擠成兩行 -->
+      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <p class="text-xs text-stone-200/85 sm:text-sm">
           已選 {{ picked.length }} / {{ targetCount }} 張
         </p>
         <div class="flex gap-2">
           <button
-            class="cursor-pointer rounded-full border border-white/15 px-3 py-1 text-xs text-stone-200 transition hover:bg-white/10 disabled:opacity-40"
+            class="cursor-pointer whitespace-nowrap rounded-full border border-white/15 px-2.5 py-1 text-[11px] text-stone-200 transition hover:bg-white/10 disabled:opacity-40 sm:px-3 sm:text-xs"
             type="button"
             :disabled="picked.length === 0"
             @click="onUndoPick"
@@ -297,7 +532,7 @@ const cardGroups = computed(() => {
             收回最後一張
           </button>
           <button
-            class="cursor-pointer rounded-full border border-white/15 px-3 py-1 text-xs text-stone-200 transition hover:bg-white/10"
+            class="cursor-pointer whitespace-nowrap rounded-full border border-white/15 px-2.5 py-1 text-[11px] text-stone-200 transition hover:bg-white/10 sm:px-3 sm:text-xs"
             type="button"
             @click="emit('reshuffle')"
           >
@@ -329,69 +564,19 @@ const cardGroups = computed(() => {
         </button>
       </div>
 
-      <FlyingCard
-        v-for="flight in flights"
-        :key="flight.key"
-        :image="imageUrl(flight.card.image)"
-        :alt="flight.card.nameZh"
-        :from="flight.from"
-        :to="flight.to"
-        :reveal="flight.reveal"
-        @done="landFlight(flight.key)"
-      />
-
       <!-- 已放入牌陣的位置：洗牌、切牌時先不顯示，牌攤開後才淡入 -->
-      <!-- 每格尺寸固定：選牌前後高度不變，下方的按鈕才不會跟著跳 -->
       <Transition
         enter-active-class="transition duration-300 ease-out"
         enter-from-class="opacity-0 translate-y-2"
         enter-to-class="opacity-100 translate-y-0"
       >
-      <ul v-if="showSlots" class="flex flex-wrap gap-2">
-        <li
-          v-for="(label, index) in positionLabels"
-          :key="label + index"
-          class="flex min-w-[4.5rem] flex-col items-center gap-1 rounded-2xl border px-2 py-2 text-center"
-          :class="picked[index] ? 'border-amber-200/40 bg-amber-100/8' : 'border-dashed border-white/15 bg-black/10'"
-        >
-          <span class="text-[11px] text-stone-400">{{ index + 1 }}. {{ label }}</span>
-          <!-- 佔位點與牌圖疊在同一個固定大小的框裡，替換時不會有兩個同時撐開版面 -->
-          <!-- 飛牌途中先藏起牌圖，替身抵達時才出現 -->
-          <span
-            :ref="(el) => setSlotBox(index, el)"
-            class="relative h-12 w-8"
-            :class="picked[index] && landingIds.has(picked[index].id) ? 'invisible' : ''"
-          >
-            <span
-              v-if="!picked[index]"
-              class="absolute inset-0 flex items-center justify-center text-stone-600"
-            >·</span>
-            <!-- 剛抽到的牌淡入並放大一下，讓人看得出牌是飛到哪個位置 -->
-            <Transition
-              enter-active-class="transition duration-300 ease-out"
-              enter-from-class="opacity-0 scale-50"
-              enter-to-class="opacity-100 scale-100"
-            >
-              <img
-                v-if="picked[index] && imageUrl(picked[index].image)"
-                :src="imageUrl(picked[index].image)"
-                :alt="picked[index].nameZh"
-                class="absolute inset-0 h-12 w-8 rounded object-cover"
-                :class="{ 'rotate-180': picked[index].orientation === 'reversed' }"
-              />
-            </Transition>
-          </span>
-          <!-- 牌名與正逆位兩行，沒選牌時也先佔好高度 -->
-          <span class="h-[1.6rem] text-[10px] leading-tight text-stone-300">
-            <template v-if="picked[index]">
-              {{ picked[index].nameZh }}
-              <span class="block text-stone-500">
-                {{ picked[index].orientation === 'upright' ? '正位' : '逆位' }}
-              </span>
-            </template>
-          </span>
-        </li>
-      </ul>
+        <SpreadSlots
+          v-if="showSlots"
+          ref="fanSlotsRef"
+          :labels="positionLabels"
+          :cards="picked"
+          :hidden-ids="landingIds"
+        />
       </Transition>
 
       <!-- 和位置格一樣，切完牌才出現 -->
@@ -410,7 +595,9 @@ const cardGroups = computed(() => {
     <!-- 三、輸入已抽到的牌 -->
     <div v-else class="space-y-4">
       <p class="text-sm text-stone-200/85">
-        已輸入 {{ inputCards.length }} / {{ targetCount }} 張，順序即為位置順序，可以拖曳調整。
+        已輸入 {{ inputFilled }} / {{ targetCount }} 張。
+        <span class="hidden md:inline">順序即為位置順序，可以拖曳調整。</span>
+        <span class="md:hidden">點一下位置就可以挑牌。</span>
       </p>
 
       <!-- 左右並排：左邊是位置與已輸入的牌，右邊是選牌清單。
@@ -422,7 +609,8 @@ const cardGroups = computed(() => {
         <div v-if="spread" class="rounded-3xl border border-white/10 bg-black/15 p-4">
           <p class="text-xs uppercase tracking-[0.2em] text-stone-400">{{ spread.name }}・位置順序</p>
           <p class="mt-1 text-xs leading-5 text-stone-400/90">{{ spread.description }}</p>
-          <ol class="mt-3 space-y-1.5">
+          <!-- 手機每個位置的說明已經寫在下面那一列裡，這裡就不重複 -->
+          <ol class="mt-3 hidden space-y-1.5 md:block">
             <li
               v-for="(slot, index) in slots"
               :key="index"
@@ -475,59 +663,89 @@ const cardGroups = computed(() => {
           </div>
         </div>
 
-        <ul v-if="inputCards.length > 0" class="space-y-2">
+        <!-- 每個位置都先排好，還沒放牌的位置也看得到；手機點一下就跳出選牌視窗 -->
+        <ul class="space-y-2">
           <li
-            v-for="(card, index) in inputCards"
-            :key="card.id"
-            class="flex items-center gap-3 rounded-2xl border bg-white/5 p-2 transition"
+            v-for="(slot, index) in slots"
+            :key="index"
+            class="flex items-center gap-2 rounded-2xl border bg-white/5 p-2 transition md:gap-3"
             :class="[
               dropIndex === index ? 'border-amber-200/60 bg-amber-100/8' : 'border-white/10',
               dragIndex === index ? 'opacity-40' : '',
             ]"
-            draggable="true"
+            :draggable="!isMobile && Boolean(inputCards[index])"
             @dragstart="onDragStart(index, $event)"
             @dragover.prevent="onDragOver(index)"
             @drop.prevent="onDrop(index)"
             @dragend="onDragEnd"
           >
-            <!-- 只放位置名稱。說明已經在上方的位置區列過，這裡再寫一次字太多 -->
-            <span class="w-24 shrink-0 text-[11px] leading-tight text-stone-300">
-              {{ positionLabels[index] }}
+            <!-- 位置名稱。手機把這個位置代表什麼也寫在這裡，上面那份清單就不用再看一次 -->
+            <span class="w-16 shrink-0 text-[11px] leading-tight text-stone-300 md:w-24">
+              {{ index + 1 }}. {{ slot.label }}
+              <span v-if="slot.prompt" class="mt-0.5 block text-[10px] leading-tight text-stone-500 md:hidden">
+                {{ slot.prompt }}
+              </span>
             </span>
-            <span class="shrink-0 cursor-grab select-none text-stone-500 active:cursor-grabbing" title="拖曳調整順序">
+
+            <span
+              v-if="!isMobile"
+              class="shrink-0 cursor-grab select-none text-stone-500 active:cursor-grabbing"
+              title="拖曳調整順序"
+            >
               ⠿
             </span>
-            <img
-              v-if="imageUrl(card.image)"
-              :src="imageUrl(card.image)"
-              :alt="card.nameZh"
-              class="h-12 w-8 rounded object-cover"
-              :class="{ 'rotate-180': card.orientation === 'reversed' }"
-            />
-            <span class="min-w-0 flex-1 truncate text-sm text-stone-100">{{ card.nameZh }}</span>
+
             <button
-              class="cursor-pointer rounded-full border border-white/15 px-2 py-1 text-xs text-stone-200 transition hover:bg-white/10"
               type="button"
-              @click="emit('toggleInputOrientation', index)"
+              class="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-1 py-1 text-left transition"
+              :class="isMobile ? 'cursor-pointer hover:bg-white/5' : 'cursor-default'"
+              @click="openPicker(index)"
             >
-              {{ card.orientation === 'upright' ? '正位' : '逆位' }}
+              <img
+                v-if="inputCards[index] && imageUrl(inputCards[index]!.image)"
+                :src="imageUrl(inputCards[index]!.image)"
+                :alt="inputCards[index]!.nameZh"
+                class="h-12 w-8 shrink-0 rounded object-cover"
+                :class="{ 'rotate-180': inputCards[index]!.orientation === 'reversed' }"
+              />
+              <span
+                v-else
+                class="flex h-12 w-8 shrink-0 items-center justify-center rounded border border-dashed border-white/20 text-stone-600"
+                aria-hidden="true"
+              >
+                ＋
+              </span>
+              <span v-if="inputCards[index]" class="min-w-0 flex-1 truncate text-sm text-stone-100">
+                {{ inputCards[index]!.nameZh }}
+              </span>
+              <span v-else class="min-w-0 flex-1 truncate text-sm text-stone-500">
+                {{ isMobile ? '點一下選牌' : '從右邊的清單選牌' }}
+              </span>
             </button>
-            <button
-              class="cursor-pointer rounded-full px-2 py-1 text-xs text-rose-200/80 transition hover:bg-rose-300/10"
-              type="button"
-              title="移除"
-              @click="emit('removeInputCard', index)"
-            >
-              ✕
-            </button>
+
+            <template v-if="inputCards[index]">
+              <button
+                class="cursor-pointer rounded-full border border-white/15 px-2 py-1 text-xs text-stone-200 transition hover:bg-white/10"
+                type="button"
+                @click="emit('toggleInputOrientation', index)"
+              >
+                {{ inputCards[index]!.orientation === 'upright' ? '正位' : '逆位' }}
+              </button>
+              <button
+                class="cursor-pointer rounded-full px-2 py-1 text-xs text-rose-200/80 transition hover:bg-rose-300/10"
+                type="button"
+                title="移除"
+                @click="emit('removeInputCard', index)"
+              >
+                ✕
+              </button>
+            </template>
           </li>
         </ul>
-        <p v-else class="rounded-3xl border border-dashed border-white/15 bg-black/10 px-4 py-6 text-center text-sm text-stone-400">
-          從旁邊的清單點選你抽到的牌，依序加入
-        </p>
         </div>
 
-        <div class="space-y-2 md:sticky md:top-4">
+        <!-- 手機不常駐這份清單，改由選牌視窗顯示 -->
+        <div class="hidden space-y-2 md:block md:sticky md:top-4">
           <input
             :value="cardSearch"
             type="search"
@@ -538,9 +756,12 @@ const cardGroups = computed(() => {
           <p v-if="cardsError" class="rounded-2xl border border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
             {{ cardsError }}
           </p>
-          <div class="max-h-56 space-y-3 overflow-y-auto pr-1 md:max-h-[30rem]">
+          <!-- 捲動區用不透明底色，sticky 的分組標題才能完全蓋住捲到後面的牌，中間不留縫 -->
+          <div class="max-h-[30rem] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 px-2 pb-2">
             <div v-for="group in cardGroups" :key="group.key">
-              <p class="sticky top-0 bg-slate-950/80 py-1 text-xs uppercase tracking-[0.2em] text-stone-400">
+              <p
+                class="sticky top-0 z-10 -mx-2 bg-slate-950 px-2 pb-1.5 pt-3 text-xs uppercase tracking-[0.2em] text-stone-400"
+              >
                 {{ group.label }}
               </p>
               <!-- 數字牌（或大牌）一排五張，宮廷牌接在下面一排四張；手機放不下牌名，一律一排兩張 -->
@@ -562,7 +783,7 @@ const cardGroups = computed(() => {
                     : 'border-white/10 bg-white/5 text-stone-200 hover:bg-white/10'"
                   type="button"
                   :title="card.nameZh"
-                  :disabled="selectedInputIds.has(card.id) || inputCards.length >= targetCount"
+                  :disabled="selectedInputIds.has(card.id) || inputEnough"
                   @click="emit('addInputCard', card)"
                 >
                   {{ card.nameZh }}
@@ -579,8 +800,97 @@ const cardGroups = computed(() => {
         :disabled="isLoading || !inputEnough"
         @click="emit('submit')"
       >
-        {{ isLoading ? '解讀中…' : inputEnough ? '看結果' : `還要再輸入 ${targetCount - inputCards.length} 張` }}
+        {{ isLoading ? '解讀中…' : inputEnough ? '看結果' : `還要再輸入 ${targetCount - inputFilled} 張` }}
       </button>
+
+      <!--
+        手機的選牌視窗：點某個位置才打開，選完就關掉。
+        teleport 到 body，不然外層卡片的 backdrop-blur 會把 fixed 定位困在卡片裡。
+      -->
+      <Teleport to="body">
+        <Transition
+          enter-active-class="transition duration-200 ease-out motion-reduce:transition-none"
+          enter-from-class="opacity-0"
+          enter-to-class="opacity-100"
+          leave-active-class="transition duration-150 ease-in motion-reduce:transition-none"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="pickerIndex !== null"
+            class="fixed inset-0 z-50 flex flex-col bg-neutral-950 text-stone-100"
+            role="dialog"
+            aria-modal="true"
+            aria-label="選一張牌"
+          >
+            <div class="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
+              <div class="min-w-0">
+                <p class="text-[10px] uppercase tracking-[0.2em] text-stone-400">選一張牌</p>
+                <p class="truncate text-sm font-medium text-stone-50">
+                  {{ (pickerIndex ?? 0) + 1 }}. {{ slots[pickerIndex ?? 0]?.label }}
+                </p>
+                <p v-if="slots[pickerIndex ?? 0]?.prompt" class="truncate text-[11px] text-stone-400/80">
+                  {{ slots[pickerIndex ?? 0]?.prompt }}
+                </p>
+              </div>
+              <button
+                type="button"
+                class="-mr-1 shrink-0 cursor-pointer rounded-xl border border-white/10 px-3 py-1.5 text-sm text-stone-200 transition hover:bg-white/10"
+                @click="closePicker"
+              >
+                關閉
+              </button>
+            </div>
+
+            <div class="space-y-2 px-4 pt-3">
+              <input
+                :value="cardSearch"
+                type="search"
+                class="w-full rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40"
+                placeholder="搜尋牌名…"
+                @input="emit('update:cardSearch', ($event.target as HTMLInputElement).value)"
+              />
+              <p v-if="cardsError" class="rounded-2xl border border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
+                {{ cardsError }}
+              </p>
+            </div>
+
+            <!-- 只有這一段捲動，標題與搜尋框固定在上面 -->
+            <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-8">
+              <div v-for="group in cardGroups" :key="group.key">
+                <p
+                  class="sticky top-0 z-10 -mx-4 bg-neutral-950 px-4 pb-1.5 pt-3 text-xs uppercase tracking-[0.2em] text-stone-400"
+                >
+                  {{ group.label }}
+                </p>
+                <div
+                  v-for="row in [
+                    { key: 'cards', cards: group.cards },
+                    { key: 'courts', cards: group.courts },
+                  ].filter((item) => item.cards.length > 0)"
+                  :key="row.key"
+                  class="grid grid-cols-2 gap-1.5 pt-1.5"
+                >
+                  <button
+                    v-for="card in row.cards"
+                    :key="card.id"
+                    class="cursor-pointer truncate rounded-xl border px-2 py-2 text-center text-sm transition disabled:cursor-not-allowed disabled:opacity-40"
+                    :class="inputCards[pickerIndex ?? 0]?.id === card.id
+                      ? 'border-amber-200/40 bg-amber-200/20 text-amber-50'
+                      : 'border-white/10 bg-white/5 text-stone-200'"
+                    type="button"
+                    :title="card.nameZh"
+                    :disabled="usedElsewhere(card)"
+                    @click="chooseCard(card)"
+                  >
+                    {{ card.nameZh }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
     </div>
   </div>
 </template>

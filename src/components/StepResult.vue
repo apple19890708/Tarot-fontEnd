@@ -5,6 +5,7 @@ import { computed } from 'vue'
 
 import { canUseAi, isLoggedIn } from '../lib/auth'
 
+import BackToTop from './BackToTop.vue'
 import QuantPanel from './QuantPanel.vue'
 import ReadingAnalysisPanel from './ReadingAnalysisPanel.vue'
 import SpreadLayout from './SpreadLayout.vue'
@@ -80,18 +81,18 @@ function formatSuit(suit: string | null) {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="space-y-4 border-b border-white/10 pb-6">
-      <div class="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p class="text-xs uppercase tracking-[0.35em] text-stone-300/60">Reading Result</p>
-          <h2 class="mt-2 text-3xl font-semibold text-stone-50">{{ reading.spread.name }}</h2>
+  <div class="min-w-0 space-y-4 sm:space-y-6">
+    <div class="space-y-3 border-b border-white/10 pb-4 sm:space-y-4 sm:pb-6">
+      <div class="flex min-w-0 flex-wrap items-end justify-between gap-4">
+        <div class="min-w-0">
+          <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.35em]">Reading Result</p>
+          <h2 class="mt-1.5 text-2xl font-semibold text-stone-50 sm:mt-2 sm:text-3xl">{{ reading.spread.name }}</h2>
         </div>
         <div v-if="!hideFlowActions" class="flex flex-wrap gap-2">
           <!-- 占卜結果預設不留存，按這個才會存進「我的紀錄」 -->
           <button
             v-if="saveStatus"
-            class="cursor-pointer rounded-full border px-4 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60"
+            class="cursor-pointer rounded-full border px-3 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:py-1.5 sm:text-sm"
             :class="
               saveStatus === 'saved'
                 ? 'border-amber-200/40 bg-amber-200/15 text-amber-50'
@@ -104,14 +105,14 @@ function formatSuit(suit: string | null) {
             {{ saveLabel }}
           </button>
           <button
-            class="cursor-pointer rounded-full border border-white/15 px-4 py-1.5 text-sm text-stone-200 transition hover:bg-white/10"
+            class="cursor-pointer rounded-full border border-white/15 px-3 py-1 text-xs text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-sm"
             type="button"
             @click="emit('redraw')"
           >
             重抽
           </button>
           <button
-            class="cursor-pointer rounded-full border border-white/15 px-4 py-1.5 text-sm text-stone-200 transition hover:bg-white/10"
+            class="cursor-pointer rounded-full border border-white/15 px-3 py-1 text-xs text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-sm"
             type="button"
             @click="emit('restart')"
           >
@@ -121,7 +122,7 @@ function formatSuit(suit: string | null) {
       </div>
 
       <!-- 問題是整頁的主詞，放在牌面清單上方並給足字級，不要縮在角落 -->
-      <p class="text-xl font-medium leading-relaxed text-amber-50">
+      <p class="text-base font-medium leading-relaxed text-amber-50 sm:text-xl">
         {{ reading.question || '未填寫問題，這次抽牌以當下整體能量為主。' }}
       </p>
 
@@ -135,66 +136,58 @@ function formatSuit(suit: string | null) {
         已經存進「我的紀錄」，之後可以回去重看這次的牌與分析。
       </p>
 
-      <!-- 牌面一覽：牌名為主、位置含意用小字換色跟在後面。正位是常態，只標逆位 -->
-      <ul class="flex flex-wrap gap-x-4 gap-y-2 rounded-3xl border border-white/10 bg-black/15 px-4 py-3">
-        <li v-for="(item, index) in reading.cards" :key="index" class="text-sm leading-tight text-stone-100">
-          <span class="font-medium">{{ item.card.nameZh }}</span>
-          <span v-if="item.orientation === 'reversed'" class="text-rose-200/90">逆</span>
-          <span class="ml-1 text-[11px] text-stone-400/80">（{{ item.position?.label ?? `第 ${index + 1} 張` }}）</span>
-        </li>
-      </ul>
     </div>
 
-    <div v-if="resultSpread" class="rounded-[1.75rem] border border-white/10 bg-slate-950/45 p-5">
-      <p class="mb-3 text-xs uppercase tracking-[0.3em] text-stone-300/60">Spread Layout</p>
+    <div v-if="resultSpread" class="rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-3 sm:rounded-[1.75rem] sm:p-5">
+      <p class="mb-3 text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Spread Layout</p>
       <SpreadLayout :spread="resultSpread" :cards="reading.cards" />
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-2">
+    <div class="grid min-w-0 gap-4 xl:grid-cols-2">
       <article
         v-for="(entry, index) in reading.cards"
         :key="`${entry.position?.key ?? index}-${entry.card.id}`"
-        class="flex h-[26rem] flex-col rounded-[1.75rem] border bg-slate-950/45 p-5 transition hover:-translate-y-0.5"
+        class="flex h-[24rem] min-w-0 flex-col rounded-[1.5rem] border bg-slate-950/45 p-4 transition hover:-translate-y-0.5 sm:h-[26rem] sm:rounded-[1.75rem] sm:p-5"
         :class="reading.analysis?.theme.focusIndex === index ? 'border-amber-200/40' : 'border-white/10'"
       >
-        <div class="flex flex-shrink-0 items-start justify-between gap-3">
-          <div class="flex items-start gap-3">
+        <div class="flex min-w-0 flex-shrink-0 items-start justify-between gap-3">
+          <div class="flex min-w-0 items-start gap-3">
             <img
               v-if="imageUrl(entry.card.image)"
               :src="imageUrl(entry.card.image)"
               :alt="entry.card.nameZh"
-              class="h-24 w-16 flex-shrink-0 rounded-lg object-cover shadow-lg transition"
+              class="h-20 w-[3.25rem] flex-shrink-0 rounded-lg object-cover shadow-lg transition sm:h-24 sm:w-16"
               :class="{ 'rotate-180': entry.orientation === 'reversed' }"
             />
-            <div>
-              <p class="text-xs uppercase tracking-[0.28em] text-stone-400">
+            <div class="min-w-0">
+              <p class="text-[10px] uppercase tracking-[0.15em] text-stone-400 sm:text-xs sm:tracking-[0.28em]">
                 {{ entry.position?.label ?? `第 ${index + 1} 張` }}
               </p>
-              <h3 class="mt-2 text-2xl font-semibold text-stone-50">{{ entry.card.nameZh }}</h3>
-              <p class="mt-1 text-sm text-stone-300/75">{{ entry.card.nameEn || formatSuit(entry.card.suit) }}</p>
+              <h3 class="mt-1.5 break-words text-xl font-semibold text-stone-50 sm:mt-2 sm:text-2xl">{{ entry.card.nameZh }}</h3>
+              <p class="mt-1 break-words text-xs text-stone-300/75 sm:text-sm">{{ entry.card.nameEn || formatSuit(entry.card.suit) }}</p>
             </div>
           </div>
-          <div class="flex flex-col items-end gap-2">
-            <span class="rounded-full border border-amber-100/20 bg-amber-100/10 px-3 py-1 text-xs font-medium text-amber-50">
+          <div class="flex flex-col items-end gap-1 sm:gap-2">
+            <span class="rounded-full border border-amber-100/20 bg-amber-100/10 px-2 py-0.5 text-[10px] font-medium text-amber-50 sm:px-3 sm:py-1 sm:text-xs">
               {{ formatOrientation(entry.orientation) }}
             </span>
             <span
               v-if="reading.analysis?.theme.focusIndex === index"
-              class="rounded-full bg-amber-200/90 px-3 py-1 text-xs font-semibold text-slate-950"
+              class="rounded-full bg-amber-200/90 px-2 py-0.5 text-[10px] font-semibold text-slate-950 sm:px-3 sm:py-1 sm:text-xs"
             >
               焦點牌
             </span>
-            <span v-if="entry.card.element" class="rounded-full bg-white/8 px-3 py-1 text-xs text-stone-200/80">
+            <span v-if="entry.card.element" class="rounded-full bg-white/8 px-2 py-0.5 text-[10px] text-stone-200/80 sm:px-3 sm:py-1 sm:text-xs">
               {{ formatElement(entry.card.element) }}元素
             </span>
-            <span v-if="courtRoles.has(index)" class="rounded-full bg-white/8 px-3 py-1 text-xs text-stone-200/80">
+            <span v-if="courtRoles.has(index)" class="rounded-full bg-white/8 px-2 py-0.5 text-[10px] text-stone-200/80 sm:px-3 sm:py-1 sm:text-xs">
               {{ courtRoles.get(index) }}
             </span>
           </div>
         </div>
 
         <!-- 內容區：固定卡片高度，超出的牌義在這裡捲動 -->
-        <div class="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+        <div class="mt-4 min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
           <div class="flex flex-wrap gap-2">
             <span
               v-for="keyword in entry.card.keywords.slice(0, 4)"
@@ -231,10 +224,10 @@ function formatSuit(suit: string | null) {
 
     <div
       v-if="narrationStatus !== 'idle'"
-      class="rounded-[1.75rem] border border-amber-100/15 bg-gradient-to-br from-amber-100/10 via-white/5 to-rose-100/10 p-6"
+      class="rounded-[1.5rem] border border-amber-100/15 bg-gradient-to-br from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:rounded-[1.75rem] sm:p-6"
     >
-      <p class="text-xs uppercase tracking-[0.3em] text-stone-300/60">Reading</p>
-      <h3 class="mt-2 text-xl font-semibold text-stone-50">這組牌想說的事</h3>
+      <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Reading</p>
+      <h3 class="mt-2 text-lg font-semibold text-stone-50 sm:text-xl">這組牌想說的事</h3>
 
       <div v-if="narrationStatus === 'ready'" class="mt-4 space-y-4">
         <p class="text-sm leading-7 text-stone-300/80">
@@ -283,7 +276,7 @@ function formatSuit(suit: string | null) {
 
         <div
           v-if="narrationText"
-          class="mt-4 space-y-4 text-base leading-8 text-stone-100/90 [&_h2]:mt-8 [&_h2]:border-t [&_h2]:border-white/10 [&_h2]:pt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-amber-100 [&_h3]:mt-6 [&_h3]:font-semibold [&_h3]:text-stone-50 [&_li]:my-1 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_strong]:font-semibold [&_strong]:text-amber-50 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6 [&_ul]:marker:text-amber-200/60"
+          class="mt-4 min-w-0 space-y-4 break-words text-sm leading-7 text-stone-100/90 [&_pre]:overflow-x-auto [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto sm:text-base sm:leading-8 [&_h2]:mt-8 [&_h2]:border-t [&_h2]:border-white/10 [&_h2]:pt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-amber-100 [&_h3]:mt-6 [&_h3]:font-semibold [&_h3]:text-stone-50 [&_li]:my-1 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_strong]:font-semibold [&_strong]:text-amber-50 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6 [&_ul]:marker:text-amber-200/60"
           v-html="narrationHtml"
         />
 
@@ -339,9 +332,12 @@ function formatSuit(suit: string | null) {
       <ReadingAnalysisPanel class="mt-3" :analysis="reading.analysis" :cards="reading.cards" />
     </details>
 
-    <div class="rounded-[1.75rem] border border-amber-100/10 bg-gradient-to-r from-amber-100/10 via-white/5 to-rose-100/10 p-5">
-      <p class="text-xs uppercase tracking-[0.3em] text-stone-300/60">Guidance</p>
-      <p class="mt-3 text-base leading-8 text-stone-100/85">{{ reading.guidance }}</p>
+    <div class="rounded-[1.5rem] border border-amber-100/10 bg-gradient-to-r from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:rounded-[1.75rem] sm:p-5">
+      <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Guidance</p>
+      <p class="mt-3 text-sm leading-7 text-stone-100/85 sm:text-base sm:leading-8">{{ reading.guidance }}</p>
     </div>
+
+    <!-- 結果頁在手機上很長，捲過一半給一顆回頂的按鈕 -->
+    <BackToTop />
   </div>
 </template>

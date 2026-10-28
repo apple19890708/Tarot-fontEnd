@@ -25,6 +25,7 @@ import type {
   ManualCardPick,
   NarrationStatus,
   QuestionDomain,
+  InputCard,
   ReadingResponse,
   SaveStatus,
   Spread,
@@ -56,7 +57,8 @@ const selectedSpread = computed(
 const targetCount = computed(() => selectedSpread.value?.cardCount ?? freeCardCount.value)
 
 // ---- 步驟 2 的狀態 ----
-const drawMode = ref<DrawMode>('auto')
+// 預設手動抽牌：自己洗牌挑牌是這個站的重點，自動抽牌是想快一點時才用
+const drawMode = ref<DrawMode>('fan')
 const allCards = ref<CardSummary[]>([])
 const cardsError = ref('')
 const cardSearch = ref('')
@@ -65,8 +67,22 @@ const cardSearch = ref('')
 const deck = ref<DeckCard[]>([])
 const picked = ref<DeckCard[]>([])
 
-// 輸入已抽到的牌
-const inputCards = ref<(CardSummary & { orientation: 'upright' | 'reversed' })[]>([])
+// 輸入已抽到的牌。長度一直等於牌陣張數，index 就是位置順序，空位是 undefined，
+// 使用者才能直接點某個位置把牌放上去，不必照順序一張一張加
+const inputCards = ref<(InputCard | undefined)[]>([])
+
+// 張數改變時補滿或截短，已經放好的牌留著
+watch(
+  targetCount,
+  (count) => {
+    inputCards.value = Array.from({ length: count }, (_, index) => inputCards.value[index])
+  },
+  { immediate: true },
+)
+
+function resetInputCards() {
+  inputCards.value = Array.from({ length: targetCount.value }, () => undefined)
+}
 
 // 不指定牌陣時，使用者自己定義的位置。張數改變時補滿或截短，已填的內容留著
 const customPositions = ref<CustomPosition[]>([])
@@ -88,9 +104,6 @@ function reorderInputCards(from: number, to: number) {
   }
   const a = list[from]
   const b = list[to]
-  if (!a || !b) {
-    return
-  }
   list[from] = b
   list[to] = a
 }
@@ -116,6 +129,8 @@ const customPositionsParam = computed(() => {
 
 // ---- 步驟 3 的狀態 ----
 const reading = ref<ReadingResponse | null>(null)
+// 自動抽牌的結果先放這裡，等 StepDraw 把牌一張一張發到牌陣上，動畫跑完才進結果頁
+const pendingAutoReading = ref<ReadingResponse | null>(null)
 const narrationText = ref('')
 const narrationStatus = ref<NarrationStatus>('idle')
 const narrationError = ref('')
@@ -213,15 +228,32 @@ function undoPick() {
   }
 }
 
-function addInputCard(card: CardSummary) {
-  if (inputCards.value.length >= targetCount.value || inputCards.value.some((item) => item.id === card.id)) {
+// 指定位置放牌。同一張牌原本在別的位置就先清掉，不要同時出現兩次
+function setInputCard(index: number, card: CardSummary) {
+  const list = inputCards.value
+  if (index < 0 || index >= list.length) {
     return
   }
-  inputCards.value.push({ ...card, orientation: 'upright' })
+  const existing = list.findIndex((item) => item?.id === card.id)
+  if (existing >= 0) {
+    list[existing] = undefined
+  }
+  list[index] = { ...card, orientation: 'upright' }
+}
+
+// 從旁邊的清單點選：放進第一個還空著的位置
+function addInputCard(card: CardSummary) {
+  if (inputCards.value.some((item) => item?.id === card.id)) {
+    return
+  }
+  const index = inputCards.value.findIndex((item) => !item)
+  if (index >= 0) {
+    setInputCard(index, card)
+  }
 }
 
 function removeInputCard(index: number) {
-  inputCards.value.splice(index, 1)
+  inputCards.value[index] = undefined
 }
 
 function toggleInputOrientation(index: number) {
@@ -444,9 +476,11 @@ function onReadingReady(result: ReadingResponse) {
 async function goToDraw() {
   errorMessage.value = ''
   step.value = 2
+  // 上一次抽到、還沒進結果頁的牌不要留到這一次
+  pendingAutoReading.value = null
   // 換牌陣後張數可能對不上，已選的牌一律清掉重來
   picked.value = []
-  inputCards.value = []
+  resetInputCards()
   deck.value = []
 
   if (!selectedSpread.value && drawMode.value === 'auto') {
@@ -462,15 +496,14 @@ async function handleAutoDraw() {
   }
   errorMessage.value = ''
   isLoading.value = true
+  pendingAutoReading.value = null
 
   try {
-    onReadingReady(
-      await createReading({
-        question: question.value.trim(),
-        spreadKey: selectedSpreadKey.value,
-        domain: domainParam.value,
-      }),
-    )
+    pendingAutoReading.value = await createReading({
+      question: question.value.trim(),
+      spreadKey: selectedSpreadKey.value,
+      domain: domainParam.value,
+    })
     void refreshHealth()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '抽牌失敗'
@@ -479,8 +512,19 @@ async function handleAutoDraw() {
   }
 }
 
+function onAutoDealDone() {
+  const result = pendingAutoReading.value
+  pendingAutoReading.value = null
+  if (result) {
+    onReadingReady(result)
+  }
+}
+
 async function handleManualSubmit() {
-  const source = drawMode.value === 'fan' ? picked.value : inputCards.value
+  const source =
+    drawMode.value === 'fan'
+      ? picked.value
+      : inputCards.value.filter((card): card is InputCard => Boolean(card))
   if (source.length !== targetCount.value) {
     return
   }
@@ -519,7 +563,7 @@ function restart() {
   saveStatus.value = 'idle'
   saveError.value = ''
   picked.value = []
-  inputCards.value = []
+  resetInputCards()
   deck.value = []
   step.value = 1
 }
@@ -535,7 +579,7 @@ async function redraw() {
   saveStatus.value = 'idle'
   saveError.value = ''
   picked.value = []
-  inputCards.value = []
+  resetInputCards()
   step.value = 2
 
   if (drawMode.value === 'fan') {
@@ -566,13 +610,14 @@ onBeforeUnmount(cancelNarration)
 <template>
   <!-- 滿版：撐滿 App 主內容區的高度，結果卡片（section）再吃掉步驟列以外的空間 -->
   <div class="flex min-h-full flex-col text-stone-100">
-    <div class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-5 py-2 md:px-8">
+    <!-- 手機把左右內距收窄：外層、卡片三層內距疊起來會吃掉一半畫面寬，牌陣就排不下 -->
+    <div class="mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col gap-4 px-0 py-2 sm:gap-6 sm:px-5 md:px-8">
 
       <!-- 步驟指示只顯示目前走到哪，不能點。要回到前面一律用「重新開始」 -->
       <ol class="flex flex-wrap items-center justify-center gap-1 sm:gap-2" aria-label="占卜步驟">
         <template v-for="(item, index) in STEPS" :key="item.value">
           <li
-            class="flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs select-none sm:gap-2 sm:px-4 sm:py-1.5 sm:text-sm"
+            class="flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] select-none sm:gap-2 sm:px-4 sm:py-1.5 sm:text-sm"
             :class="
               step === item.value
                 ? 'border-amber-200/50 bg-amber-200/15 text-amber-50'
@@ -581,7 +626,7 @@ onBeforeUnmount(cancelNarration)
             :aria-current="step === item.value ? 'step' : undefined"
           >
             <span
-              class="flex h-5 w-5 items-center justify-center rounded-full text-xs"
+              class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] sm:h-5 sm:w-5 sm:text-xs"
               :class="step === item.value ? 'bg-amber-200/90 text-slate-950' : 'bg-white/10 text-stone-300'"
             >
               {{ item.value }}
@@ -594,63 +639,84 @@ onBeforeUnmount(cancelNarration)
 
       <!-- 步驟 1 內容不多，收窄並置中；輸入已抽到的牌是左右並排、牌名要放得下，和步驟 3 一樣用整個寬度 -->
       <section
-        class="w-full rounded-[2rem] border border-white/10 bg-slate-950/45 p-6 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur flex flex-1 flex-col"
+        class="w-full min-w-0 rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-4 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur flex flex-1 flex-col sm:rounded-[2rem] sm:p-6"
         :class="step === 3 || (step === 2 && drawMode === 'input') ? '' : 'mx-auto max-w-2xl'"
       >
-        <StepQuestion
-          v-if="step === 1"
-          v-model:question="question"
-          v-model:domain="selectedDomain"
-          v-model:spread-key="selectedSpreadKey"
-          v-model:free-card-count="freeCardCount"
-          :spreads="spreads"
-          :disabled="isBootstrapping || spreads.length === 0"
-          @next="goToDraw"
-        />
+        <!-- 往下一步是往左推、回上一步是往右推；out-in 讓上一步先退場，版面不會同時擠兩份內容 -->
+        <!--
+          換步驟時淡入並輕輕上移。Transition 的子元素固定是這個 wrapper（用 step 當 key），
+          不要直接包 v-if 鏈：元件的根節點前面只要有註解就會變成 fragment，class 套不上去。
+          out-in 讓上一步先退場，版面不會同時擠兩份內容。
+        -->
+        <Transition
+          mode="out-in"
+          enter-active-class="transition duration-300 ease-out motion-reduce:transition-none"
+          enter-from-class="opacity-0 translate-y-2"
+          enter-to-class="opacity-100 translate-y-0"
+          leave-active-class="transition duration-200 ease-in motion-reduce:transition-none"
+          leave-from-class="opacity-100 translate-y-0"
+          leave-to-class="opacity-0 -translate-y-2"
+        >
+          <div :key="step" class="flex flex-1 flex-col">
+            <StepQuestion
+              v-if="step === 1"
+              v-model:question="question"
+              v-model:domain="selectedDomain"
+              v-model:spread-key="selectedSpreadKey"
+              v-model:free-card-count="freeCardCount"
+              :spreads="spreads"
+              :disabled="isBootstrapping || spreads.length === 0"
+              @next="goToDraw"
+            />
 
-        <StepDraw
-          v-else-if="step === 2"
-          :mode="drawMode"
-          :spread="selectedSpread"
-          :target-count="targetCount"
-          :deck="deck"
-          :picked="picked"
-          :all-cards="allCards"
-          :input-cards="inputCards"
-          :card-search="cardSearch"
-          :cards-error="cardsError"
-          :custom-positions="customPositions"
-          :is-loading="isLoading"
-          @update:mode="setDrawMode"
-          @update:card-search="cardSearch = $event"
-          @back="step = 1"
-          @auto-draw="handleAutoDraw"
-          @reshuffle="shuffleDeck"
-          @pick="pickFromDeck"
-          @undo-pick="undoPick"
-          @add-input-card="addInputCard"
-          @remove-input-card="removeInputCard"
-          @toggle-input-orientation="toggleInputOrientation"
-          @update-custom-position="updateCustomPosition"
-          @reorder-input-cards="reorderInputCards"
-          @submit="handleManualSubmit"
-        />
+            <StepDraw
+              v-else-if="step === 2"
+              :mode="drawMode"
+              :spread="selectedSpread"
+              :target-count="targetCount"
+              :deck="deck"
+              :picked="picked"
+              :all-cards="allCards"
+              :input-cards="inputCards"
+              :card-search="cardSearch"
+              :cards-error="cardsError"
+              :custom-positions="customPositions"
+              :auto-result="pendingAutoReading"
+              :is-loading="isLoading"
+              @update:mode="setDrawMode"
+              @update:card-search="cardSearch = $event"
+              @back="step = 1"
+              @auto-draw="handleAutoDraw"
+              @auto-deal-done="onAutoDealDone"
+              @reshuffle="shuffleDeck"
+              @pick="pickFromDeck"
+              @undo-pick="undoPick"
+              @add-input-card="addInputCard"
+              @set-input-card="setInputCard"
+              @remove-input-card="removeInputCard"
+              @toggle-input-orientation="toggleInputOrientation"
+              @update-custom-position="updateCustomPosition"
+              @reorder-input-cards="reorderInputCards"
+              @submit="handleManualSubmit"
+            />
 
-        <StepResult
-          v-else-if="reading"
-          :reading="reading"
-          :result-spread="resultSpread"
-          :narration-status="narrationStatus"
-          :narration-text="narrationText"
-          :narration-error="narrationError"
-          :save-status="saveStatus"
-          :save-error="saveError"
-          @save-reading="handleSaveReading"
-          @restart="restart"
-          @redraw="redraw"
-          @request-narration="requestNarration"
-          @stop-narration="stopNarration"
-        />
+            <StepResult
+              v-else-if="reading"
+              :reading="reading"
+              :result-spread="resultSpread"
+              :narration-status="narrationStatus"
+              :narration-text="narrationText"
+              :narration-error="narrationError"
+              :save-status="saveStatus"
+              :save-error="saveError"
+              @save-reading="handleSaveReading"
+              @restart="restart"
+              @redraw="redraw"
+              @request-narration="requestNarration"
+              @stop-narration="stopNarration"
+            />
+          </div>
+        </Transition>
 
         <p v-if="errorMessage" class="mt-4 rounded-3xl border border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
           {{ errorMessage }}

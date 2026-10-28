@@ -165,9 +165,9 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
 </script>
 
 <template>
-  <div class="space-y-5 rounded-[1.75rem] border border-white/10 bg-slate-950/45 p-5">
+  <div class="min-w-0 space-y-4 rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-4 sm:space-y-5 sm:rounded-[1.75rem] sm:p-5">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <p class="text-xs uppercase tracking-[0.3em] text-stone-300/60">Direction Analysis</p>
+      <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Direction Analysis</p>
       <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-stone-300/80">
         {{ quant.domainLabel }}{{ quant.domainResolvedFrom === 'user' ? '（你指定）' : '' }}
       </span>
@@ -176,8 +176,8 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
     <!-- 指向儀表：只給分級與指針位置，不顯示分數 -->
     <section class="space-y-3">
       <div class="flex items-center gap-3">
-        <h3 class="text-lg font-semibold text-stone-50">整體看起來</h3>
-        <span class="rounded-full border px-3 py-1 text-sm font-medium" :class="DIRECTION_STYLES[quant.direction]">
+        <h3 class="text-base font-semibold text-stone-50 sm:text-lg">整體看起來</h3>
+        <span class="rounded-full border px-2.5 py-0.5 text-xs font-medium sm:px-3 sm:py-1 sm:text-sm" :class="DIRECTION_STYLES[quant.direction]">
           {{ quant.directionLabel }}
         </span>
       </div>
@@ -213,19 +213,19 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
 
     <!-- 四軸能量 -->
     <section class="space-y-2">
-      <h3 class="text-lg font-semibold text-stone-50">這次在講什麼</h3>
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">這次在講什麼</h3>
       <p class="text-xs text-stone-400">這組牌把力氣花在哪些面向，跟好壞無關</p>
-      <div class="h-56">
+      <div class="relative h-56 w-full min-w-0">
         <Radar :data="radarData" :options="radarOptions" />
       </div>
     </section>
 
     <!-- 推力、阻力、集中度、明朗度 -->
-    <section class="grid gap-3 sm:grid-cols-2">
+    <section class="grid min-w-0 gap-3 sm:grid-cols-2">
       <div
         v-for="meter in meters"
         :key="meter.name"
-        class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+        class="min-w-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
       >
         <div class="flex items-baseline justify-between gap-2 text-sm">
           <span class="text-stone-300/80">{{ meter.name }}</span>
@@ -245,7 +245,7 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
 
     <!-- 貢獻排行 -->
     <section v-if="topContributions.length > 0" class="space-y-2">
-      <h3 class="text-lg font-semibold text-stone-50">哪張牌份量最重</h3>
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">哪張牌份量最重</h3>
       <p class="text-xs text-stone-400">
         這一段算的是每張牌把整體往哪邊帶，和上面的雷達圖是兩套算法，不要互相對照
       </p>
@@ -253,9 +253,9 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
         <li
           v-for="item in topContributions"
           :key="item.index"
-          class="flex items-center gap-3 text-sm"
+          class="flex items-center gap-2 text-xs sm:gap-3 sm:text-sm"
         >
-          <span class="w-24 flex-shrink-0 truncate text-stone-200">{{ cardName(item.index) }}</span>
+          <span class="w-16 flex-shrink-0 truncate text-stone-200 sm:w-24">{{ cardName(item.index) }}</span>
           <!-- 中線為 0，向右為推動、向左為拉扯 -->
           <span class="relative h-2 flex-1 rounded-full bg-white/5">
             <span class="absolute left-1/2 top-0 h-full w-px bg-white/20" />
@@ -269,7 +269,7 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
               "
             />
           </span>
-          <span class="w-20 flex-shrink-0 text-right text-xs" :class="shareStyle(item)">
+          <span class="w-14 flex-shrink-0 text-right text-[10px] sm:w-20 sm:text-xs" :class="shareStyle(item)">
             {{ shareLabel(item) }}
           </span>
         </li>

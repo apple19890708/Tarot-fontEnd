@@ -96,9 +96,24 @@ export interface CardSummary {
   courtRank?: CourtRank | null
 }
 
+// 「輸入已抽到的牌」放在某個位置上的一張。位置是空的時候是 undefined，
+// 所以這份清單的長度一直等於牌陣張數，index 就是位置順序
+export interface InputCard extends CardSummary {
+  orientation: 'upright' | 'reversed'
+}
+
 // 手動選牌送出的單張：牌 id 與正逆位
 export interface ManualCardPick {
   id: string
+  orientation: 'upright' | 'reversed'
+}
+
+// 牌陣位置格上顯示的牌。自動抽牌拿到的是 ReadingCard、手動抽牌是 DeckCard，
+// 兩邊各自轉成這個形狀，位置格就能共用同一套外觀與量測方式
+export interface SlotCard {
+  id: string
+  nameZh: string
+  image: string
   orientation: 'upright' | 'reversed'
 }
 

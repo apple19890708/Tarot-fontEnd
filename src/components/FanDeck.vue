@@ -314,8 +314,11 @@ function indexFromPointer(clientX: number, clientY: number): number | null {
   const dy = clientY - cy
   const distance = Math.hypot(dx, dy)
   const cardHeight = first.offsetHeight
-  // 只在牌所在的環帶上才算指到（往外多留一點，抬起的牌也點得到）
-  if (distance < radius - cardHeight || distance > radius + LIFT_PX) {
+  // 只在牌所在的環帶上才算指到。
+  // 被指到的牌會沿自己的軸向往外移 LIFT_PX 再放大，牌頂會跑到 radius + LIFT_PX 之外，
+  // 外緣要連那一段一起算進來，否則點在抬起那張牌的上半部會被當成沒點到牌。
+  const outerEdge = radius + LIFT_PX + (cardHeight * (HOVER_SCALE - 1)) / 2
+  if (distance < radius - cardHeight || distance > outerEdge) {
     return null
   }
   const angle = (Math.atan2(dx, -dy) * 180) / Math.PI
@@ -402,28 +405,57 @@ function onPointerLeave(event: PointerEvent) {
   }
 }
 
+// 點到的是不是「目前抬起的那張牌」。牌與牌只差幾度，用角度換算時手指差幾個 px 就會算成隔壁張；
+// 抬起的牌已經放大並浮在最上層，看起來就是一張獨立的牌，所以改用它實際的範圍判斷。
+function hitsArmedCard(clientX: number, clientY: number) {
+  const face = armedIndex.value === null ? null : faceEls[armedIndex.value]
+  if (!face) {
+    return false
+  }
+  const rect = face.getBoundingClientRect()
+  const pad = 10
+  return (
+    clientX >= rect.left - pad && clientX <= rect.right + pad && clientY >= rect.top - pad && clientY <= rect.bottom + pad
+  )
+}
+
 function onClick(event: MouseEvent) {
   if (phase.value !== 'ready') {
     return
   }
   const position = indexFromPointer(event.clientX, event.clientY)
-  if (position === null) {
-    resetPointer()
-    return
-  }
+
   if (lastPointerType === 'mouse') {
-    if (isPickable(position)) {
+    if (position === null) {
+      resetPointer()
+    } else if (isPickable(position)) {
       pick(position)
     }
     return
   }
-  // 觸控：第一下抬起預覽，再點同一張才抽出；點別張就改預覽那張
-  if (armedIndex.value === position && isPickable(position)) {
-    pick(position)
-  } else {
-    armedIndex.value = position
-    hoverIndex.value = position
+
+  // 觸控：第一下抬起預覽，第二下才抽出。
+  // 已經有牌抬起時，點在它身上、點到它、或點在牌堆外的空白處都當成確認，
+  // 只有明確點到別張才改預覽那張；抬起的牌凸出扇形、又和鄰牌只差幾度，
+  // 要求第二下再精準命中同一張的話，最外側那幾張幾乎按不出來。
+  const armed = armedIndex.value
+  if (armed !== null) {
+    if (position === null || position === armed || hitsArmedCard(event.clientX, event.clientY)) {
+      if (isPickable(armed)) {
+        pick(armed)
+      } else {
+        resetPointer()
+      }
+      return
+    }
+  } else if (position === null) {
+    resetPointer()
+    return
   }
+
+  // 點到別張：改成預覽那一張
+  armedIndex.value = position
+  hoverIndex.value = position
 }
 
 function pick(position: number) {
@@ -499,7 +531,7 @@ const statusText = computed(() => {
   -->
   <div
     ref="fanEl"
-    class="relative mx-auto h-[180px] w-full touch-manipulation select-none outline-none [--fan-r:190px] focus-visible:ring-2 focus-visible:ring-amber-200/30 sm:h-[240px] sm:[--fan-r:260px] lg:h-[300px] lg:[--fan-r:330px]"
+    class="relative mx-auto h-[200px] w-full touch-manipulation select-none outline-none [--fan-r:190px] focus-visible:ring-2 focus-visible:ring-amber-200/30 sm:h-[240px] sm:[--fan-r:260px] lg:h-[300px] lg:[--fan-r:330px]"
     :class="hoverIndex !== null && isPickable(hoverIndex) ? 'cursor-pointer' : ''"
     role="group"
     aria-label="牌堆：用左右鍵選牌，Enter 抽出"
@@ -549,13 +581,13 @@ const statusText = computed(() => {
       </button>
     </template>
 
-    <!-- 選中的那一落攤成扇形 -->
+    <!-- 選中的那一落攤成扇形。手機的牌往下留一段（top-7）：被指到的牌會抬起，太貼著上緣會蓋到上面那排按鈕 -->
     <template v-else>
       <div
         v-for="(deckIndex, position) in visible"
         :key="deck[deckIndex]?.id ?? deckIndex"
         :ref="(el) => setEl(slotEls, position, el)"
-        class="pointer-events-none absolute left-1/2 top-2 w-[38px] origin-[50%_var(--fan-r)] opacity-0 sm:w-[50px] lg:w-[62px]"
+        class="pointer-events-none absolute left-1/2 top-7 w-[38px] origin-[50%_var(--fan-r)] opacity-0 sm:top-2 sm:w-[50px] lg:w-[62px]"
         :style="{ zIndex: hoverIndex === position ? visible.length + 1 : position }"
       >
         <!-- 牌背：不顯示牌名也不顯示正逆位。位移與縮放交給 GSAP，這裡只處理顏色的過渡 -->

@@ -113,11 +113,11 @@ function positionLabel(index: number) {
 </script>
 
 <template>
-  <div class="space-y-5 rounded-[1.75rem] border border-white/10 bg-slate-950/45 p-5">
-    <p class="text-xs uppercase tracking-[0.3em] text-stone-300/60">Combination Analysis</p>
+  <div class="min-w-0 space-y-4 rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-4 sm:space-y-5 sm:rounded-[1.75rem] sm:p-5">
+    <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Combination Analysis</p>
 
     <section class="space-y-3">
-      <h3 class="text-lg font-semibold text-stone-50">整體在說什麼</h3>
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">整體在說什麼</h3>
       <div class="flex flex-wrap gap-2">
         <span
           v-for="tag in themeTags"
@@ -132,7 +132,7 @@ function positionLabel(index: number) {
 
     <section v-if="analysis.question" class="space-y-3">
       <div class="flex items-center gap-2">
-        <h3 class="text-lg font-semibold text-stone-50">牌面有回答到你的問題嗎</h3>
+        <h3 class="text-base font-semibold text-stone-50 sm:text-lg">牌面有回答到你的問題嗎</h3>
         <span
           class="rounded-full border px-2.5 py-0.5 text-xs"
           :class="ALIGNMENT_BADGES[analysis.question.alignment]?.style"
@@ -144,8 +144,8 @@ function positionLabel(index: number) {
     </section>
 
     <section v-if="analysis.weights" class="space-y-3">
-      <h3 class="text-lg font-semibold text-stone-50">這件事有多大</h3>
-      <div class="grid gap-3 sm:grid-cols-2">
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">這件事有多大</h3>
+      <div class="grid min-w-0 gap-3 sm:grid-cols-2">
         <div
           v-for="meter in weightMeters"
           :key="meter.name"
@@ -169,7 +169,7 @@ function positionLabel(index: number) {
     </section>
 
     <section v-if="analysis.positions && analysis.positions.length > 0" class="space-y-3">
-      <h3 class="text-lg font-semibold text-stone-50">各個位置看出什麼</h3>
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">各個位置看出什麼</h3>
       <ul class="list-disc space-y-1 pl-5 text-sm leading-7 text-stone-200/85 marker:text-amber-200/60">
         <li v-for="finding in analysis.positions" :key="`${finding.type}-${finding.evidence.join('-')}`">
           {{ finding.text }}
@@ -178,7 +178,7 @@ function positionLabel(index: number) {
     </section>
 
     <section v-if="analysis.pairs.length > 0" class="space-y-3">
-      <h3 class="text-lg font-semibold text-stone-50">牌跟牌之間的關係</h3>
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">牌跟牌之間的關係</h3>
       <ul class="space-y-3">
         <li
           v-for="pair in analysis.pairs"
@@ -230,13 +230,13 @@ function positionLabel(index: number) {
     </section>
 
     <section v-if="analysis.numberStage" class="space-y-3">
-      <h3 class="text-lg font-semibold text-stone-50">走到哪個階段</h3>
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">走到哪個階段</h3>
       <p class="text-sm leading-7 text-stone-200/85">{{ analysis.numberStage.text }}</p>
     </section>
 
     <!-- 元素與數字跟階段是同一類資訊，放在一起看比較連貫 -->
     <section v-if="elementNumberTags.length > 0 || analysis.theme.elementNumberText" class="space-y-3">
-      <h3 class="text-lg font-semibold text-stone-50">元素與數字</h3>
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">元素與數字</h3>
       <div v-if="elementNumberTags.length > 0" class="flex flex-wrap gap-2">
         <span
           v-for="tag in elementNumberTags"
@@ -253,7 +253,7 @@ function positionLabel(index: number) {
 
     <!-- 沒有宮廷牌時後端也會給一句說明，所以有 courtSummary 就要顯示整區 -->
     <section v-if="analysis.courts.length > 0 || analysis.courtSummary" class="space-y-3">
-      <h3 class="text-lg font-semibold text-stone-50">宮廷牌的影響</h3>
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">宮廷牌的影響</h3>
       <p v-if="analysis.courtSummary" class="text-sm leading-7 text-stone-200/85">
         {{ analysis.courtSummary }}
       </p>
@@ -263,7 +263,7 @@ function positionLabel(index: number) {
     </section>
 
     <section v-if="notes.length > 0" class="space-y-3">
-      <h3 class="text-lg font-semibold text-stone-50">互相矛盾、還不明朗的地方</h3>
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">互相矛盾、還不明朗的地方</h3>
       <ul class="space-y-2">
         <li
           v-for="(note, index) in notes"

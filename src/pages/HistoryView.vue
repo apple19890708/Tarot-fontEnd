@@ -314,7 +314,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="mx-auto flex w-full flex-col gap-6 py-4">
+  <div class="mx-auto flex w-full min-w-0 flex-col gap-6 py-4">
     <header class="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur">
       <p class="text-xs uppercase tracking-[0.35em] text-amber-100/70">Reading History</p>
       <h1 class="mt-2 text-2xl font-semibold text-stone-50">我的占卜紀錄</h1>
@@ -339,7 +339,7 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div class="flex items-start gap-6">
+    <div class="flex min-w-0 items-start gap-6">
       <!-- 左欄：桌機黏在畫面上、可收合成窄欄；手機只在打開時滿版顯示 -->
       <aside
         class="lg:sticky lg:top-5 lg:z-auto lg:flex lg:max-h-[calc(100vh-2.5rem)] lg:shrink-0 lg:rounded-[1.75rem] lg:border lg:border-white/10 lg:bg-white/5"
