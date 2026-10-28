@@ -25,7 +25,7 @@
 
 - `verify`：改完程式的驗證流程（`npm run build` ＋ 套件、路徑檢查）
 - `dev-server`：非開不可時，用 port 5180／後端 4100 啟動並**自行關閉**測試伺服器
-- `worklog`：寫 `doc/worklog.md`
+- `worklog`：寫 `doc/worklog/` 的週記（一週一檔，檔名是該週週一的日期）
 
 規範之間若有衝突，以本檔（CLAUDE.md）為準。
 
