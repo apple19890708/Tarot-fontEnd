@@ -340,16 +340,28 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="flex min-w-0 items-start gap-6">
-      <!-- 左欄：桌機黏在畫面上、可收合成窄欄；手機只在打開時滿版顯示 -->
+      <!--
+        左欄：桌機黏在畫面上、可收合成窄欄；手機只在打開時滿版顯示。
+        收合時寬度用 transition 縮放（右欄是 flex-1，會跟著平順變寬），
+        內容則先淡出再換成窄欄；展開的內容固定寬度，縮放途中被裁掉而不是擠成一團。
+        手機一直掛著，關閉時移到畫面左外側並隱藏，打開時從左邊滑入；lg 以上的 class 把這些全部蓋回來
+      -->
       <aside
-        class="lg:sticky lg:top-5 lg:z-auto lg:flex lg:max-h-[calc(100vh-2.5rem)] lg:shrink-0 lg:rounded-[1.75rem] lg:border lg:border-white/10 lg:bg-white/5"
+        class="fixed inset-0 z-40 flex flex-col bg-neutral-950/95 p-5 backdrop-blur transition-[translate,opacity,visibility] duration-300 ease-out motion-reduce:transition-none lg:sticky lg:inset-auto lg:top-5 lg:z-auto lg:visible lg:max-h-[calc(100vh-2.5rem)] lg:shrink-0 lg:translate-x-0 lg:overflow-hidden lg:rounded-[1.75rem] lg:border lg:border-white/10 lg:bg-white/5 lg:opacity-100 lg:backdrop-blur-none lg:transition-[width,padding] lg:pointer-events-auto"
         :class="[
-          isMobileIndexOpen ? 'fixed inset-0 z-40 flex flex-col bg-neutral-950/95 p-5 backdrop-blur' : 'hidden',
-          showRail ? 'lg:w-14 lg:flex-col lg:items-center lg:p-2' : 'lg:w-80 lg:flex-col lg:p-4',
+          isMobileIndexOpen ? 'visible translate-x-0 opacity-100' : 'pointer-events-none invisible -translate-x-full opacity-0',
+          showRail ? 'lg:w-14 lg:p-2' : 'lg:w-80 lg:p-4',
         ]"
         aria-label="紀錄清單"
       >
-        <template v-if="showRail">
+        <Transition
+          mode="out-in"
+          enter-active-class="transition-opacity duration-150 ease-out motion-reduce:transition-none"
+          enter-from-class="opacity-0"
+          leave-active-class="transition-opacity duration-150 ease-in motion-reduce:transition-none"
+          leave-to-class="opacity-0"
+        >
+        <div v-if="showRail" key="rail" class="flex flex-col items-center">
           <button
             type="button"
             class="cursor-pointer rounded-full border border-white/15 px-2 py-1.5 text-sm text-stone-200 transition hover:bg-white/10"
@@ -360,9 +372,10 @@ onBeforeUnmount(() => {
             »
           </button>
           <span class="mt-3 text-xs text-stone-400 [writing-mode:vertical-rl]">共 {{ readings.length }} 筆</span>
-        </template>
+        </div>
 
-        <template v-else>
+        <!-- 寬度＝展開時 w-80 扣掉左右 p-4 與邊框，收合途中內容不會重新排版 -->
+        <div v-else key="panel" class="flex min-h-0 flex-1 flex-col lg:w-[calc(20rem-2rem-2px)]">
           <div class="mb-4 flex items-center justify-between gap-3">
             <p class="text-sm font-medium text-stone-100">紀錄清單</p>
             <button
@@ -391,7 +404,8 @@ onBeforeUnmount(() => {
             :selected-id="selectedId"
             @select="selectReading"
           />
-        </template>
+        </div>
+        </Transition>
       </aside>
 
       <!-- 右欄：所選紀錄的內容 -->

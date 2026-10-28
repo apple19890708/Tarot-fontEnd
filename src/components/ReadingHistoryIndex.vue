@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import type { ReadingSummary } from '../types'
 
@@ -63,6 +63,49 @@ const groups = computed(() => {
   return result
 })
 
+// 桌機超過 10 筆時，清單高度固定在剛好 10 筆、其餘捲動。
+// 每筆的高度不一（問題一行或兩行、中間夾著月份標題），所以用第 10 筆實際的底部量出高度，
+// 再多露一點第 11 筆，讓人看得出下面還有。手機的清單本來就是滿版捲動，不受影響。
+const VISIBLE_LIMIT = 10
+const PEEK_PX = 20
+const navEl = ref<HTMLElement | null>(null)
+const listMaxHeight = ref<string | null>(null)
+
+function measureListHeight() {
+  const nav = navEl.value
+  const items = nav?.querySelectorAll('li')
+  const last = items?.[VISIBLE_LIMIT - 1]
+  if (!nav || !items || items.length <= VISIBLE_LIMIT || !last) {
+    listMaxHeight.value = null
+    return
+  }
+  const offset = last.getBoundingClientRect().bottom - nav.getBoundingClientRect().top + nav.scrollTop
+  listMaxHeight.value = `${Math.ceil(offset + PEEK_PX)}px`
+}
+
+let resizeObserver: ResizeObserver | null = null
+
+watch(filtered, () => nextTick(measureListHeight))
+
+// nav 在「沒有符合的紀錄」時會被拿掉，重新出現時要重新量、重新觀察寬度（寬度變了，問題換行數就變了）
+watch(navEl, (el) => {
+  resizeObserver?.disconnect()
+  if (el) {
+    resizeObserver?.observe(el)
+    measureListHeight()
+  }
+})
+
+onMounted(() => {
+  resizeObserver = new ResizeObserver(() => measureListHeight())
+  if (navEl.value) {
+    resizeObserver.observe(navEl.value)
+  }
+  measureListHeight()
+})
+
+onBeforeUnmount(() => resizeObserver?.disconnect())
+
 function clearConditions() {
   keyword.value = ''
   narrationFilter.value = 'all'
@@ -122,7 +165,13 @@ function formatShortDate(value: string) {
       </button>
     </div>
 
-    <nav v-else class="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1" aria-label="占卜紀錄">
+    <nav
+      v-else
+      ref="navEl"
+      class="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1 lg:max-h-(--list-max)"
+      :style="listMaxHeight ? { '--list-max': listMaxHeight } : undefined"
+      aria-label="占卜紀錄"
+    >
       <section v-for="group in groups" :key="group.key">
         <p class="mb-2 px-1 text-xs tracking-[0.2em] text-stone-400">{{ group.label }}</p>
         <ul class="space-y-2">

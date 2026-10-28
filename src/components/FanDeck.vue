@@ -82,6 +82,16 @@ const hoverIndex = ref<number | null>(null)
 const armedIndex = ref<number | null>(null)
 let lastPointerType = 'mouse'
 
+// 觸控按住滑動預覽：手指按下到放開之間的狀態
+const SCRUB_THRESHOLD_PX = 8
+let touchGesture: {
+  // 按下前已經抬起的牌；放開時若是點在它身上才算確認抽出
+  armedBefore: number | null
+  startX: number
+  startY: number
+  moved: boolean
+} | null = null
+
 let ctx: gsap.Context | null = null
 let activeTimeline: gsap.core.Timeline | null = null
 
@@ -386,16 +396,79 @@ function isPickable(position: number) {
   return props.canPick && phase.value === 'ready' && Boolean(card) && !card?.picked
 }
 
+// 觸控預覽某張牌：抬起並讓鄰牌讓開，效果與滑鼠 hover 相同
+function previewTouch(position: number) {
+  armedIndex.value = position
+  hoverIndex.value = position
+}
+
 function onPointerMove(event: PointerEvent) {
-  // 觸控沒有 hover，抬起交給點擊處理
-  if (phase.value !== 'ready' || event.pointerType !== 'mouse') {
+  if (phase.value !== 'ready') {
     return
   }
-  hoverIndex.value = indexFromPointer(event.clientX, event.clientY)
+  const position = indexFromPointer(event.clientX, event.clientY)
+  if (event.pointerType === 'mouse') {
+    hoverIndex.value = position
+    return
+  }
+  // 觸控：按住左右滑動時，抬起的牌跟著手指換
+  if (!touchGesture) {
+    return
+  }
+  const distance = Math.hypot(event.clientX - touchGesture.startX, event.clientY - touchGesture.startY)
+  if (distance > SCRUB_THRESHOLD_PX) {
+    touchGesture.moved = true
+  }
+  if (touchGesture.moved && position !== null && position !== armedIndex.value) {
+    previewTouch(position)
+  }
 }
 
 function onPointerDown(event: PointerEvent) {
   lastPointerType = event.pointerType
+  if (event.pointerType === 'mouse' || phase.value !== 'ready') {
+    return
+  }
+  const armedBefore = armedIndex.value
+  touchGesture = { armedBefore, startX: event.clientX, startY: event.clientY, moved: false }
+  // 按在已抬起的牌上先不換預覽，放開時才知道是確認還是開始滑動
+  if (armedBefore !== null && hitsArmedCard(event.clientX, event.clientY)) {
+    return
+  }
+  const position = indexFromPointer(event.clientX, event.clientY)
+  if (position !== null) {
+    previewTouch(position)
+  }
+}
+
+// 觸控放開：滑動過就只停在那張預覽；沒滑動才當成一次點擊
+function onPointerUp(event: PointerEvent) {
+  const gesture = touchGesture
+  touchGesture = null
+  if (!gesture || event.pointerType === 'mouse' || phase.value !== 'ready' || gesture.moved) {
+    return
+  }
+  const position = indexFromPointer(event.clientX, event.clientY)
+  const armed = gesture.armedBefore
+  // 點在抬起的牌上才確認抽出；抬起的牌凸出扇形、又和鄰牌只差幾度，
+  // 所以用它實際的範圍判斷，不要求再精準命中同一張的角度
+  if (armed !== null && (position === armed || hitsArmedCard(event.clientX, event.clientY))) {
+    if (isPickable(armed)) {
+      pick(armed)
+    } else {
+      resetPointer()
+    }
+    return
+  }
+  // 點在牌堆的空白處是把牌收回去，不是抽出
+  if (position === null) {
+    resetPointer()
+  }
+}
+
+// 上下拖動被瀏覽器接手捲動頁面：結束手勢，保留目前的預覽
+function onPointerCancel() {
+  touchGesture = null
 }
 
 function onPointerLeave(event: PointerEvent) {
@@ -423,39 +496,16 @@ function onClick(event: MouseEvent) {
   if (phase.value !== 'ready') {
     return
   }
+  // 觸控在 pointerdown／pointerup 處理（按住滑動預覽、放開後再點一下抽出）
+  if (lastPointerType !== 'mouse') {
+    return
+  }
   const position = indexFromPointer(event.clientX, event.clientY)
-
-  if (lastPointerType === 'mouse') {
-    if (position === null) {
-      resetPointer()
-    } else if (isPickable(position)) {
-      pick(position)
-    }
-    return
-  }
-
-  // 觸控：第一下抬起預覽，第二下才抽出。
-  // 已經有牌抬起時，點在它身上、點到它、或點在牌堆外的空白處都當成確認，
-  // 只有明確點到別張才改預覽那張；抬起的牌凸出扇形、又和鄰牌只差幾度，
-  // 要求第二下再精準命中同一張的話，最外側那幾張幾乎按不出來。
-  const armed = armedIndex.value
-  if (armed !== null) {
-    if (position === null || position === armed || hitsArmedCard(event.clientX, event.clientY)) {
-      if (isPickable(armed)) {
-        pick(armed)
-      } else {
-        resetPointer()
-      }
-      return
-    }
-  } else if (position === null) {
+  if (position === null) {
     resetPointer()
-    return
+  } else if (isPickable(position)) {
+    pick(position)
   }
-
-  // 點到別張：改成預覽那一張
-  armedIndex.value = position
-  hoverIndex.value = position
 }
 
 function pick(position: number) {
@@ -510,7 +560,7 @@ const hintText = computed(() => {
     return '選一落牌'
   }
   if (phase.value === 'ready' && armedIndex.value !== null && isPickable(armedIndex.value)) {
-    return '再點一次抽出這張'
+    return lastPointerType === 'mouse' ? '再點一次抽出這張' : '按住左右滑動換牌，再點一次抽出這張'
   }
   return ''
 })
@@ -531,13 +581,15 @@ const statusText = computed(() => {
   -->
   <div
     ref="fanEl"
-    class="relative mx-auto h-[200px] w-full touch-manipulation select-none outline-none [--fan-r:190px] focus-visible:ring-2 focus-visible:ring-amber-200/30 sm:h-[240px] sm:[--fan-r:260px] lg:h-[300px] lg:[--fan-r:330px]"
+    class="relative mx-auto h-[200px] w-full touch-pan-y select-none outline-none [--fan-r:190px] focus-visible:ring-2 focus-visible:ring-amber-200/30 sm:h-[240px] sm:[--fan-r:260px] lg:h-[300px] lg:[--fan-r:330px]"
     :class="hoverIndex !== null && isPickable(hoverIndex) ? 'cursor-pointer' : ''"
     role="group"
     aria-label="牌堆：用左右鍵選牌，Enter 抽出"
     tabindex="0"
     @pointermove="onPointerMove"
     @pointerdown="onPointerDown"
+    @pointerup="onPointerUp"
+    @pointercancel="onPointerCancel"
     @pointerleave="onPointerLeave"
     @click="onClick"
     @keydown="onKeydown"

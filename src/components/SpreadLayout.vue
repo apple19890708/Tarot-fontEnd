@@ -63,12 +63,15 @@ function orientationLabel(card: ReadingCard | null) {
 
 <template>
   <div class="space-y-3">
-    <!-- 窄螢幕時整個排列可橫向捲動，塞爾特十字 4 欄才不會擠成一團 -->
+    <!--
+      牌寬跟著容器縮放（手機最寬 4rem、sm 以上 5rem），盡量一排放得下不用橫向捲動；
+      縮到 2.75rem 還放不下時才捲動。justify-center-safe 讓溢出時從左邊開始，不會把左側切掉
+    -->
     <div class="-mx-1 overflow-x-auto px-1 pb-1">
       <div
-        class="mx-auto grid w-max gap-2 sm:gap-3"
+        class="grid w-full justify-center-safe gap-1.5 [--slot-max:4rem] sm:gap-3 sm:[--slot-max:5rem]"
         :style="{
-          gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))`,
+          gridTemplateColumns: `repeat(${grid.cols}, minmax(2.75rem, var(--slot-max)))`,
           gridTemplateRows: `repeat(${grid.rows}, minmax(0, 1fr))`,
         }"
       >
@@ -80,7 +83,7 @@ function orientationLabel(card: ReadingCard | null) {
         >
           <button
             type="button"
-            class="group block w-16 cursor-pointer text-left [perspective:600px] sm:w-20"
+            class="group block w-full cursor-pointer text-left [perspective:600px]"
             :aria-pressed="flippedKeys.has(slot.position.key)"
             :aria-label="`${slot.position.label}：${slot.position.prompt}`"
             @click="toggleFlip(slot.position.key)"

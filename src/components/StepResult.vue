@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import { canUseAi, isLoggedIn } from '../lib/auth'
 
@@ -33,6 +33,15 @@ const emit = defineEmits<{
   stopNarration: []
   saveReading: []
 }>()
+
+// 判斷依據：還沒有 AI 解讀時預設展開；解讀開始出現就自動收合，讓位給解讀
+const analysisOpen = ref(!props.narrationText)
+watch(
+  () => !props.narrationText,
+  (open) => {
+    analysisOpen.value = open
+  },
+)
 
 // 未登入時按鈕照樣顯示，點了會先存快照再帶去登入頁
 const saveLabel = computed(() => {
@@ -316,28 +325,48 @@ function formatSuit(suit: string | null) {
       </template>
     </div>
 
-    <details v-if="reading.analysis" :open="!narrationText" class="group">
-      <summary
-        class="cursor-pointer list-none rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-stone-200/80 transition hover:bg-white/10"
+    <!-- 原生 details 收合時沒辦法做動畫，改用 grid-rows 0fr↔1fr 展開收合，不必量高度 -->
+    <div v-if="reading.analysis">
+      <button
+        type="button"
+        class="flex w-full items-center justify-between rounded-full border border-white/10 bg-white/5 px-4 py-2 text-left text-sm text-stone-200/80 transition hover:bg-white/10"
+        :aria-expanded="analysisOpen"
+        aria-controls="analysis-details"
+        @click="analysisOpen = !analysisOpen"
       >
-        <span class="group-open:hidden">查看判斷依據</span>
-        <span class="hidden group-open:inline">收合判斷依據</span>
-      </summary>
-      <QuantPanel
-        v-if="reading.analysis.quant"
-        class="mt-3"
-        :quant="reading.analysis.quant"
-        :cards="reading.cards"
-      />
-      <ReadingAnalysisPanel class="mt-3" :analysis="reading.analysis" :cards="reading.cards" />
-    </details>
+        <span>{{ analysisOpen ? '收合判斷依據' : '查看判斷依據' }}</span>
+        <span
+          class="text-xs text-stone-400 transition-transform duration-300 motion-reduce:transition-none"
+          :class="analysisOpen ? 'rotate-180' : ''"
+          aria-hidden="true"
+        >
+          ▾
+        </span>
+      </button>
+      <div
+        id="analysis-details"
+        class="grid transition-[grid-template-rows,opacity] duration-500 ease-out motion-reduce:transition-none"
+        :class="analysisOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'"
+        :inert="!analysisOpen"
+      >
+        <div class="min-h-0 overflow-hidden">
+          <QuantPanel
+            v-if="reading.analysis.quant"
+            class="mt-3"
+            :quant="reading.analysis.quant"
+            :cards="reading.cards"
+          />
+          <ReadingAnalysisPanel class="mt-3" :analysis="reading.analysis" :cards="reading.cards" />
+        </div>
+      </div>
+    </div>
 
     <div class="rounded-[1.5rem] border border-amber-100/10 bg-gradient-to-r from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:rounded-[1.75rem] sm:p-5">
       <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Guidance</p>
       <p class="mt-3 text-sm leading-7 text-stone-100/85 sm:text-base sm:leading-8">{{ reading.guidance }}</p>
     </div>
 
-    <!-- 結果頁在手機上很長，捲過一半給一顆回頂的按鈕 -->
+    <!-- 結果頁很長，捲超過一個畫面高就給一顆回頂的按鈕 -->
     <BackToTop />
   </div>
 </template>
