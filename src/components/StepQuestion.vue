@@ -103,7 +103,7 @@ const freeCountOptions = computed(() =>
     </p>
 
     <button
-      class="w-full cursor-pointer rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+      class="w-full cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-3 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60"
       type="button"
       :disabled="disabled"
       @click="emit('next')"

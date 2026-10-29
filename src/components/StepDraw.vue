@@ -589,7 +589,7 @@ const cardGroups = computed(() => {
 
       <!-- 按下後按鈕留在原地改顯示進度，版面高度不變 -->
       <button
-        class="w-full cursor-pointer rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
+        class="w-full cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-3 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60"
         type="button"
         :disabled="isLoading || autoPhase !== 'idle'"
         aria-live="polite"
@@ -666,7 +666,7 @@ const cardGroups = computed(() => {
       <!-- 和位置格一樣，切完牌才出現 -->
       <button
         v-if="showSlots"
-        class="w-full cursor-pointer rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+        class="w-full cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-3 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60"
         type="button"
         :disabled="isLoading || !pickedEnough"
         @click="emit('submit')"
@@ -882,7 +882,7 @@ const cardGroups = computed(() => {
       </div>
 
       <button
-        class="w-full cursor-pointer rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+        class="w-full cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-3 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60"
         type="button"
         :disabled="isLoading || !inputEnough"
         @click="emit('submit')"

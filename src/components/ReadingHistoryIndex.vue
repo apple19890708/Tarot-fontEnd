@@ -106,6 +106,35 @@ onMounted(() => {
 
 onBeforeUnmount(() => resizeObserver?.disconnect())
 
+// 問題被截斷時才需要提示：沒有「…」就不要跳東西出來打擾。
+// 清單本身是 overflow-y-auto，提示放在列裡會被裁掉，所以掛到 body 再自己算位置。
+const tip = ref<{ text: string; left: number; top: number } | null>(null)
+const TIP_WIDTH = 288
+
+function showTip(event: FocusEvent | MouseEvent, text: string) {
+  const row = event.currentTarget as HTMLElement | null
+  const node = row?.querySelector('[data-question]') as HTMLElement | null
+  if (!node) {
+    return
+  }
+  // clamp 之後真正的內容比看得到的高，就表示被截斷了（留 1px 容忍捨入誤差）
+  const truncated = node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1
+  if (!truncated) {
+    return
+  }
+  const rect = node.getBoundingClientRect()
+  tip.value = {
+    text,
+    // 靠近右邊界時往左收，不要被切掉
+    left: Math.max(8, Math.min(rect.left, window.innerWidth - TIP_WIDTH - 8)),
+    top: rect.bottom + 8,
+  }
+}
+
+function hideTip() {
+  tip.value = null
+}
+
 function clearConditions() {
   keyword.value = ''
   narrationFilter.value = 'all'
@@ -169,6 +198,7 @@ function formatShortDate(value: string) {
       v-else
       ref="navEl"
       class="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1 lg:max-h-(--list-max)"
+      @scroll="hideTip"
       :style="listMaxHeight ? { '--list-max': listMaxHeight } : undefined"
       aria-label="占卜紀錄"
     >
@@ -185,16 +215,49 @@ function formatShortDate(value: string) {
                   : 'border-white/10 bg-white/5 hover:bg-white/10'
               "
               :aria-current="selectedId === item.id ? 'true' : undefined"
-              @click="emit('select', item.id)"
+              @click="hideTip(); emit('select', item.id)"
+              @mouseenter="showTip($event, item.question || '未填寫問題')"
+              @mouseleave="hideTip"
+              @focus="showTip($event, item.question || '未填寫問題')"
+              @blur="hideTip"
             >
-              <span class="block text-xs text-stone-400">{{ formatShortDate(item.createdAt) }}</span>
-              <span class="mt-1 line-clamp-2 block text-sm leading-6 text-amber-50">
+              <!--
+                line-clamp 要靠 display:-webkit-box，不能再加 block，否則整段完全不截斷。
+                桌機左欄窄，截成一行；手機清單是滿版，留兩行比較讀得到重點。
+                完整問題放在 title，滑鼠停住就看得到。
+              -->
+              <span
+                data-question
+                class="line-clamp-2 text-sm leading-6 text-amber-50 lg:line-clamp-1"
+              >
                 {{ item.question || '未填寫問題' }}
+              </span>
+              <span class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-stone-400">
+                <span class="tabular-nums">{{ formatShortDate(item.createdAt) }}</span>
+                <span>{{ item.cardCount }} 張</span>
+                <span
+                  v-if="item.hasNarration"
+                  class="rounded-full border border-amber-200/30 bg-amber-200/10 px-1.5 py-0.5 text-[11px] leading-none text-amber-100"
+                >
+                  AI
+                </span>
               </span>
             </button>
           </li>
         </ul>
       </section>
     </nav>
+
+    <!-- 只有文字被截斷時才會有值；跟著列的左緣、落在列下方 -->
+    <Teleport to="body">
+      <div
+        v-if="tip"
+        class="pointer-events-none fixed z-50 w-72 rounded-md border border-white/10 bg-neutral-800 px-3 py-2 text-xs leading-5 text-stone-100 shadow-lg shadow-black/50"
+        :style="{ left: `${tip.left}px`, top: `${tip.top}px` }"
+        role="tooltip"
+      >
+        {{ tip.text }}
+      </div>
+    </Teleport>
   </div>
 </template>

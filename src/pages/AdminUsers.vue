@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
+import SkeletonBlock from '../components/SkeletonBlock.vue'
 import { fetchAdminUsers, setUserAiAccess } from '../lib/api'
 import type { AuthUser } from '../types'
 
@@ -67,7 +68,14 @@ async function toggleAiAccess(user: AuthUser) {
 }
 
 function formatDate(value?: string) {
-  return value ? new Date(value).toLocaleString('zh-TW', { hour12: false }) : '—'
+  const date = value ? new Date(value) : null
+  if (!date || Number.isNaN(date.getTime())) {
+    return '—'
+  }
+  // 補零到固定寬度，配上欄位的 tabular-nums 與右對齊，上下兩列的數字才會對齊
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const ymd = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  return `${ymd} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 onMounted(() => load(1))
@@ -96,13 +104,19 @@ onMounted(() => load(1))
             <th class="px-5 py-3 font-medium">顯示名稱</th>
             <th class="px-5 py-3 font-medium">角色</th>
             <th class="px-5 py-3 font-medium">AI 解析</th>
-            <th class="px-5 py-3 font-medium">註冊時間</th>
+            <th class="px-5 py-3 text-right font-medium">註冊時間</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-if="loading">
-            <td colspan="5" class="px-5 py-6 text-center text-stone-300/70">載入中…</td>
-          </tr>
+          <template v-if="loading">
+            <tr v-for="n in 5" :key="n" class="border-b border-white/5 last:border-0">
+              <td class="px-5 py-3"><SkeletonBlock class="h-4 w-48 rounded-full" /></td>
+              <td class="px-5 py-3"><SkeletonBlock class="h-4 w-20 rounded-full" /></td>
+              <td class="px-5 py-3"><SkeletonBlock class="h-6 w-16 rounded-full" /></td>
+              <td class="px-5 py-3"><SkeletonBlock class="h-7 w-28 rounded-full" /></td>
+              <td class="px-5 py-3"><SkeletonBlock class="ml-auto h-4 w-32 rounded-full" /></td>
+            </tr>
+          </template>
           <tr v-else-if="!users.length">
             <td colspan="5" class="px-5 py-6 text-center text-stone-300/70">還沒有任何會員。</td>
           </tr>
@@ -138,7 +152,7 @@ onMounted(() => load(1))
                 {{ updatingId === user.id ? '更新中…' : user.aiAccess ? '已開通．點此收回' : '未開通．點此開通' }}
               </button>
             </td>
-            <td class="px-5 py-3 text-stone-300/70">{{ formatDate(user.createdAt) }}</td>
+            <td class="px-5 py-3 text-right tabular-nums text-stone-300/70">{{ formatDate(user.createdAt) }}</td>
           </tr>
         </tbody>
       </table>

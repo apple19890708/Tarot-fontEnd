@@ -65,11 +65,12 @@ function orientationLabel(card: ReadingCard | null) {
   <div class="space-y-3">
     <!--
       牌寬跟著容器縮放（手機最寬 4rem、sm 以上 5rem），盡量一排放得下不用橫向捲動；
-      縮到 2.75rem 還放不下時才捲動。justify-center-safe 讓溢出時從左邊開始，不會把左側切掉
+      縮到 2.75rem 還放不下時才捲動。justify-center-safe 讓溢出時從左邊開始，不會把左側切掉。
+      lg 以上放寬到 7rem：張數少的牌陣原本只佔容器中間一小塊，兩側留下大片空白
     -->
     <div class="-mx-1 overflow-x-auto px-1 pb-1">
       <div
-        class="grid w-full justify-center-safe gap-1.5 [--slot-max:4rem] sm:gap-3 sm:[--slot-max:5rem]"
+        class="grid w-full justify-center-safe gap-1.5 [--slot-max:4rem] sm:gap-3 sm:[--slot-max:5rem] lg:[--slot-max:7rem]"
         :style="{
           gridTemplateColumns: `repeat(${grid.cols}, minmax(2.75rem, var(--slot-max)))`,
           gridTemplateRows: `repeat(${grid.rows}, minmax(0, 1fr))`,
@@ -116,11 +117,11 @@ function orientationLabel(card: ReadingCard | null) {
               <span
                 class="absolute inset-0 flex flex-col justify-center gap-0.5 overflow-hidden rounded-lg border border-amber-200/40 bg-amber-100/8 px-1.5 py-1 text-center [backface-visibility:hidden] [transform:rotateY(180deg)]"
               >
-                <span class="font-medium text-amber-100 text-[10px] leading-tight sm:text-[11px] lg:text-xs">
+                <span class="font-medium text-amber-100 text-[11px] leading-tight lg:text-xs">
                   {{ slot.position.label }}
                 </span>
                 <span
-                  class="break-words text-stone-200/85 text-[9px] leading-[1.15] sm:text-[10px] sm:leading-tight lg:text-[11px] lg:leading-snug"
+                  class="break-words text-stone-200/85 text-[11px] leading-[1.2] lg:leading-snug"
                 >
                   {{ slot.position.prompt }}
                 </span>
@@ -133,7 +134,7 @@ function orientationLabel(card: ReadingCard | null) {
             >
               <template v-if="slot.card">
                 {{ slot.card.card.nameZh }}
-                <span class="block text-[10px] text-stone-500">{{ orientationLabel(slot.card) }}</span>
+                <span class="block text-[11px] text-stone-500">{{ orientationLabel(slot.card) }}</span>
               </template>
               <template v-else>{{ slot.index + 1 }}. {{ slot.position.label }}</template>
             </span>

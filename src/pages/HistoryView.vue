@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import ReadingHistoryIndex from '../components/ReadingHistoryIndex.vue'
+import SkeletonBlock from '../components/SkeletonBlock.vue'
 import StepResult from '../components/StepResult.vue'
 import {
   deleteReading,
@@ -55,6 +56,12 @@ let narrationController: AbortController | null = null
 
 const isEmpty = computed(() => isListLoaded.value && readings.value.length === 0)
 const showRail = computed(() => isDesktop.value && isIndexCollapsed.value)
+
+// 內容還沒載到之前，先用清單裡那一筆的張數決定骨架要排幾張牌，骨架才貼近真正的版面
+const selectedSummary = computed(() => readings.value.find((item) => item.id === selectedId.value) || null)
+const skeletonCardCount = computed(() => selectedSummary.value?.cardCount || 3)
+// 牌卡區是兩欄，骨架排滿兩格就夠，再多只是讓等待的畫面變長
+const skeletonPanelCount = computed(() => Math.min(skeletonCardCount.value, 2))
 
 // 結果頁的排列圖需要完整牌陣定義，結果本身只帶 key
 const detailSpread = computed(
@@ -394,8 +401,13 @@ onBeforeUnmount(() => {
             </button>
           </div>
 
+          <!-- 骨架照著真正的列排：問題兩行、底下一行資訊，載完不會換高度 -->
           <div v-if="isListLoading && !isListLoaded" class="space-y-2">
-            <div v-for="n in 4" :key="n" class="h-16 animate-pulse rounded-2xl bg-white/5" />
+            <div v-for="n in 4" :key="n" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+              <SkeletonBlock class="h-4 w-full rounded-full" />
+              <SkeletonBlock class="mt-2 h-4 w-3/5 rounded-full" />
+              <SkeletonBlock class="mt-2.5 h-3 w-28 rounded-full" />
+            </div>
           </div>
           <p v-else-if="isEmpty" class="px-1 text-sm text-stone-400">還沒有紀錄</p>
           <ReadingHistoryIndex
@@ -429,17 +441,58 @@ onBeforeUnmount(() => {
           </p>
           <router-link
             :to="{ name: 'home' }"
-            class="mt-6 inline-block rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:scale-[1.01]"
+            class="mt-6 inline-block cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-6 py-3 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25"
           >
             立即占卜
           </router-link>
         </div>
 
         <template v-else-if="selectedId">
-          <div v-if="isDetailLoading" class="space-y-3 rounded-[1.75rem] border border-white/10 bg-white/5 p-6">
-            <div class="h-3 w-full animate-pulse rounded-full bg-white/10" />
-            <div class="h-3 w-10/12 animate-pulse rounded-full bg-white/10" />
-            <div class="h-3 w-8/12 animate-pulse rounded-full bg-white/10" />
+          <!-- 骨架照著結果頁的版面排：日期列、標題、牌陣框、牌卡，資料進來時版面不會整個跳一次 -->
+          <div v-if="isDetailLoading" class="space-y-4 sm:space-y-6">
+            <div class="flex items-center justify-between gap-3">
+              <SkeletonBlock class="h-4 w-56 max-w-[60%] rounded-full" />
+              <SkeletonBlock class="h-8 w-16 rounded-full" />
+            </div>
+
+            <div class="space-y-3 border-b border-white/10 pb-4 sm:space-y-4 sm:pb-6">
+              <SkeletonBlock class="h-3 w-24 rounded-full" />
+              <SkeletonBlock class="h-8 w-48 sm:h-9 sm:w-64" />
+              <SkeletonBlock class="h-5 w-full max-w-xl rounded-full" />
+            </div>
+
+            <div class="rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-3 sm:rounded-[1.75rem] sm:p-5">
+              <SkeletonBlock class="mb-3 h-3 w-20 rounded-full" />
+              <div class="flex flex-wrap justify-center gap-1.5 sm:gap-3">
+                <SkeletonBlock
+                  v-for="n in skeletonCardCount"
+                  :key="n"
+                  class="h-24 w-16 sm:h-28 sm:w-20 lg:h-40 lg:w-28"
+                />
+              </div>
+            </div>
+
+            <div class="grid min-w-0 gap-4 xl:grid-cols-2">
+              <div
+                v-for="n in skeletonPanelCount"
+                :key="n"
+                class="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 sm:p-5"
+              >
+                <div class="flex gap-3 sm:gap-4">
+                  <SkeletonBlock class="h-20 w-[3.25rem] flex-shrink-0 sm:h-24 sm:w-16" />
+                  <div class="min-w-0 flex-1 space-y-2">
+                    <SkeletonBlock class="h-3 w-12 rounded-full" />
+                    <SkeletonBlock class="h-6 w-28 sm:h-7 sm:w-32" />
+                    <SkeletonBlock class="h-3 w-20 rounded-full" />
+                  </div>
+                </div>
+                <div class="mt-4 space-y-2">
+                  <SkeletonBlock class="h-3 w-full rounded-full" />
+                  <SkeletonBlock class="h-3 w-5/6 rounded-full" />
+                  <SkeletonBlock class="h-3 w-4/6 rounded-full" />
+                </div>
+              </div>
+            </div>
           </div>
 
           <p
@@ -492,7 +545,14 @@ onBeforeUnmount(() => {
           </template>
         </template>
 
-        <div v-else-if="isListLoading" class="h-40 animate-pulse rounded-[1.75rem] bg-white/5" />
+        <div
+          v-else-if="isListLoading"
+          class="space-y-3 rounded-[1.75rem] border border-white/10 bg-white/5 p-6"
+        >
+          <SkeletonBlock class="h-6 w-40" />
+          <SkeletonBlock class="h-3 w-full rounded-full" />
+          <SkeletonBlock class="h-3 w-4/5 rounded-full" />
+        </div>
 
         <p
           v-else-if="isListLoaded"

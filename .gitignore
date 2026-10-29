@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 第三方 skill（taste-skill）。實體在 ~/.claude/taste-skill，這裡只是連結，不進版控
+.claude/skills/design-taste-frontend/

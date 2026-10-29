@@ -69,7 +69,7 @@ function signOut() {
 				<div class="min-w-0 leading-tight">
 					<p class="text-[10px] uppercase tracking-[0.3em] text-amber-100/70">Tarot Divination Studio</p>
 					<p class="text-sm font-semibold text-stone-50 sm:text-base">塔羅占卜</p>
-					<p class="truncate text-[10px] text-stone-300/75 sm:text-xs">{{ healthLabel }}</p>
+					<p class="truncate text-[11px] text-stone-300/75 sm:text-xs">{{ healthLabel }}</p>
 				</div>
 
 				<!-- 手機放不下一整列連結，改成漢堡；三條線在打開時轉成叉 -->
@@ -130,7 +130,7 @@ function signOut() {
 			</div>
 		</header>
 
-		<main class="mx-auto w-full min-w-0 max-w-7xl p-3 sm:p-5">
+		<main class="mx-auto w-full min-w-0 max-w-7xl px-4 py-3 sm:p-5">
 			<router-view />
 		</main>
 	</div>

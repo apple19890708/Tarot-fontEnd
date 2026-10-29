@@ -8,6 +8,7 @@ import { canUseAi, isLoggedIn } from '../lib/auth'
 import BackToTop from './BackToTop.vue'
 import QuantPanel from './QuantPanel.vue'
 import ReadingAnalysisPanel from './ReadingAnalysisPanel.vue'
+import SkeletonBlock from './SkeletonBlock.vue'
 import SpreadLayout from './SpreadLayout.vue'
 import { imageUrl } from '../lib/api'
 import type { Element, NarrationStatus, ReadingResponse, SaveStatus, Spread } from '../types'
@@ -244,7 +245,7 @@ function formatSuit(suit: string | null) {
         </p>
         <button
           v-if="canUseAi"
-          class="cursor-pointer rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:scale-[1.01]"
+          class="cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25"
           type="button"
           @click="emit('requestNarration')"
         >
@@ -254,7 +255,7 @@ function formatSuit(suit: string | null) {
         <!-- 未登入：按鈕照樣顯示，點了會帶去登入頁 -->
         <template v-else-if="!isLoggedIn">
           <button
-            class="cursor-pointer rounded-full bg-gradient-to-r from-amber-300 via-rose-300 to-orange-300 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:scale-[1.01]"
+            class="cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25"
             type="button"
             @click="emit('requestNarration')"
           >
@@ -277,10 +278,19 @@ function formatSuit(suit: string | null) {
       </div>
 
       <template v-else>
-        <div v-if="narrationStatus === 'loading'" class="mt-4 space-y-3">
-          <div class="h-3 w-full animate-pulse rounded-full bg-white/10" />
-          <div class="h-3 w-11/12 animate-pulse rounded-full bg-white/10" />
-          <div class="h-3 w-4/5 animate-pulse rounded-full bg-white/10" />
+        <div v-if="narrationStatus === 'loading'" class="mt-4 space-y-5">
+          <div class="space-y-2.5">
+            <SkeletonBlock class="h-3 w-full rounded-full" />
+            <SkeletonBlock class="h-3 w-11/12 rounded-full" />
+            <SkeletonBlock class="h-3 w-4/5 rounded-full" />
+          </div>
+          <SkeletonBlock class="h-5 w-40" />
+          <div class="space-y-2.5">
+            <SkeletonBlock class="h-3 w-full rounded-full" />
+            <SkeletonBlock class="h-3 w-10/12 rounded-full" />
+            <SkeletonBlock class="h-3 w-full rounded-full" />
+            <SkeletonBlock class="h-3 w-3/5 rounded-full" />
+          </div>
         </div>
 
         <div
