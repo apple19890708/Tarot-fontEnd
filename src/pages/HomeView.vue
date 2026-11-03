@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 
 import { useRouter } from 'vue-router'
 
@@ -16,6 +16,8 @@ import {
 } from '../lib/api'
 import { canUseAi, isLoggedIn, onLogout } from '../lib/auth'
 import { refreshHealth } from '../lib/health'
+import { installPixelCardBack } from '../lib/pixelArt'
+import { resetSceneBus, sceneBus } from '../lib/sceneBus'
 import { clearResultSnapshot, RESULT_SNAPSHOT_KEY } from '../lib/resultSnapshot'
 import type {
   CardSummary,
@@ -34,6 +36,9 @@ import type {
 // ---- 步驟 ----
 // 1 問題（問題核心與牌陣）→ 2 抽牌（自動／手動／輸入）→ 3 結果（可加問 AI）
 const step = ref<1 | 2 | 3>(1)
+
+// 像素牌背放進 CSS 變數，要在子元件畫出牌背之前設好
+installPixelCardBack()
 
 const STEPS = [
   { value: 1, label: '問題' },
@@ -70,6 +75,14 @@ const picked = ref<DeckCard[]>([])
 // 輸入已抽到的牌。長度一直等於牌陣張數，index 就是位置順序，空位是 undefined，
 // 使用者才能直接點某個位置把牌放上去，不必照順序一張一張加
 const inputCards = ref<(InputCard | undefined)[]>([])
+
+// 給像素夜景的抽牌事件：每多一張就劃一顆流星、逆位就雲遮月。
+// 自動抽牌是一次出結果，沒有逐張事件，夜景只會跟著步驟明暗
+const sceneDrawn = computed(() =>
+  drawMode.value === 'input'
+    ? inputCards.value.flatMap((card) => (card ? [card.orientation] : []))
+    : picked.value.map((card) => card.orientation),
+)
 
 // 張數改變時補滿或截短，已經放好的牌留著
 watch(
@@ -605,6 +618,13 @@ onMounted(() => {
 
 // 離開頁面時停止 AI 生成，避免繼續計費
 onBeforeUnmount(cancelNarration)
+
+// 把占卜流程交給 App 層的像素世界做反應；離開首頁就重設，別頁的背景才不會停在「抽牌中」
+watchEffect(() => {
+  sceneBus.step = step.value
+  sceneBus.drawn = sceneDrawn.value
+})
+onBeforeUnmount(resetSceneBus)
 </script>
 
 <template>
@@ -615,7 +635,7 @@ onBeforeUnmount(cancelNarration)
 
       <!-- 其他頁各自有 h1，只有首頁沒有：訪客第一眼要知道這是什麼、會拿到什麼 -->
       <header class="text-center">
-        <h1 class="text-xl font-semibold text-stone-50 sm:text-2xl">塔羅占卜</h1>
+        <h1 class="font-pixel text-[24px] text-stone-50">塔羅占卜</h1>
         <p class="mt-1 text-xs leading-6 text-stone-300/75 sm:text-sm">
           寫下問題、選一個牌陣，抽完牌會得到每張牌的牌義與整組牌的組合分析，也可以請 AI 解讀。
         </p>
@@ -625,7 +645,7 @@ onBeforeUnmount(cancelNarration)
       <ol class="flex flex-wrap items-center justify-center gap-1 sm:gap-2" aria-label="占卜步驟">
         <template v-for="(item, index) in STEPS" :key="item.value">
           <li
-            class="flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] select-none sm:gap-2 sm:px-4 sm:py-1.5 sm:text-sm"
+            class="flex items-center gap-1.5 whitespace-nowrap border-2 px-2.5 py-1 font-pixel text-[12px] select-none sm:gap-2 sm:px-4 sm:py-1.5"
             :class="
               step === item.value
                 ? 'border-amber-200/50 bg-amber-200/15 text-amber-50'
@@ -634,7 +654,7 @@ onBeforeUnmount(cancelNarration)
             :aria-current="step === item.value ? 'step' : undefined"
           >
             <span
-              class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] sm:h-5 sm:w-5 sm:text-xs"
+              class="flex h-4 w-4 items-center justify-center text-[12px] sm:h-5 sm:w-5"
               :class="step === item.value ? 'bg-amber-200/90 text-slate-950' : 'bg-white/10 text-stone-300'"
             >
               {{ item.value }}
@@ -647,7 +667,7 @@ onBeforeUnmount(cancelNarration)
 
       <!-- 步驟 1 內容不多，收窄並置中；輸入已抽到的牌是左右並排、牌名要放得下，和步驟 3 一樣用整個寬度 -->
       <section
-        class="w-full min-w-0 rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-4 shadow-[0_25px_70px_rgba(0,0,0,0.35)] backdrop-blur flex flex-1 flex-col sm:rounded-[2rem] sm:p-6"
+        class="w-full min-w-0 border-2 border-white/10 bg-[#0f1526] p-4 shadow-[4px_4px_0_rgba(0,0,0,0.55)] flex flex-1 flex-col sm:p-6"
         :class="step === 3 || (step === 2 && drawMode === 'input') ? '' : 'mx-auto max-w-2xl'"
       >
         <!-- 往下一步是往左推、回上一步是往右推；out-in 讓上一步先退場，版面不會同時擠兩份內容 -->
@@ -658,10 +678,10 @@ onBeforeUnmount(cancelNarration)
         -->
         <Transition
           mode="out-in"
-          enter-active-class="transition duration-300 ease-out motion-reduce:transition-none"
+          enter-active-class="transition duration-300 [transition-timing-function:steps(4)] motion-reduce:transition-none"
           enter-from-class="opacity-0 translate-y-2"
           enter-to-class="opacity-100 translate-y-0"
-          leave-active-class="transition duration-200 ease-in motion-reduce:transition-none"
+          leave-active-class="transition duration-200 [transition-timing-function:steps(4)] motion-reduce:transition-none"
           leave-from-class="opacity-100 translate-y-0"
           leave-to-class="opacity-0 -translate-y-2"
         >
@@ -726,7 +746,7 @@ onBeforeUnmount(cancelNarration)
           </div>
         </Transition>
 
-        <p v-if="errorMessage" class="mt-4 rounded-3xl border border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+        <p v-if="errorMessage" class="mt-4 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
           {{ errorMessage }}
         </p>
       </section>

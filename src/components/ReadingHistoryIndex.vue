@@ -148,33 +148,42 @@ function formatShortDate(value: string) {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${date.getMonth() + 1}/${date.getDate()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
+
+// 索引標籤一律是同一種偏暗的和紙色，只在左緣用一道色條區分：朱紅、藍、苔綠、黃土輪流
+// （四種淡彩整張塗滿太花，使用者覺得醜）。選中的那張改成菜單同款的亮和紙
+const TAB_MARKS = ['border-l-[#a8322a]', 'border-l-[#3d5a80]', 'border-l-[#5f7a3a]', 'border-l-[#b8862e]']
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col gap-4">
-    <div class="space-y-3">
+  <!--
+    插在和紙菜單左緣的索引標籤（計畫書 2.8.4）：一筆紀錄一張標籤，右側不畫框、看起來夾在菜單裡；
+    選中的那張換成菜單同款的和紙、往左多伸出一截，像被抽出來的那一頁。底是和菜單內頁同色系的深黑藍，月份用琥珀色像素字
+  -->
+  <div class="flex min-h-0 flex-1 flex-col gap-3">
+    <!-- 搜尋與篩選在右邊留內距：外層為了讓標籤貼齊菜單沒有右內距，不留的話筆數會被裁掉 -->
+    <div class="space-y-3 pr-3">
       <input
         v-model="keyword"
         type="search"
         placeholder="搜尋問題或牌名"
-        class="w-full rounded-full border border-white/10 bg-black/20 px-4 py-2 text-sm text-stone-100 placeholder:text-stone-500 focus:border-amber-200/40 focus:outline-none"
+        class="w-full border-2 border-[#3b2618] bg-[#f1e7cf] px-2 py-1.5 text-sm text-[#2a1a14] shadow-[3px_3px_0_rgba(0,0,0,0.35)] placeholder:text-[#2a1a14]/45 focus:border-[#a8322a] focus:outline-none"
       />
       <div class="flex flex-wrap items-center gap-2">
         <button
           v-for="option in filterOptions"
           :key="option.value"
           type="button"
-          class="cursor-pointer rounded-full border px-3 py-1 text-xs transition"
+          class="cursor-pointer border-2 px-3 py-1 font-pixel text-[12px] transition active:translate-x-[2px] active:translate-y-[2px]"
           :class="
             narrationFilter === option.value
-              ? 'border-amber-200/50 bg-amber-200/15 text-amber-50'
-              : 'border-white/10 text-stone-300 hover:bg-white/10'
+              ? 'border-[#3b2618] bg-[#a8322a] text-[#f1e7cf]'
+              : 'border-[#f1e7cf]/30 bg-transparent text-[#f1e7cf]/85 hover:border-amber-200/60 hover:text-amber-200'
           "
           @click="narrationFilter = option.value"
         >
           {{ option.label }}
         </button>
-        <span class="ml-auto text-xs text-stone-400">
+        <span class="ml-auto text-xs text-[#f1e7cf]/60">
           <template v-if="hasCondition">符合 {{ filtered.length }} 筆／</template>共 {{ readings.length }} 筆
         </span>
       </div>
@@ -182,12 +191,12 @@ function formatShortDate(value: string) {
 
     <div
       v-if="filtered.length === 0"
-      class="rounded-[1.75rem] border border-dashed border-white/15 bg-black/10 px-4 py-6 text-center text-sm text-stone-400"
+      class="border-2 border-[#3b2618] bg-[#f1e7cf] px-4 py-6 text-center text-sm text-[#2a1a14]/70"
     >
       <p>沒有符合條件的紀錄</p>
       <button
         type="button"
-        class="mt-3 cursor-pointer rounded-full border border-white/15 px-4 py-1.5 text-sm text-stone-200 transition hover:bg-white/10"
+        class="mt-3 cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-4 py-1.5 font-pixel text-[12px] text-[#2a1a14] transition hover:bg-[#f1e7cf] active:translate-x-[2px] active:translate-y-[2px]"
         @click="clearConditions"
       >
         清除條件
@@ -197,22 +206,22 @@ function formatShortDate(value: string) {
     <nav
       v-else
       ref="navEl"
-      class="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1 lg:max-h-(--list-max)"
+      class="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1 [scrollbar-color:#3b4a6e_transparent] [scrollbar-width:thin] lg:max-h-(--list-max)"
       @scroll="hideTip"
       :style="listMaxHeight ? { '--list-max': listMaxHeight } : undefined"
       aria-label="占卜紀錄"
     >
       <section v-for="group in groups" :key="group.key">
-        <p class="mb-2 px-1 text-xs tracking-[0.2em] text-stone-400">{{ group.label }}</p>
-        <ul class="space-y-2">
-          <li v-for="item in group.items" :key="item.id">
+        <p class="mb-2 border-b-2 border-dashed border-[#f1e7cf]/15 pb-1 font-pixel text-[12px] tracking-[0.2em] text-amber-200/90">{{ group.label }}</p>
+        <ul class="space-y-1.5">
+          <li v-for="(item, i) in group.items" :key="item.id">
             <button
               type="button"
-              class="w-full cursor-pointer rounded-2xl border px-4 py-3 text-left transition"
+              class="w-[calc(100%-0.75rem)] cursor-pointer border-2 border-l-[6px] border-r-0 border-[#3b2618] px-3 py-2 text-left shadow-[-3px_3px_0_rgba(0,0,0,0.45)] transition-[margin,background-color] [transition-timing-function:steps(2)]"
               :class="
                 selectedId === item.id
-                  ? 'border-amber-200/40 bg-amber-200/10'
-                  : 'border-white/10 bg-white/5 hover:bg-white/10'
+                  ? 'ml-0 w-full border-l-[#a8322a] bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px]'
+                  : ['ml-3 bg-[#d8ccb0] hover:ml-1.5 hover:bg-[#e6dac0]', TAB_MARKS[i % TAB_MARKS.length]]
               "
               :aria-current="selectedId === item.id ? 'true' : undefined"
               @click="hideTip(); emit('select', item.id)"
@@ -228,16 +237,16 @@ function formatShortDate(value: string) {
               -->
               <span
                 data-question
-                class="line-clamp-2 text-sm leading-6 text-amber-50 lg:line-clamp-1"
+                class="line-clamp-2 text-sm leading-6 text-[#2a1a14] lg:line-clamp-1"
               >
                 {{ item.question || '未填寫問題' }}
               </span>
-              <span class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-stone-400">
+              <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#2a1a14]/60">
                 <span class="tabular-nums">{{ formatShortDate(item.createdAt) }}</span>
                 <span>{{ item.cardCount }} 張</span>
                 <span
                   v-if="item.hasNarration"
-                  class="rounded-full border border-amber-200/30 bg-amber-200/10 px-1.5 py-0.5 text-[11px] leading-none text-amber-100"
+                  class="border border-[#a8322a] px-1.5 py-0.5 text-[11px] leading-none text-[#a8322a]"
                 >
                   AI
                 </span>

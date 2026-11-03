@@ -5,7 +5,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import FanDeck from './FanDeck.vue'
 import FlyingCard from './FlyingCard.vue'
 import SpreadSlots from './SpreadSlots.vue'
-import { imageUrl } from '../lib/api'
+import { cardImageUrl } from '../lib/cardStyle'
 import { motionDuration, prefersReducedMotion, type CardPose } from '../lib/motion'
 import type {
   CardSummary,
@@ -217,7 +217,7 @@ function stopAutoShuffle() {
   // 牌堆一直掛在畫面上，停在擺動到一半的角度會看起來歪掉，收回正中
   const el = autoDeckEl.value
   if (el) {
-    gsap.to(el, { x: 0, y: 0, rotation: 0, duration: motionDuration(0.2), ease: 'power2.out', overwrite: 'auto' })
+    gsap.to(el, { x: 0, y: 0, rotation: 0, duration: motionDuration(0.2), ease: 'steps(5)', overwrite: 'auto' })
   }
 }
 
@@ -231,8 +231,8 @@ function startAutoIdle() {
   }
   autoShuffle = gsap
     .timeline({ repeat: -1, yoyo: true })
-    .to(el, { y: -8, rotation: 2, duration: 1.6, ease: 'sine.inOut' })
-    .to(el, { y: 0, rotation: -2, duration: 1.6, ease: 'sine.inOut' })
+    .to(el, { y: -8, rotation: 2, duration: 1.6, ease: 'steps(8)' })
+    .to(el, { y: 0, rotation: -2, duration: 1.6, ease: 'steps(8)' })
 }
 
 watch([autoDeckEl, autoPhase], ([el, phase]) => {
@@ -250,8 +250,8 @@ function startAutoShuffle() {
   // 左右擺動並微微傾斜，表示牌還在洗
   autoShuffle = gsap
     .timeline({ repeat: -1, yoyo: true })
-    .to(el, { x: -7, rotation: -4, duration: 0.26, ease: 'power1.inOut' })
-    .to(el, { x: 7, rotation: 4, duration: 0.52, ease: 'power1.inOut' })
+    .to(el, { x: -7, rotation: -4, duration: 0.26, ease: 'steps(5)' })
+    .to(el, { x: 7, rotation: 4, duration: 0.52, ease: 'steps(5)' })
 }
 
 function autoDeckPose(): CardPose | null {
@@ -506,7 +506,7 @@ const cardGroups = computed(() => {
     <FlyingCard
       v-for="flight in flights"
       :key="flight.key"
-      :image="imageUrl(flight.card.image)"
+      :image="cardImageUrl(flight.card.image)"
       :alt="flight.card.nameZh"
       :from="flight.from"
       :to="flight.to"
@@ -515,7 +515,7 @@ const cardGroups = computed(() => {
     />
     <div class="flex items-center justify-between gap-3">
       <button
-        class="cursor-pointer text-xs text-stone-400 transition hover:text-stone-100 sm:text-sm"
+        class="cursor-pointer text-[12px] text-stone-400 transition hover:text-stone-100 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         type="button"
         @click="emit('back')"
       >
@@ -527,11 +527,11 @@ const cardGroups = computed(() => {
     </div>
 
     <!-- Tailwind 不會產生動態組出來的 class，欄數寫死 -->
-    <div class="grid grid-cols-3 gap-1 rounded-full border border-white/10 bg-black/20 p-1">
+    <div class="grid grid-cols-3 gap-1 border-2 border-white/10 bg-black/20 p-1">
       <button
         v-for="tab in MODES"
         :key="tab.key"
-        class="cursor-pointer whitespace-nowrap rounded-full px-1 py-2 text-[11px] font-medium transition disabled:cursor-not-allowed disabled:opacity-35 sm:px-3 sm:text-sm"
+        class="cursor-pointer whitespace-nowrap px-1 py-2 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-35 sm:px-3 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         :class="mode === tab.key ? 'bg-amber-200/90 text-slate-950' : 'text-stone-300/80 hover:text-stone-100'"
         type="button"
         :disabled="!tab.enabled"
@@ -550,7 +550,7 @@ const cardGroups = computed(() => {
       結果回來再一張一張飛到牌陣位置上翻開。各階段版面不變，畫面不會跳。
     -->
     <div v-if="mode === 'auto'" class="flex flex-1 flex-col space-y-4">
-      <p class="rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-stone-200/80">
+      <p class="border-2 border-white/10 bg-white/5 px-4 py-3 text-sm leading-7 text-stone-200/80">
         由系統抽出 {{ targetCount }} 張牌並決定正逆位，直接填入{{ spread?.name }}的各個位置。
       </p>
 
@@ -560,17 +560,17 @@ const cardGroups = computed(() => {
             <!-- 等待抽牌時牌堆後面一圈淡淡的光暈，跟著呼吸明暗 -->
             <span
               v-if="autoPhase === 'idle'"
-              class="absolute -inset-3 animate-pulse rounded-2xl bg-amber-200/15 blur-lg motion-reduce:animate-none"
+              class="absolute -inset-3 animate-pulse bg-amber-200/15 motion-reduce:animate-none"
               aria-hidden="true"
             />
             <span
               v-for="layer in 3"
               :key="layer"
-              class="absolute inset-0 rounded-md border border-amber-200/20 bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950"
+              class="absolute inset-0 border-2 border-amber-200/20 [background-image:var(--pixel-card-back)] [background-size:100%_100%] [image-rendering:pixelated]"
               :style="{ transform: `translateY(${(3 - layer) * 2}px)` }"
             />
             <span
-              class="relative flex h-full w-full items-center justify-center rounded-md border border-amber-200/30 bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 shadow-lg shadow-black/50"
+              class="relative flex h-full w-full items-center justify-center border-2 border-amber-200/30 [background-image:var(--pixel-card-back)] [background-size:100%_100%] [image-rendering:pixelated] shadow-lg shadow-black/50"
             >
               <span class="text-[13px] leading-none text-amber-200/50">✦</span>
             </span>
@@ -589,7 +589,7 @@ const cardGroups = computed(() => {
 
       <!-- 按下後按鈕留在原地改顯示進度，版面高度不變 -->
       <button
-        class="w-full cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-3 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60"
+        class="w-full cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-3 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         type="button"
         :disabled="isLoading || autoPhase !== 'idle'"
         aria-live="polite"
@@ -608,7 +608,7 @@ const cardGroups = computed(() => {
         </p>
         <div class="flex gap-2">
           <button
-            class="cursor-pointer whitespace-nowrap rounded-full border border-white/15 px-2.5 py-1 text-[11px] text-stone-200 transition hover:bg-white/10 disabled:opacity-40 sm:px-3 sm:text-xs"
+            class="cursor-pointer whitespace-nowrap border-2 border-white/15 px-2.5 py-1 text-[12px] text-stone-200 transition hover:bg-white/10 disabled:opacity-40 sm:px-3 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             :disabled="picked.length === 0"
             @click="onUndoPick"
@@ -616,7 +616,7 @@ const cardGroups = computed(() => {
             收回最後一張
           </button>
           <button
-            class="cursor-pointer whitespace-nowrap rounded-full border border-white/15 px-2.5 py-1 text-[11px] text-stone-200 transition hover:bg-white/10 sm:px-3 sm:text-xs"
+            class="cursor-pointer whitespace-nowrap border-2 border-white/15 px-2.5 py-1 text-[12px] text-stone-200 transition hover:bg-white/10 sm:px-3 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('reshuffle')"
           >
@@ -641,7 +641,7 @@ const cardGroups = computed(() => {
       <div v-if="fanPhase === 'shuffling'" class="flex justify-center pt-2">
         <button
           type="button"
-          class="cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-6 py-2 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25"
+          class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-6 py-2 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
           @click="fanRef?.cut()"
         >
           切牌
@@ -650,7 +650,7 @@ const cardGroups = computed(() => {
 
       <!-- 已放入牌陣的位置：洗牌、切牌時先不顯示，牌攤開後才淡入 -->
       <Transition
-        enter-active-class="transition duration-300 ease-out"
+        enter-active-class="transition duration-300 [transition-timing-function:steps(4)]"
         enter-from-class="opacity-0 translate-y-2"
         enter-to-class="opacity-100 translate-y-0"
       >
@@ -666,7 +666,7 @@ const cardGroups = computed(() => {
       <!-- 和位置格一樣，切完牌才出現 -->
       <button
         v-if="showSlots"
-        class="w-full cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-3 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60"
+        class="w-full cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-3 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         type="button"
         :disabled="isLoading || !pickedEnough"
         @click="emit('submit')"
@@ -690,7 +690,7 @@ const cardGroups = computed(() => {
       <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] md:items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,34rem)]">
         <div class="space-y-4">
         <!-- 有牌陣：先把每個位置代表什麼攤開，否則使用者不知道該依什麼順序輸入 -->
-        <div v-if="spread" class="rounded-3xl border border-white/10 bg-black/15 p-4">
+        <div v-if="spread" class="border-2 border-white/10 bg-black/15 p-4">
           <p class="text-xs uppercase tracking-[0.2em] text-stone-400">{{ spread.name }}・位置順序</p>
           <p class="mt-1 text-xs leading-5 text-stone-400/90">{{ spread.description }}</p>
           <!-- 手機每個位置的說明已經寫在下面那一列裡，這裡就不重複 -->
@@ -702,7 +702,7 @@ const cardGroups = computed(() => {
               :class="inputCards[index] ? 'text-stone-100' : 'text-stone-400'"
             >
               <span
-                class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px]"
+                class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-[11px]"
                 :class="inputCards[index] ? 'bg-amber-200/80 text-slate-950' : 'bg-white/10 text-stone-400'"
               >
                 {{ index + 1 }}
@@ -716,14 +716,14 @@ const cardGroups = computed(() => {
         </div>
 
         <!-- 不指定牌陣：位置含意由使用者自己定義，留白就只當成「第 N 張」 -->
-        <div v-else class="space-y-2 rounded-3xl border border-white/10 bg-black/15 p-4">
+        <div v-else class="space-y-2 border-2 border-white/10 bg-black/15 p-4">
           <p class="text-xs uppercase tracking-[0.2em] text-stone-400">自訂位置含意</p>
           <p class="text-xs leading-5 text-stone-400/90">
             可以自己定義每張牌代表什麼（例如「我的想法」「對方的想法」）。留白就只當成第 N 張，不影響解讀。
           </p>
           <div v-for="(_, index) in slots" :key="index" class="flex flex-wrap items-center gap-2">
             <span
-              class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px]"
+              class="flex h-5 w-5 shrink-0 items-center justify-center text-[11px]"
               :class="inputCards[index] ? 'bg-amber-200/80 text-slate-950' : 'bg-white/10 text-stone-400'"
             >
               {{ index + 1 }}
@@ -732,7 +732,7 @@ const cardGroups = computed(() => {
               :value="customPositions[index]?.label ?? ''"
               type="text"
               maxlength="20"
-              class="w-28 shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40"
+              class="w-28 shrink-0 border-2 border-white/10 bg-white/5 px-3 py-1.5 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40"
               placeholder="位置名稱"
               @input="emit('updateCustomPosition', index, { label: ($event.target as HTMLInputElement).value })"
             />
@@ -740,7 +740,7 @@ const cardGroups = computed(() => {
               :value="customPositions[index]?.prompt ?? ''"
               type="text"
               maxlength="120"
-              class="min-w-[8rem] flex-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40"
+              class="min-w-[8rem] flex-1 border-2 border-white/10 bg-white/5 px-3 py-1.5 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40"
               placeholder="這個位置代表什麼（選填）"
               @input="emit('updateCustomPosition', index, { prompt: ($event.target as HTMLInputElement).value })"
             />
@@ -752,7 +752,7 @@ const cardGroups = computed(() => {
           <li
             v-for="(slot, index) in slots"
             :key="index"
-            class="flex items-center gap-2 rounded-2xl border bg-white/5 p-2 transition md:gap-3"
+            class="flex items-center gap-2 border-2 bg-white/5 p-2 transition md:gap-3"
             :class="[
               dropIndex === index ? 'border-amber-200/60 bg-amber-100/8' : 'border-white/10',
               dragIndex === index ? 'opacity-40' : '',
@@ -781,22 +781,22 @@ const cardGroups = computed(() => {
 
             <button
               type="button"
-              class="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-1 py-1 text-left transition"
+              class="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left transition active:translate-x-[2px] active:translate-y-[2px]"
               :class="isMobile ? 'cursor-pointer hover:bg-white/5' : 'cursor-default'"
               @click="openPicker(index)"
             >
               <!-- 固定大小的縮圖框：飛牌的終點。替身飛行期間只留虛線框，抵達後才換成牌圖 -->
-              <span :ref="(el) => setInputThumb(index, el)" class="relative h-12 w-8 shrink-0">
+              <span :ref="(el) => setInputThumb(index, el)" class="relative h-12 w-7 shrink-0">
                 <img
-                  v-if="inputCards[index] && imageUrl(inputCards[index]!.image) && !landingIds.has(inputCards[index]!.id)"
-                  :src="imageUrl(inputCards[index]!.image)"
+                  v-if="inputCards[index] && cardImageUrl(inputCards[index]!.image) && !landingIds.has(inputCards[index]!.id)"
+                  :src="cardImageUrl(inputCards[index]!.image)"
                   :alt="inputCards[index]!.nameZh"
-                  class="absolute inset-0 h-full w-full rounded object-cover"
+                  class="absolute inset-0 h-full w-full object-cover"
                   :class="{ 'rotate-180': inputCards[index]!.orientation === 'reversed' }"
                 />
                 <span
                   v-else
-                  class="absolute inset-0 flex items-center justify-center rounded border border-dashed border-white/20 text-stone-600"
+                  class="absolute inset-0 flex items-center justify-center border-2 border-dashed border-white/20 text-stone-600"
                   aria-hidden="true"
                 >
                   ＋
@@ -812,14 +812,14 @@ const cardGroups = computed(() => {
 
             <template v-if="inputCards[index]">
               <button
-                class="cursor-pointer rounded-full border border-white/15 px-2 py-1 text-xs text-stone-200 transition hover:bg-white/10"
+                class="cursor-pointer border-2 border-white/15 px-2 py-1 text-[12px] text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
                 type="button"
                 @click="emit('toggleInputOrientation', index)"
               >
                 {{ inputCards[index]!.orientation === 'upright' ? '正位' : '逆位' }}
               </button>
               <button
-                class="cursor-pointer rounded-full px-2 py-1 text-xs text-rose-200/80 transition hover:bg-rose-300/10"
+                class="cursor-pointer px-2 py-1 text-[12px] text-rose-200/80 transition hover:bg-rose-300/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
                 type="button"
                 title="移除"
                 @click="emit('removeInputCard', index)"
@@ -836,15 +836,15 @@ const cardGroups = computed(() => {
           <input
             :value="cardSearch"
             type="search"
-            class="w-full rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40"
+            class="w-full border-2 border-white/10 bg-white/5 px-4 py-2 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40"
             placeholder="搜尋牌名…"
             @input="emit('update:cardSearch', ($event.target as HTMLInputElement).value)"
           />
-          <p v-if="cardsError" class="rounded-2xl border border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
+          <p v-if="cardsError" class="border-2 border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
             {{ cardsError }}
           </p>
           <!-- 捲動區用不透明底色，sticky 的分組標題才能完全蓋住捲到後面的牌，中間不留縫 -->
-          <div class="max-h-[30rem] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950 px-2 pb-2">
+          <div class="max-h-[30rem] overflow-y-auto border-2 border-white/10 bg-slate-950 px-2 pb-2">
             <div v-for="group in cardGroups" :key="group.key">
               <p
                 class="sticky top-0 z-10 -mx-2 bg-slate-950 px-2 pb-1.5 pt-3 text-xs uppercase tracking-[0.2em] text-stone-400"
@@ -864,7 +864,7 @@ const cardGroups = computed(() => {
                 <button
                   v-for="card in row.cards"
                   :key="card.id"
-                  class="cursor-pointer truncate rounded-xl border px-2 py-1.5 text-center text-sm transition disabled:cursor-not-allowed disabled:opacity-40"
+                  class="cursor-pointer truncate border-2 px-2 py-1.5 text-center text-[12px] transition disabled:cursor-not-allowed disabled:opacity-40 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
                   :class="selectedInputIds.has(card.id)
                     ? 'border-amber-200/40 bg-amber-200/20 text-amber-50'
                     : 'border-white/10 bg-white/5 text-stone-200 hover:bg-white/10'"
@@ -882,7 +882,7 @@ const cardGroups = computed(() => {
       </div>
 
       <button
-        class="w-full cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-3 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60"
+        class="w-full cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-3 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         type="button"
         :disabled="isLoading || !inputEnough"
         @click="emit('submit')"
@@ -892,14 +892,14 @@ const cardGroups = computed(() => {
 
       <!--
         手機的選牌視窗：點某個位置才打開，選完就關掉。
-        teleport 到 body，不然外層卡片的 backdrop-blur 會把 fixed 定位困在卡片裡。
+        teleport 到 body，不然外層卡片的 會把 fixed 定位困在卡片裡。
       -->
       <Teleport to="body">
         <Transition
-          enter-active-class="transition duration-200 ease-out motion-reduce:transition-none"
+          enter-active-class="transition duration-200 [transition-timing-function:steps(4)] motion-reduce:transition-none"
           enter-from-class="opacity-0"
           enter-to-class="opacity-100"
-          leave-active-class="transition duration-150 ease-in motion-reduce:transition-none"
+          leave-active-class="transition duration-150 [transition-timing-function:steps(4)] motion-reduce:transition-none"
           leave-from-class="opacity-100"
           leave-to-class="opacity-0"
         >
@@ -922,7 +922,7 @@ const cardGroups = computed(() => {
               </div>
               <button
                 type="button"
-                class="-mr-1 shrink-0 cursor-pointer rounded-xl border border-white/10 px-3 py-1.5 text-sm text-stone-200 transition hover:bg-white/10"
+                class="-mr-1 shrink-0 cursor-pointer border-2 border-white/10 px-3 py-1.5 text-[12px] text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
                 @click="closePicker"
               >
                 關閉
@@ -933,11 +933,11 @@ const cardGroups = computed(() => {
               <input
                 :value="cardSearch"
                 type="search"
-                class="w-full rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40"
+                class="w-full border-2 border-white/10 bg-white/5 px-4 py-2 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40"
                 placeholder="搜尋牌名…"
                 @input="emit('update:cardSearch', ($event.target as HTMLInputElement).value)"
               />
-              <p v-if="cardsError" class="rounded-2xl border border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
+              <p v-if="cardsError" class="border-2 border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
                 {{ cardsError }}
               </p>
             </div>
@@ -961,7 +961,7 @@ const cardGroups = computed(() => {
                   <button
                     v-for="card in row.cards"
                     :key="card.id"
-                    class="cursor-pointer truncate rounded-xl border px-2 py-2 text-center text-sm transition disabled:cursor-not-allowed disabled:opacity-40"
+                    class="cursor-pointer truncate border-2 px-2 py-2 text-center text-[12px] transition disabled:cursor-not-allowed disabled:opacity-40 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
                     :class="inputCards[pickerIndex ?? 0]?.id === card.id
                       ? 'border-amber-200/40 bg-amber-200/20 text-amber-50'
                       : 'border-white/10 bg-white/5 text-stone-200'"

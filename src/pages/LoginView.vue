@@ -40,7 +40,7 @@ async function submit() {
 <template>
   <div class="mx-auto max-w-md">
     <form
-      class="space-y-5 rounded-[1.75rem] border border-white/10 bg-white/5 p-7"
+      class="space-y-5 rounded-[1.75rem] border border-white/10 bg-[#0f1526] p-7"
       @submit.prevent="submit"
     >
       <div class="space-y-1">

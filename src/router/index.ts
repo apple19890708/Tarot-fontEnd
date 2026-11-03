@@ -10,11 +10,13 @@ const AdminUsers = () => import('../pages/AdminUsers.vue')
 const HistoryView = () => import('../pages/HistoryView.vue')
 
 // meta.auth：要登入；meta.role：要指定角色；meta.guest：已登入就不該再看到（登入／註冊頁）
+// meta.scene：像素世界的場景（city 街景、door 居酒屋門口、interior 店內）；沒寫就是 sky 星夜
+// meta.sceneDim：背景壓暗多少（0～1）；沒寫是 0.15（要讀資料的頁面，背景只當畫框）
 const routes = [
-  { path: '/', name: 'home', component: HomeView, meta: { title: '占卜' } },
-  { path: '/history', name: 'history', component: HistoryView, meta: { auth: true, title: '我的紀錄' } },
-  { path: '/login', name: 'login', component: LoginView, meta: { guest: true, title: '登入' } },
-  { path: '/register', name: 'register', component: RegisterView, meta: { guest: true, title: '註冊' } },
+  { path: '/', name: 'home', component: HomeView, meta: { title: '占卜', scene: 'city', sceneDim: 0 } },
+  { path: '/history', name: 'history', component: HistoryView, meta: { auth: true, title: '我的紀錄', scene: 'interior' } },
+  { path: '/login', name: 'login', component: LoginView, meta: { guest: true, title: '登入', scene: 'door', sceneDim: 0.1 } },
+  { path: '/register', name: 'register', component: RegisterView, meta: { guest: true, title: '註冊', scene: 'door', sceneDim: 0.1 } },
   { path: '/routes', name: 'routes-admin', component: RoutesAdmin, meta: { role: 'admin', title: '路由管理' } },
   { path: '/admin/users', name: 'admin-users', component: AdminUsers, meta: { role: 'admin', title: '會員' } },
 ]

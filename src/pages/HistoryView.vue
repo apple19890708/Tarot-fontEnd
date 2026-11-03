@@ -13,7 +13,12 @@ import {
   streamNarration,
 } from '../lib/api'
 import { canUseAi } from '../lib/auth'
+import { prefersReducedMotion } from '../lib/motion'
+import { installWashi } from '../lib/pixelArt'
 import type { NarrationStatus, ReadingDetail, ReadingSummary, Spread } from '../types'
+
+// 右側的紀錄是和紙菜單，紋理要在畫出來之前放進 CSS 變數
+installWashi()
 
 // 每人最多 100 筆、摘要很小，左欄一次載完（後端每頁上限 50），篩選才涵蓋全部紀錄
 const LIST_PAGE_SIZE = 50
@@ -145,9 +150,8 @@ function selectReading(id: string) {
   }
   // replace：切換紀錄不堆疊瀏覽紀錄，上一頁直接離開這頁
   router.replace({ query: { ...route.query, id } })
-  if (!isDesktop.value) {
-    window.scrollTo({ top: 0 })
-  }
+  // 換了一筆就回到頂端，從標題開始讀（桌機也一樣；減少動態時直接跳）
+  window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
 }
 
 function clearSelection() {
@@ -322,7 +326,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="mx-auto flex w-full min-w-0 flex-col gap-6 py-4">
-    <header class="rounded-[2rem] border border-white/10 bg-white/8 p-6 backdrop-blur">
+    <header class="rounded-[2rem] border border-white/10 bg-[#0f1526] p-6">
       <p class="text-xs uppercase tracking-[0.35em] text-amber-100/70">Reading History</p>
       <h1 class="mt-2 text-2xl font-semibold text-stone-50">我的占卜紀錄</h1>
       <p class="mt-1 text-sm leading-6 text-stone-300/75">
@@ -346,7 +350,8 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div class="flex min-w-0 items-start gap-6">
+    <!-- 桌機上左邊的索引標籤緊貼著菜單，中間不留空 -->
+    <div class="flex min-w-0 items-start gap-6 lg:gap-0">
       <!--
         左欄：桌機黏在畫面上、可收合成窄欄；手機只在打開時滿版顯示。
         收合時寬度用 transition 縮放（右欄是 flex-1，會跟著平順變寬），
@@ -354,10 +359,10 @@ onBeforeUnmount(() => {
         手機一直掛著，關閉時移到畫面左外側並隱藏，打開時從左邊滑入；lg 以上的 class 把這些全部蓋回來
       -->
       <aside
-        class="fixed inset-0 z-40 flex flex-col bg-neutral-950/95 p-5 backdrop-blur transition-[translate,opacity,visibility] duration-300 ease-out motion-reduce:transition-none lg:sticky lg:inset-auto lg:top-5 lg:z-auto lg:visible lg:max-h-[calc(100vh-2.5rem)] lg:shrink-0 lg:translate-x-0 lg:overflow-hidden lg:rounded-[1.75rem] lg:border lg:border-white/10 lg:bg-white/5 lg:opacity-100 lg:backdrop-blur-none lg:transition-[width,padding] lg:pointer-events-auto"
+        class="fixed inset-0 z-40 flex flex-col bg-[#161d33] p-5 lg:border-4 lg:border-r-0 lg:border-[#3b2618] transition-[translate,opacity,visibility] duration-300 ease-out motion-reduce:transition-none lg:sticky lg:inset-auto lg:top-5 lg:z-auto lg:visible lg:max-h-[calc(100vh-2.5rem)] lg:shrink-0 lg:translate-x-0 lg:overflow-hidden lg:shadow-[6px_6px_0_rgba(0,0,0,0.45)] lg:opacity-100 lg:backdrop-blur-none lg:transition-[width,padding] lg:pointer-events-auto"
         :class="[
           isMobileIndexOpen ? 'visible translate-x-0 opacity-100' : 'pointer-events-none invisible -translate-x-full opacity-0',
-          showRail ? 'lg:w-14 lg:p-2' : 'lg:w-80 lg:p-4',
+          showRail ? 'lg:w-14 lg:p-2' : 'lg:w-72 lg:py-4 lg:pl-2 lg:pr-0',
         ]"
         aria-label="紀錄清單"
       >
@@ -371,30 +376,30 @@ onBeforeUnmount(() => {
         <div v-if="showRail" key="rail" class="flex flex-col items-center">
           <button
             type="button"
-            class="cursor-pointer rounded-full border border-white/15 px-2 py-1.5 text-sm text-stone-200 transition hover:bg-white/10"
+            class="cursor-pointer border-2 border-[#f1e7cf]/30 px-1.5 py-0.5 font-pixel text-[12px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200"
             title="展開紀錄清單"
             aria-label="展開紀錄清單"
             @click="toggleIndex"
           >
             »
           </button>
-          <span class="mt-3 text-xs text-stone-400 [writing-mode:vertical-rl]">共 {{ readings.length }} 筆</span>
+          <span class="mt-3 text-xs text-[#f1e7cf]/60 [writing-mode:vertical-rl]">共 {{ readings.length }} 筆</span>
         </div>
 
-        <!-- 寬度＝展開時 w-80 扣掉左右 p-4 與邊框，收合途中內容不會重新排版 -->
-        <div v-else key="panel" class="flex min-h-0 flex-1 flex-col lg:w-[calc(20rem-2rem-2px)]">
-          <div class="mb-4 flex items-center justify-between gap-3">
-            <p class="text-sm font-medium text-stone-100">紀錄清單</p>
+        <!-- 寬度＝展開時 w-72 扣掉左邊框與 pl-2（右側不留，標籤才貼得到菜單），收合途中內容不會重新排版 -->
+        <div v-else key="panel" class="flex min-h-0 flex-1 flex-col lg:w-[17.25rem]">
+          <div class="mb-4 flex items-center justify-between gap-3 lg:pr-3">
+            <p class="font-pixel text-[12px] tracking-[0.2em] text-amber-200">紀錄清單</p>
             <button
               type="button"
-              class="hidden cursor-pointer rounded-full border border-white/15 px-3 py-1 text-xs text-stone-200 transition hover:bg-white/10 lg:block"
+              class="hidden cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-[12px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px] lg:block"
               @click="toggleIndex"
             >
               « 收合
             </button>
             <button
               type="button"
-              class="cursor-pointer rounded-full border border-white/15 px-3 py-1 text-sm text-stone-200 transition hover:bg-white/10 lg:hidden"
+              class="cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-[12px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 lg:hidden"
               @click="isMobileIndexOpen = false"
             >
               關閉
@@ -421,7 +426,13 @@ onBeforeUnmount(() => {
       </aside>
 
       <!-- 右欄：所選紀錄的內容 -->
-      <section class="min-w-0 flex-1 space-y-4">
+      <!--
+        右側的紀錄內容放在桌上的和紙菜單上（計畫書 2.8.4）：外圍是米白和紙、深木色粗框，
+        裡面墊一塊深黑藍的內頁，內容和首頁結果頁共用元件，維持原本的深底淺字
+        （之前用反轉濾鏡把內容變成淺底深字，使用者偏好內頁維持深色，已拿掉）
+      -->
+      <section class="min-w-0 flex-1 border-4 border-[#3b2618] bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px] [image-rendering:pixelated] p-3 shadow-[6px_6px_0_rgba(0,0,0,0.45)] sm:p-5">
+        <div class="space-y-4 border-2 border-[#3b2618] bg-[#0f1526] p-3 [image-rendering:auto] sm:p-5">
         <button
           v-if="isListLoaded && !isEmpty"
           type="button"
@@ -560,6 +571,7 @@ onBeforeUnmount(() => {
         >
           從清單選一筆紀錄來看
         </p>
+        </div>
       </section>
     </div>
   </div>

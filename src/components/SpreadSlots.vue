@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { imageUrl } from '../lib/api'
+import { cardImageUrl } from '../lib/cardStyle'
 import type { CardPose } from '../lib/motion'
 import type { PositionLayout, SlotCard } from '../types'
 
@@ -87,7 +87,7 @@ defineExpose({ poseOf })
         isGrid
           ? ''
           : [
-              'w-[calc(25%-0.3rem)] rounded-xl border px-1 py-1.5 sm:w-auto sm:min-w-[4.5rem] sm:rounded-2xl sm:px-2 sm:py-2',
+              'w-[calc(25%-0.3rem)] border-2 px-1 py-1.5 sm:w-auto sm:min-w-[4.5rem] sm:px-2 sm:py-2',
               props.cards[index] ? 'border-amber-200/40 bg-amber-100/8' : 'border-dashed border-white/15 bg-black/10',
             ]
       "
@@ -99,28 +99,28 @@ defineExpose({ poseOf })
         :ref="(el) => setBox(index, el)"
         class="relative"
         :class="[
-          isGrid ? 'aspect-[2/3] w-full' : 'h-9 w-6 sm:h-12 sm:w-8',
+          isGrid ? 'aspect-[7/12] w-full' : 'h-9 w-[21px] sm:h-12 sm:w-7',
           props.cards[index] && hiddenIds?.has(props.cards[index]!.id) ? 'invisible' : '',
         ]"
       >
         <span
           v-if="!props.cards[index]"
           class="absolute inset-0 flex items-center justify-center text-stone-600"
-          :class="isGrid ? 'rounded-md border border-dashed border-white/20 bg-black/10 text-xs' : ''"
+          :class="isGrid ? 'border-2 border-dashed border-white/20 bg-black/10 text-xs' : ''"
         >
           {{ isGrid ? index + 1 : '·' }}
         </span>
         <!-- 剛落下的牌淡入並放大一下，讓人看得出牌是飛到哪個位置 -->
         <Transition
-          enter-active-class="transition duration-300 ease-out"
+          enter-active-class="transition duration-300 [transition-timing-function:steps(4)]"
           enter-from-class="opacity-0 scale-50"
           enter-to-class="opacity-100 scale-100"
         >
           <img
-            v-if="props.cards[index] && imageUrl(props.cards[index]!.image)"
-            :src="imageUrl(props.cards[index]!.image)"
+            v-if="props.cards[index] && cardImageUrl(props.cards[index]!.image)"
+            :src="cardImageUrl(props.cards[index]!.image)"
             :alt="props.cards[index]!.nameZh"
-            class="absolute inset-0 h-full w-full rounded object-cover"
+            class="absolute inset-0 h-full w-full object-cover"
             :class="{ 'rotate-180': props.cards[index]!.orientation === 'reversed' }"
           />
         </Transition>

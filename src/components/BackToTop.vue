@@ -29,34 +29,34 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- 外層卡片有 backdrop-blur，fixed 會被困在那張卡片裡，所以掛到 body 底下 -->
+  <!-- 掛到 body 底下：外層只要有 transform（步驟切換的 Transition），fixed 就會被困在裡面 -->
   <Teleport to="body">
     <Transition
-      enter-active-class="transition duration-200 ease-out motion-reduce:transition-none"
+      enter-active-class="transition duration-200 [transition-timing-function:steps(4)] motion-reduce:transition-none"
       enter-from-class="opacity-0 translate-y-2"
       enter-to-class="opacity-100 translate-y-0"
-      leave-active-class="transition duration-150 ease-in motion-reduce:transition-none"
+      leave-active-class="transition duration-150 [transition-timing-function:steps(3)] motion-reduce:transition-none"
       leave-from-class="opacity-100 translate-y-0"
       leave-to-class="opacity-0 translate-y-2"
     >
+      <!--
+        像素風按鈕（計畫書 v01 2.7.1）：方塊、深色描邊、硬邊投影；
+        內側左上亮、右下暗做出立體感。滑過浮起一格，按下時沉下去、投影縮小
+      -->
       <button
         v-if="visible"
         type="button"
-        class="fixed bottom-20 right-4 z-40 md:bottom-8 md:right-8 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-orange-200/50 bg-orange-400 text-white shadow-lg shadow-orange-400/30 transition hover:scale-105"
+        class="fixed bottom-20 right-4 z-40 md:bottom-8 md:right-8 flex h-12 w-12 cursor-pointer items-center justify-center border-2 border-[#3a1a08] bg-orange-400 text-white shadow-[inset_3px_3px_0_#fdba74,inset_-3px_-3px_0_#c2410c,4px_4px_0_#3a1a08] transition-transform [transition-timing-function:steps(2)] hover:-translate-y-0.5 active:translate-x-[2px] active:translate-y-[2px] active:shadow-[inset_3px_3px_0_#fdba74,inset_-3px_-3px_0_#c2410c,2px_2px_0_#3a1a08]"
         aria-label="回到頂端"
         @click="toTop"
       >
-        <svg
-          class="h-5 w-5"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M12 19V5M5 12l7-7 7 7" />
+        <!-- 12×12 格的像素箭頭：三角形箭頭加兩格寬的箭身，crispEdges 讓邊緣不被柔化 -->
+        <svg class="h-6 w-6" viewBox="0 0 12 12" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true">
+          <rect x="5" y="1" width="2" height="1" />
+          <rect x="4" y="2" width="4" height="1" />
+          <rect x="3" y="3" width="6" height="1" />
+          <rect x="2" y="4" width="8" height="1" />
+          <rect x="5" y="5" width="2" height="6" />
         </svg>
       </button>
     </Transition>

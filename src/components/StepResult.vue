@@ -10,7 +10,7 @@ import QuantPanel from './QuantPanel.vue'
 import ReadingAnalysisPanel from './ReadingAnalysisPanel.vue'
 import SkeletonBlock from './SkeletonBlock.vue'
 import SpreadLayout from './SpreadLayout.vue'
-import { imageUrl } from '../lib/api'
+import { cardImageUrl } from '../lib/cardStyle'
 import type { Element, NarrationStatus, ReadingResponse, SaveStatus, Spread } from '../types'
 
 const props = defineProps<{
@@ -102,7 +102,7 @@ function formatSuit(suit: string | null) {
           <!-- 占卜結果預設不留存，按這個才會存進「我的紀錄」 -->
           <button
             v-if="saveStatus"
-            class="cursor-pointer rounded-full border px-3 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:py-1.5 sm:text-sm"
+            class="cursor-pointer border-2 px-3 py-1 text-[12px] transition disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             :class="
               saveStatus === 'saved'
                 ? 'border-amber-200/40 bg-amber-200/15 text-amber-50'
@@ -115,14 +115,14 @@ function formatSuit(suit: string | null) {
             {{ saveLabel }}
           </button>
           <button
-            class="cursor-pointer rounded-full border border-white/15 px-3 py-1 text-xs text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-sm"
+            class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[12px] text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('redraw')"
           >
             重抽
           </button>
           <button
-            class="cursor-pointer rounded-full border border-white/15 px-3 py-1 text-xs text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-sm"
+            class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[12px] text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('restart')"
           >
@@ -138,7 +138,7 @@ function formatSuit(suit: string | null) {
 
       <p
         v-if="saveError"
-        class="rounded-3xl border border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100"
+        class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100"
       >
         {{ saveError }}
       </p>
@@ -148,7 +148,7 @@ function formatSuit(suit: string | null) {
 
     </div>
 
-    <div v-if="resultSpread" class="rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-3 sm:rounded-[1.75rem] sm:p-5">
+    <div v-if="resultSpread" class="border-2 border-white/10 bg-slate-950/45 p-3 sm:p-5">
       <p class="mb-3 text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Spread Layout</p>
       <SpreadLayout :spread="resultSpread" :cards="reading.cards" />
     </div>
@@ -157,40 +157,40 @@ function formatSuit(suit: string | null) {
       <article
         v-for="(entry, index) in reading.cards"
         :key="`${entry.position?.key ?? index}-${entry.card.id}`"
-        class="flex h-[24rem] min-w-0 flex-col rounded-[1.5rem] border bg-slate-950/45 p-4 transition hover:-translate-y-0.5 sm:h-[26rem] sm:rounded-[1.75rem] sm:p-5"
+        class="flex h-[24rem] min-w-0 flex-col border-2 bg-slate-950/45 p-4 transition hover:-translate-y-0.5 sm:h-[26rem] sm:p-5"
         :class="reading.analysis?.theme.focusIndex === index ? 'border-amber-200/40' : 'border-white/10'"
       >
         <div class="flex min-w-0 flex-shrink-0 items-start justify-between gap-3">
           <div class="flex min-w-0 items-start gap-3">
             <img
-              v-if="imageUrl(entry.card.image)"
-              :src="imageUrl(entry.card.image)"
+              v-if="cardImageUrl(entry.card.image)"
+              :src="cardImageUrl(entry.card.image)"
               :alt="entry.card.nameZh"
-              class="h-20 w-[3.25rem] flex-shrink-0 rounded-lg object-cover shadow-lg transition sm:h-24 sm:w-16"
+              class="h-20 w-[2.9rem] flex-shrink-0 object-cover shadow-lg transition sm:h-24 sm:w-14"
               :class="{ 'rotate-180': entry.orientation === 'reversed' }"
             />
             <div class="min-w-0">
               <p class="text-[10px] uppercase tracking-[0.15em] text-stone-400 sm:text-xs sm:tracking-[0.28em]">
                 {{ entry.position?.label ?? `第 ${index + 1} 張` }}
               </p>
-              <h3 class="mt-1.5 break-words text-xl font-semibold text-stone-50 sm:mt-2 sm:text-2xl">{{ entry.card.nameZh }}</h3>
+              <h3 class="mt-1.5 break-words font-pixel text-[24px] text-stone-50 sm:mt-2">{{ entry.card.nameZh }}</h3>
               <p class="mt-1 break-words text-xs text-stone-300/75 sm:text-sm">{{ entry.card.nameEn || formatSuit(entry.card.suit) }}</p>
             </div>
           </div>
           <div class="flex flex-col items-end gap-1 sm:gap-2">
-            <span class="rounded-full border border-amber-100/20 bg-amber-100/10 px-2 py-0.5 text-[10px] font-medium text-amber-50 sm:px-3 sm:py-1 sm:text-xs">
+            <span class="border-2 border-amber-100/20 bg-amber-100/10 px-2 py-0.5 text-[10px] font-medium text-amber-50 sm:px-3 sm:py-1 sm:text-xs">
               {{ formatOrientation(entry.orientation) }}
             </span>
             <span
               v-if="reading.analysis?.theme.focusIndex === index"
-              class="rounded-full bg-amber-200/90 px-2 py-0.5 text-[10px] font-semibold text-slate-950 sm:px-3 sm:py-1 sm:text-xs"
+              class="bg-amber-200/90 px-2 py-0.5 text-[10px] font-semibold text-slate-950 sm:px-3 sm:py-1 sm:text-xs"
             >
               焦點牌
             </span>
-            <span v-if="entry.card.element" class="rounded-full bg-white/8 px-2 py-0.5 text-[10px] text-stone-200/80 sm:px-3 sm:py-1 sm:text-xs">
+            <span v-if="entry.card.element" class="bg-white/8 px-2 py-0.5 text-[10px] text-stone-200/80 sm:px-3 sm:py-1 sm:text-xs">
               {{ formatElement(entry.card.element) }}元素
             </span>
-            <span v-if="courtRoles.has(index)" class="rounded-full bg-white/8 px-2 py-0.5 text-[10px] text-stone-200/80 sm:px-3 sm:py-1 sm:text-xs">
+            <span v-if="courtRoles.has(index)" class="bg-white/8 px-2 py-0.5 text-[10px] text-stone-200/80 sm:px-3 sm:py-1 sm:text-xs">
               {{ courtRoles.get(index) }}
             </span>
           </div>
@@ -202,7 +202,7 @@ function formatSuit(suit: string | null) {
             <span
               v-for="keyword in entry.card.keywords.slice(0, 4)"
               :key="keyword"
-              class="rounded-full bg-white/8 px-3 py-1 text-xs text-stone-200/70"
+              class="bg-white/8 px-3 py-1 text-xs text-stone-200/70"
             >
               {{ keyword }}
             </span>
@@ -234,7 +234,7 @@ function formatSuit(suit: string | null) {
 
     <div
       v-if="narrationStatus !== 'idle'"
-      class="rounded-[1.5rem] border border-amber-100/15 bg-gradient-to-br from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:rounded-[1.75rem] sm:p-6"
+      class="border-2 border-amber-100/15 bg-gradient-to-br from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:p-6"
     >
       <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Reading</p>
       <h3 class="mt-2 text-lg font-semibold text-stone-50 sm:text-xl">這組牌想說的事</h3>
@@ -245,7 +245,7 @@ function formatSuit(suit: string | null) {
         </p>
         <button
           v-if="canUseAi"
-          class="cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25"
+          class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
           type="button"
           @click="emit('requestNarration')"
         >
@@ -255,7 +255,7 @@ function formatSuit(suit: string | null) {
         <!-- 未登入：按鈕照樣顯示，點了會帶去登入頁 -->
         <template v-else-if="!isLoggedIn">
           <button
-            class="cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25"
+            class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('requestNarration')"
           >
@@ -268,7 +268,7 @@ function formatSuit(suit: string | null) {
 
         <!-- 已登入但還沒被開通：不要給一個按了也沒用的按鈕 -->
         <template v-else>
-          <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+          <div class="border-2 border-white/10 bg-white/5 px-4 py-3">
             <p class="text-sm font-medium text-stone-100">AI 解讀尚未開通</p>
             <p class="mt-1 text-xs leading-6 text-stone-300/70">
               這項功能需要管理者逐一開通，請聯絡管理者。上面的牌義與組合分析不受影響，可以照常看。
@@ -280,16 +280,16 @@ function formatSuit(suit: string | null) {
       <template v-else>
         <div v-if="narrationStatus === 'loading'" class="mt-4 space-y-5">
           <div class="space-y-2.5">
-            <SkeletonBlock class="h-3 w-full rounded-full" />
-            <SkeletonBlock class="h-3 w-11/12 rounded-full" />
-            <SkeletonBlock class="h-3 w-4/5 rounded-full" />
+            <SkeletonBlock class="h-3 w-full" />
+            <SkeletonBlock class="h-3 w-11/12" />
+            <SkeletonBlock class="h-3 w-4/5" />
           </div>
           <SkeletonBlock class="h-5 w-40" />
           <div class="space-y-2.5">
-            <SkeletonBlock class="h-3 w-full rounded-full" />
-            <SkeletonBlock class="h-3 w-10/12 rounded-full" />
-            <SkeletonBlock class="h-3 w-full rounded-full" />
-            <SkeletonBlock class="h-3 w-3/5 rounded-full" />
+            <SkeletonBlock class="h-3 w-full" />
+            <SkeletonBlock class="h-3 w-10/12" />
+            <SkeletonBlock class="h-3 w-full" />
+            <SkeletonBlock class="h-3 w-3/5" />
           </div>
         </div>
 
@@ -308,7 +308,7 @@ function formatSuit(suit: string | null) {
             {{ narrationStatus === 'loading' ? '正在整理這次的解讀…' : 'AI 正在撰寫…' }}
           </span>
           <button
-            class="cursor-pointer rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-sm text-stone-100 transition hover:bg-white/10"
+            class="cursor-pointer border-2 border-white/15 bg-white/5 px-4 py-1.5 text-[12px] text-stone-100 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('stopNarration')"
           >
@@ -325,7 +325,7 @@ function formatSuit(suit: string | null) {
             <template v-else>{{ narrationError }}可以先參考下方規則分析的結果，或稍後再試一次。</template>
           </span>
           <button
-            class="cursor-pointer rounded-full border border-amber-200/30 bg-amber-200/10 px-4 py-1.5 text-sm font-medium text-amber-50 transition hover:bg-amber-200/20"
+            class="cursor-pointer border-2 border-amber-200/30 bg-amber-200/10 px-4 py-1.5 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('requestNarration')"
           >
@@ -339,7 +339,7 @@ function formatSuit(suit: string | null) {
     <div v-if="reading.analysis">
       <button
         type="button"
-        class="flex w-full items-center justify-between rounded-full border border-white/10 bg-white/5 px-4 py-2 text-left text-sm text-stone-200/80 transition hover:bg-white/10"
+        class="flex w-full items-center justify-between border-2 border-white/10 bg-white/5 px-4 py-2 text-left text-[12px] text-stone-200/80 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         :aria-expanded="analysisOpen"
         aria-controls="analysis-details"
         @click="analysisOpen = !analysisOpen"
@@ -371,7 +371,7 @@ function formatSuit(suit: string | null) {
       </div>
     </div>
 
-    <div class="rounded-[1.5rem] border border-amber-100/10 bg-gradient-to-r from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:rounded-[1.75rem] sm:p-5">
+    <div class="border-2 border-amber-100/10 bg-gradient-to-r from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:p-5">
       <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Guidance</p>
       <p class="mt-3 text-sm leading-7 text-stone-100/85 sm:text-base sm:leading-8">{{ reading.guidance }}</p>
     </div>

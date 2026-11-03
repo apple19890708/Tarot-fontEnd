@@ -53,7 +53,7 @@ const freeCountOptions = computed(() =>
       <textarea
         :value="question"
         rows="3"
-        class="w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40 focus:bg-white/8"
+        class="w-full border-2 border-white/10 bg-white/5 px-4 py-3 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40 focus:bg-white/8"
         placeholder="例如：我接下來三個月的工作發展會如何？"
         @input="emit('update:question', ($event.target as HTMLTextAreaElement).value)"
       />
@@ -90,7 +90,7 @@ const freeCountOptions = computed(() =>
 
     <div
       v-if="selectedSpread"
-      class="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm leading-6 text-stone-200/75"
+      class="space-y-3 border-2 border-white/10 bg-white/5 p-4 text-sm leading-6 text-stone-200/75"
     >
       <div>
         <p class="font-medium text-stone-50">{{ selectedSpread.name }}</p>
@@ -98,12 +98,12 @@ const freeCountOptions = computed(() =>
       </div>
       <SpreadLayout :spread="selectedSpread" />
     </div>
-    <p v-else class="rounded-3xl border border-dashed border-white/15 bg-black/10 px-4 py-3 text-sm leading-6 text-stone-400">
+    <p v-else class="border-2 border-dashed border-white/15 bg-black/10 px-4 py-3 text-sm leading-6 text-stone-400">
       不指定牌陣時沒有位置之分，分析會用相鄰兩張配對、權重均分。
     </p>
 
     <button
-      class="w-full cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-5 py-3 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60"
+      class="w-full cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-3 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
       type="button"
       :disabled="disabled"
       @click="emit('next')"

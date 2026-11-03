@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { imageUrl } from '../lib/api'
+import { cardImageUrl } from '../lib/cardStyle'
 import type { Element, PairRelation, ReadingAnalysis, ReadingCard, Suit } from '../types'
 
 const props = defineProps<{
@@ -189,10 +189,10 @@ function positionLabel(index: number) {
           <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-stone-100">
             <span class="inline-flex items-center gap-2">
               <img
-                v-if="imageUrl(cardAt(pair.from)?.card.image)"
-                :src="imageUrl(cardAt(pair.from)?.card.image)"
+                v-if="cardImageUrl(cardAt(pair.from)?.card.image)"
+                :src="cardImageUrl(cardAt(pair.from)?.card.image)"
                 :alt="cardName(pair.from)"
-                class="h-12 w-8 shrink-0 rounded object-cover shadow"
+                class="h-12 w-7 shrink-0 rounded object-cover shadow"
                 :class="{ 'rotate-180': cardAt(pair.from)?.orientation === 'reversed' }"
               />
               <span class="leading-tight">
@@ -206,10 +206,10 @@ function positionLabel(index: number) {
 
             <span class="inline-flex items-center gap-2">
               <img
-                v-if="imageUrl(cardAt(pair.to)?.card.image)"
-                :src="imageUrl(cardAt(pair.to)?.card.image)"
+                v-if="cardImageUrl(cardAt(pair.to)?.card.image)"
+                :src="cardImageUrl(cardAt(pair.to)?.card.image)"
                 :alt="cardName(pair.to)"
-                class="h-12 w-8 shrink-0 rounded object-cover shadow"
+                class="h-12 w-7 shrink-0 rounded object-cover shadow"
                 :class="{ 'rotate-180': cardAt(pair.to)?.orientation === 'reversed' }"
               />
               <span class="leading-tight">

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
 
-import { imageUrl } from '../lib/api'
+import { cardImageUrl } from '../lib/cardStyle'
 import type { ReadingCard, Spread } from '../types'
 
 // 畫出牌陣的實際排列。cards 省略時為預覽（空格＋位置名稱），帶入時填上實際抽到的牌。
@@ -84,23 +84,23 @@ function orientationLabel(card: ReadingCard | null) {
         >
           <button
             type="button"
-            class="group block w-full cursor-pointer text-left [perspective:600px]"
+            class="group block w-full cursor-pointer text-left [perspective:600px] active:translate-x-[2px] active:translate-y-[2px]"
             :aria-pressed="flippedKeys.has(slot.position.key)"
             :aria-label="`${slot.position.label}：${slot.position.prompt}`"
             @click="toggleFlip(slot.position.key)"
           >
             <!-- 翻面容器：正反面各自絕對定位疊在一起，整個容器繞 Y 軸轉 -->
             <span
-              class="relative block aspect-[2/3] transition-transform duration-500 [transform-style:preserve-3d] motion-reduce:transition-none"
+              class="relative block aspect-[7/12] transition-transform duration-500 [transform-style:preserve-3d] motion-reduce:transition-none"
               :class="flippedKeys.has(slot.position.key) ? '[transform:rotateY(180deg)]' : ''"
             >
               <!-- 正面：有抽到牌就顯示圖，否則是空格 -->
               <span
-                class="absolute inset-0 flex items-center justify-center overflow-hidden rounded-lg border border-white/15 bg-white/5 transition-colors [backface-visibility:hidden] group-hover:border-white/25"
+                class="absolute inset-0 flex items-center justify-center overflow-hidden border-2 border-white/15 bg-white/5 transition-colors [backface-visibility:hidden] group-hover:border-white/25"
               >
                 <img
-                  v-if="slot.card && imageUrl(slot.card.card.image) && !failedImages.has(slot.position.key)"
-                  :src="imageUrl(slot.card.card.image)"
+                  v-if="slot.card && cardImageUrl(slot.card.card.image) && !failedImages.has(slot.position.key)"
+                  :src="cardImageUrl(slot.card.card.image)"
                   :alt="slot.card.card.nameZh"
                   class="h-full w-full object-cover"
                   :class="{ 'rotate-180': slot.card.orientation === 'reversed' }"
@@ -115,7 +115,7 @@ function orientationLabel(card: ReadingCard | null) {
 
               <!-- 背面：這個位置代表什麼。字級隨斷點縮放，最長的 17 字在各尺寸都放得下 -->
               <span
-                class="absolute inset-0 flex flex-col justify-center gap-0.5 overflow-hidden rounded-lg border border-amber-200/40 bg-amber-100/8 px-1.5 py-1 text-center [backface-visibility:hidden] [transform:rotateY(180deg)]"
+                class="absolute inset-0 flex flex-col justify-center gap-0.5 overflow-hidden border-2 border-amber-200/40 bg-amber-100/8 px-1.5 py-1 text-center [backface-visibility:hidden] [transform:rotateY(180deg)]"
               >
                 <span class="font-medium text-amber-100 text-[11px] leading-tight lg:text-xs">
                   {{ slot.position.label }}
@@ -148,7 +148,7 @@ function orientationLabel(card: ReadingCard | null) {
       <span>點一下牌，翻到背面看這個位置代表什麼。</span>
       <button
         type="button"
-        class="shrink-0 rounded-full border border-white/15 px-3 py-1 transition hover:border-amber-200/50 hover:text-amber-100"
+        class="shrink-0 border-2 border-white/15 px-3 py-1 transition hover:border-amber-200/50 hover:text-amber-100 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         @click="toggleAll"
       >
         {{ allFlipped ? '全部翻回正面' : '全部翻面' }}

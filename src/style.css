@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* 像素字（縫合像素 12px，OFL 授權，見 assets/fonts/OFL.txt）。
+   只抽了首頁標題、步驟列用到的字；要用新字得重新抽字（計畫書 v01）。
+   12px 字型要用 12 的倍數字級才會方正 */
+@font-face {
+  font-family: 'Fusion Pixel';
+  src: url('./assets/fonts/fusion-pixel-12px-zh_tw.subset.woff2') format('woff2');
+  font-display: swap;
+}
+
+@theme {
+  --font-pixel: 'Fusion Pixel', 'Noto Serif TC', monospace;
+}
+
 :root {
   color-scheme: dark;
   font-family: 'Noto Serif TC', 'Microsoft JhengHei', serif;

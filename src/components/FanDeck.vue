@@ -152,13 +152,13 @@ async function startShuffle() {
       tl.repeat(-1).repeatDelay(0.25)
       tl.set(proxies, { xPercent: -50, yPercent: -50, opacity: 1, ...stackedState })
       // 分成左右兩疊
-      tl.to(left, { x: -spread, rotation: -10, duration: 0.28, ease: 'power2.out' }, 0)
-      tl.to(right, { x: spread, rotation: 10, duration: 0.28, ease: 'power2.out' }, 0)
+      tl.to(left, { x: -spread, rotation: -10, duration: 0.28, ease: 'steps(5)' }, 0)
+      tl.to(right, { x: spread, rotation: 10, duration: 0.28, ease: 'steps(5)' }, 0)
       // 一張一張交錯插回中間
       riffle.forEach((card, order) => {
         tl.to(
           card,
-          { x: 0, rotation: 0, y: -order * 0.6, zIndex: 20 + order, duration: 0.14, ease: 'power1.in' },
+          { x: 0, rotation: 0, y: -order * 0.6, zIndex: 20 + order, duration: 0.14, ease: 'steps(5)' },
           0.34 + order * 0.055,
         )
       })
@@ -186,7 +186,7 @@ function startCut() {
   runTimeline(
     (tl) => {
       // 洗牌可能停在一半，先收攏敲齊
-      tl.to(proxies, { ...stackedState, duration: t(0.2), ease: 'power2.out' })
+      tl.to(proxies, { ...stackedState, duration: t(0.2), ease: 'steps(5)' })
       // 所有代表牌同時往各自那一落移動
       tl.to(proxies, {
         x: (i: number) => {
@@ -194,7 +194,7 @@ function startCut() {
           return (pileOffsets.value[group] ?? 0) * width
         },
         duration: t(0.4),
-        ease: 'power2.inOut',
+        ease: 'steps(5)',
       })
     },
     () => {
@@ -216,7 +216,7 @@ function choosePile(index: number) {
     (tl) => {
       tl.to(others, { opacity: 0, scale: 0.9, duration: t(0.22) }, 0)
       if (chosen && fan) {
-        tl.to(chosen, { x: -(pileOffsets.value[index] ?? 0) * fan.clientWidth, duration: t(0.3), ease: 'power2.inOut' }, 0)
+        tl.to(chosen, { x: -(pileOffsets.value[index] ?? 0) * fan.clientWidth, duration: t(0.3), ease: 'steps(5)' }, 0)
       }
     },
     () => {
@@ -254,7 +254,7 @@ async function startDeal() {
           y: 0,
           opacity: 1,
           duration: t(0.5),
-          ease: 'power2.out',
+          ease: 'steps(5)',
           stagger: t(0.02),
         },
       )
@@ -380,7 +380,7 @@ function applyHover(next: number | null, previous: number | null) {
         x = Math.sign(position - next) * NEIGHBOR_PUSH_PX * weight * 2
       }
     }
-    gsap.to(face, { x, y, scale, duration: motionDuration(0.22), ease: 'power2.out', overwrite: 'auto' })
+    gsap.to(face, { x, y, scale, duration: motionDuration(0.22), ease: 'steps(5)', overwrite: 'auto' })
   })
 }
 
@@ -601,7 +601,7 @@ const statusText = computed(() => {
         v-for="n in PROXY_COUNT"
         :key="`proxy-${n}`"
         :ref="(el) => setEl(proxyEls, n - 1, el)"
-        class="pointer-events-none absolute left-1/2 top-1/2 flex aspect-[2/3] w-[38px] items-center justify-center rounded-md border border-amber-200/25 bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 opacity-0 shadow-lg shadow-black/50 sm:w-[50px] lg:w-[62px]"
+        class="pointer-events-none absolute left-1/2 top-1/2 flex aspect-[7/12] w-[38px] items-center justify-center border-2 border-amber-200/25 [background-image:var(--pixel-card-back)] [background-size:100%_100%] [image-rendering:pixelated] opacity-0 shadow-lg shadow-black/50 sm:w-[50px] lg:w-[62px]"
       >
         <span class="text-[13px] leading-none text-amber-200/35">✦</span>
       </span>
@@ -622,11 +622,11 @@ const statusText = computed(() => {
         <span
           v-for="layer in 3"
           :key="layer"
-          class="absolute inset-0 rounded-md border border-amber-200/20 bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950"
+          class="absolute inset-0 border-2 border-amber-200/20 [background-image:var(--pixel-card-back)] [background-size:100%_100%] [image-rendering:pixelated]"
           :style="{ transform: `translateY(${(3 - layer) * 2}px)` }"
         />
         <span
-          class="relative flex aspect-[2/3] items-center justify-center rounded-md border border-amber-200/30 bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 shadow-lg shadow-black/50 transition group-hover:-translate-y-2 group-hover:border-amber-200/70 group-hover:shadow-amber-200/20 group-focus-visible:-translate-y-2 group-focus-visible:border-amber-200/70"
+          class="relative flex aspect-[7/12] items-center justify-center border-2 border-amber-200/30 [background-image:var(--pixel-card-back)] [background-size:100%_100%] [image-rendering:pixelated] shadow-lg shadow-black/50 transition group-hover:-translate-y-2 group-hover:border-amber-200/70 group-hover:shadow-amber-200/20 group-focus-visible:-translate-y-2 group-focus-visible:border-amber-200/70"
         >
           <span class="text-[13px] leading-none text-amber-200/50 group-hover:text-amber-200/90">✦</span>
         </span>
@@ -645,7 +645,7 @@ const statusText = computed(() => {
         <!-- 牌背：不顯示牌名也不顯示正逆位。位移與縮放交給 GSAP，這裡只處理顏色的過渡 -->
         <span
           :ref="(el) => setEl(faceEls, position, el)"
-          class="flex aspect-[2/3] items-center justify-center rounded-md border bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 shadow-lg shadow-black/50 transition-[border-color,box-shadow,opacity] duration-300 motion-reduce:transition-none"
+          class="flex aspect-[7/12] items-center justify-center border-2 [background-image:var(--pixel-card-back)] [background-size:100%_100%] [image-rendering:pixelated] shadow-lg shadow-black/50 transition-[border-color,box-shadow,opacity] duration-300 motion-reduce:transition-none"
           :class="[
             deck[deckIndex]?.picked ? 'border-white/10 opacity-25' : 'border-amber-200/25',
             deck[deckIndex] && hiddenIds?.has(deck[deckIndex].id) ? 'opacity-0' : '',
