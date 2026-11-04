@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { canUseAi, isLoggedIn } from '../lib/auth'
 
 import BackToTop from './BackToTop.vue'
+import PixelChevron from './PixelChevron.vue'
 import QuantPanel from './QuantPanel.vue'
 import ReadingAnalysisPanel from './ReadingAnalysisPanel.vue'
 import SkeletonBlock from './SkeletonBlock.vue'
 import SpreadLayout from './SpreadLayout.vue'
 import { cardImageUrl } from '../lib/cardStyle'
+import { prefersReducedMotion } from '../lib/motion'
+import { provideSectionNav, type SectionNavItem } from '../lib/sectionNav'
 import type { Element, NarrationStatus, ReadingResponse, SaveStatus, Spread } from '../types'
 
 const props = defineProps<{
@@ -25,6 +28,10 @@ const props = defineProps<{
   // 保存紀錄；回顧舊紀錄時不給（本來就已經是紀錄了）
   saveStatus?: SaveStatus
   saveError?: string
+  // 回顧「我的紀錄」時為 true：這筆本來就是紀錄，重新產生會取代裡面的解讀
+  isRecord?: boolean
+  // 最近一次 AI 解讀有沒有存回紀錄（null＝沒有對應的紀錄或不知道）
+  narrationSaved?: boolean | null
 }>()
 
 const emit = defineEmits<{
@@ -35,14 +42,53 @@ const emit = defineEmits<{
   saveReading: []
 }>()
 
-// 判斷依據：還沒有 AI 解讀時預設展開；解讀開始出現就自動收合，讓位給解讀
+// 判斷依據：還沒有 AI 解讀時預設展開；解讀開始出現就自動收合，讓位給解讀。
+// 只在「出現」時收合，文字被清空時不自動展開 —— 按重新產生會先清空舊文字，
+// 那時把下方整片判斷依據展開、等新文字出來又收起，整頁高度大起大落，畫面就會亂跳。
 const analysisOpen = ref(!props.narrationText)
 watch(
-  () => !props.narrationText,
-  (open) => {
-    analysisOpen.value = open
+  () => Boolean(props.narrationText),
+  (hasText) => {
+    if (hasText) analysisOpen.value = false
   },
 )
+
+// AI 解讀的收合。開始產生新的解讀時一律展開，否則按了重新產生卻什麼都看不到
+const narrationOpen = ref(true)
+watch(
+  () => props.narrationStatus,
+  (status) => {
+    if (status === 'loading') narrationOpen.value = true
+  },
+)
+
+const narrationEl = ref<HTMLElement | null>(null)
+
+function scrollToNarrationTop() {
+  const el = narrationEl.value
+  if (!el) return
+  const top = el.getBoundingClientRect().top + window.scrollY - 16
+  window.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+}
+
+// 讀到一半收合時，區塊開頭可能已經捲出畫面上方；收起來後把畫面帶回開頭，不會停在不相干的地方
+function toggleNarration() {
+  narrationOpen.value = !narrationOpen.value
+  if (!narrationOpen.value && narrationEl.value && narrationEl.value.getBoundingClientRect().top < 0) {
+    scrollToNarrationTop()
+  }
+}
+
+// 重新產生：先把畫面帶回 AI 解讀的開頭，再開始產生，使用者看得到新的解讀從頭長出來
+function regenerateNarration() {
+  narrationOpen.value = true
+  const el = narrationEl.value
+  if (el) {
+    const top = el.getBoundingClientRect().top + window.scrollY - 16
+    window.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+  }
+  emit('requestNarration')
+}
 
 // 未登入時按鈕照樣顯示，點了會先存快照再帶去登入頁
 const saveLabel = computed(() => {
@@ -60,6 +106,9 @@ const narrationHtml = computed(() =>
   props.narrationText ? DOMPurify.sanitize(marked.parse(props.narrationText, { async: false })) : '',
 )
 
+// 這次結果已經是一筆紀錄：首頁按過保存，或是在「我的紀錄」裡回顧
+const isRecorded = computed(() => props.isRecord || props.saveStatus === 'saved')
+
 const isNarrating = computed(
   () => props.narrationStatus === 'loading' || props.narrationStatus === 'streaming',
 )
@@ -71,6 +120,60 @@ const courtRoles = computed(() => {
   })
   return roles
 })
+
+// ── 浮動選單的「跳到段落」──
+// 段落用 data-nav 標在模板上，選單打開時才收集，哪些段落有出現完全照畫面走，不在這裡重寫 v-if 條件。
+const rootEl = ref<HTMLElement | null>(null)
+const analysisWrapEl = ref<HTMLElement | null>(null)
+const analysisDetailsEl = ref<HTMLElement | null>(null)
+
+// 判斷依據收合時，裡面的段落高度是 0；要先展開、等展開動畫跑完再捲，不然會停在錯的位置
+function waitForExpand(el: HTMLElement) {
+  if (prefersReducedMotion()) return nextTick()
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      el.removeEventListener('transitionend', onEnd)
+      clearTimeout(fallback)
+      resolve()
+    }
+    const onEnd = (event: TransitionEvent) => {
+      if (event.target === el && event.propertyName === 'grid-template-rows') done()
+    }
+    el.addEventListener('transitionend', onEnd)
+    // 動畫 500ms；transitionend 沒觸發（例如分頁在背景）也不要卡住
+    const fallback = setTimeout(done, 700)
+  })
+}
+
+async function scrollToSection(el: HTMLElement) {
+  // 跳到「AI 解讀」時，收合著就先展開
+  if (el === narrationEl.value) narrationOpen.value = true
+  const details = analysisDetailsEl.value
+  const inAnalysis = el === analysisWrapEl.value || Boolean(details?.contains(el))
+  if (inAnalysis && details && !analysisOpen.value) {
+    analysisOpen.value = true
+    await nextTick()
+    await waitForExpand(details)
+  }
+  // 頂部導覽列不是固定的，只留一點呼吸空間
+  const top = el.getBoundingClientRect().top + window.scrollY - 16
+  window.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+}
+
+function collectSections(): SectionNavItem[] {
+  const nodes = rootEl.value?.querySelectorAll<HTMLElement>('[data-nav]') ?? []
+  return Array.from(nodes).map((el) => ({
+    label: el.dataset.nav ?? '',
+    level: el.dataset.navLevel === '2' ? 2 : 1,
+    go: () => void scrollToSection(el),
+  }))
+}
+
+let releaseSectionNav: (() => void) | null = null
+onMounted(() => {
+  releaseSectionNav = provideSectionNav({ items: collectSections })
+})
+onBeforeUnmount(() => releaseSectionNav?.())
 
 function formatElement(element: Element) {
   const map: Record<Element, string> = { fire: '火', water: '水', air: '風', earth: '土' }
@@ -91,7 +194,8 @@ function formatSuit(suit: string | null) {
 </script>
 
 <template>
-  <div class="min-w-0 space-y-4 sm:space-y-6">
+  <!-- data-nav：浮動選單「跳到段落」的目標（見 lib/sectionNav.ts） -->
+  <div ref="rootEl" class="min-w-0 space-y-4 sm:space-y-6">
     <div class="space-y-3 border-b border-white/10 pb-4 sm:space-y-4 sm:pb-6">
       <div class="flex min-w-0 flex-wrap items-end justify-between gap-4">
         <div class="min-w-0">
@@ -148,12 +252,12 @@ function formatSuit(suit: string | null) {
 
     </div>
 
-    <div v-if="resultSpread" class="border-2 border-white/10 bg-slate-950/45 p-3 sm:p-5">
+    <div v-if="resultSpread" data-nav="牌陣" class="border-2 border-white/10 bg-slate-950/45 p-3 sm:p-5">
       <p class="mb-3 text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Spread Layout</p>
       <SpreadLayout :spread="resultSpread" :cards="reading.cards" />
     </div>
 
-    <div class="grid min-w-0 gap-4 xl:grid-cols-2">
+    <div data-nav="每張牌的牌義" class="grid min-w-0 gap-4 xl:grid-cols-2">
       <article
         v-for="(entry, index) in reading.cards"
         :key="`${entry.position?.key ?? index}-${entry.card.id}`"
@@ -234,14 +338,34 @@ function formatSuit(suit: string | null) {
 
     <div
       v-if="narrationStatus !== 'idle'"
+      ref="narrationEl"
+      data-nav="AI 解讀"
       class="border-2 border-amber-100/15 bg-gradient-to-br from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:p-6"
     >
-      <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Reading</p>
-      <h3 class="mt-2 text-lg font-semibold text-stone-50 sm:text-xl">這組牌想說的事</h3>
+      <!--
+        有內容（產生中或已產生）時，整個標題列就是收合開關，右邊只放箭頭，和「查看判斷依據」同一個樣子。
+        還沒請 AI 解讀時只有一顆按鈕，不需要收合，標題列就是一般文字
+      -->
+      <component
+        :is="narrationStatus !== 'ready' ? 'button' : 'div'"
+        :type="narrationStatus !== 'ready' ? 'button' : undefined"
+        class="flex w-full items-center justify-between gap-3 text-left"
+        :class="narrationStatus !== 'ready' ? 'cursor-pointer sm:-mr-2 sm:w-[calc(100%+0.5rem)]' : ''"
+        :aria-expanded="narrationStatus !== 'ready' ? narrationOpen : undefined"
+        :aria-controls="narrationStatus !== 'ready' ? 'narration-body' : undefined"
+        :aria-label="narrationStatus !== 'ready' ? (narrationOpen ? '收合 AI 解讀' : '展開 AI 解讀') : undefined"
+        @click="narrationStatus !== 'ready' && toggleNarration()"
+      >
+        <span class="block min-w-0">
+          <span class="block text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Reading</span>
+          <span class="mt-2 block text-lg font-semibold text-stone-50 sm:text-xl">這組牌想說的事</span>
+        </span>
+        <PixelChevron v-if="narrationStatus !== 'ready'" class="text-stone-300" :open="narrationOpen" />
+      </component>
 
       <div v-if="narrationStatus === 'ready'" class="mt-4 space-y-4">
         <p class="text-sm leading-7 text-stone-300/80">
-          更完整的白話解讀嗎？AI 會綜合牌義、元素與數字，針對你的問題整理成一篇說明。文字會陸續出現，隨時可以停止。
+          想要更完整的白話解讀嗎？AI 會把這組牌串成這件事接下來會怎麼發展，並給出具體的做法。文字會陸續出現，隨時可以停止。
         </p>
         <button
           v-if="canUseAi"
@@ -277,7 +401,15 @@ function formatSuit(suit: string | null) {
         </template>
       </div>
 
-      <template v-else>
+      <!-- 和判斷依據一樣用 grid-rows 0fr↔1fr 收合，不必量高度 -->
+      <div
+        v-else
+        id="narration-body"
+        class="grid transition-[grid-template-rows,opacity] duration-500 ease-out motion-reduce:transition-none"
+        :class="narrationOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'"
+        :inert="!narrationOpen"
+      >
+      <div class="min-h-0 overflow-hidden">
         <div v-if="narrationStatus === 'loading'" class="mt-4 space-y-5">
           <div class="space-y-2.5">
             <SkeletonBlock class="h-3 w-full" />
@@ -316,6 +448,28 @@ function formatSuit(suit: string | null) {
           </button>
         </div>
 
+        <!--
+          解讀完成後也要能重新產生（原本只有停止、失敗時才有按鈕）。
+          已是紀錄時，新的那篇完整產生後會直接取代紀錄裡原本那篇，不另開一筆
+        -->
+        <div
+          v-else-if="narrationStatus === 'done' && canUseAi"
+          class="mt-5 flex flex-wrap items-center gap-3 border-t border-white/10 pt-4"
+        >
+          <span class="text-sm leading-7 text-stone-300/80">
+            <template v-if="narrationSaved === true">已更新到這筆紀錄。</template>
+            <template v-else-if="narrationSaved === false">這篇沒有存進紀錄，可以再產生一次。</template>
+            {{ isRecorded ? '重新產生的解讀完成後，會取代紀錄裡的這一篇。' : '不滿意可以重新產生一篇。' }}
+          </span>
+          <button
+            class="cursor-pointer border-2 border-amber-200/30 bg-amber-200/10 px-4 py-1.5 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            type="button"
+            @click="regenerateNarration"
+          >
+            重新產生
+          </button>
+        </div>
+
         <div
           v-else-if="narrationStatus === 'stopped' || narrationStatus === 'error'"
           class="mt-5 flex flex-wrap items-center gap-3 border-t border-white/10 pt-4"
@@ -327,16 +481,17 @@ function formatSuit(suit: string | null) {
           <button
             class="cursor-pointer border-2 border-amber-200/30 bg-amber-200/10 px-4 py-1.5 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
-            @click="emit('requestNarration')"
+            @click="regenerateNarration"
           >
             {{ narrationStatus === 'stopped' ? '重新產生' : '再試一次' }}
           </button>
         </div>
-      </template>
+      </div>
+      </div>
     </div>
 
     <!-- 原生 details 收合時沒辦法做動畫，改用 grid-rows 0fr↔1fr 展開收合，不必量高度 -->
-    <div v-if="reading.analysis">
+    <div v-if="reading.analysis" ref="analysisWrapEl" data-nav="判斷依據">
       <button
         type="button"
         class="flex w-full items-center justify-between border-2 border-white/10 bg-white/5 px-4 py-2 text-left text-[12px] text-stone-200/80 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
@@ -345,16 +500,11 @@ function formatSuit(suit: string | null) {
         @click="analysisOpen = !analysisOpen"
       >
         <span>{{ analysisOpen ? '收合判斷依據' : '查看判斷依據' }}</span>
-        <span
-          class="text-xs text-stone-400 transition-transform duration-300 motion-reduce:transition-none"
-          :class="analysisOpen ? 'rotate-180' : ''"
-          aria-hidden="true"
-        >
-          ▾
-        </span>
+        <PixelChevron class="text-stone-300" :open="analysisOpen" />
       </button>
       <div
         id="analysis-details"
+        ref="analysisDetailsEl"
         class="grid transition-[grid-template-rows,opacity] duration-500 ease-out motion-reduce:transition-none"
         :class="analysisOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'"
         :inert="!analysisOpen"
@@ -362,6 +512,8 @@ function formatSuit(suit: string | null) {
         <div class="min-h-0 overflow-hidden">
           <QuantPanel
             v-if="reading.analysis.quant"
+            data-nav="整體看起來"
+            data-nav-level="2"
             class="mt-3"
             :quant="reading.analysis.quant"
             :cards="reading.cards"
@@ -371,7 +523,7 @@ function formatSuit(suit: string | null) {
       </div>
     </div>
 
-    <div class="border-2 border-amber-100/10 bg-gradient-to-r from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:p-5">
+    <div data-nav="結語" class="border-2 border-amber-100/10 bg-gradient-to-r from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:p-5">
       <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Guidance</p>
       <p class="mt-3 text-sm leading-7 text-stone-100/85 sm:text-base sm:leading-8">{{ reading.guidance }}</p>
     </div>

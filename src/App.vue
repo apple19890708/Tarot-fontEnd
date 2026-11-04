@@ -2,9 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import FloatingMenu from './components/FloatingMenu.vue'
 import PixelWorld from './components/PixelWorld.vue'
 import { currentUser, isAdmin, isLoggedIn, logout } from './lib/auth'
-import { cardStyle, setCardStyle } from './lib/cardStyle'
 import { healthLabel, refreshHealth } from './lib/health'
 import { prefersReducedMotion } from './lib/motion'
 import type { SceneKey } from './lib/pixel/core'
@@ -171,28 +171,10 @@ function signOut() {
 		</header>
 
 		<!--
-			牌面風格的 icon 開關，浮在畫面右上（頂部導覽列下方），捲動時也一直在：一張牌裡排著像素方塊。
-			開著是像素牌面（琥珀色），關著是原版圖；所有畫面的牌面一起換。
-			z-20 低於手機選單（z-30），選單展開時會蓋過它
+			右上的浮動選單（像素水晶球）：切換牌面風格；在結果頁還能跳到各段落。
+			原本這裡是單純的牌面開關，收進選單裡
 		-->
-		<button
-			type="button"
-			class="fixed right-4 top-20 z-20 flex h-11 w-11 cursor-pointer items-center justify-center border-2 border-[#3b2618] bg-[#0f1526] shadow-[3px_3px_0_rgba(0,0,0,0.5)] transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none md:right-8"
-			:class="cardStyle === 'pixel' ? 'text-amber-200' : 'text-stone-200/60 hover:text-amber-200'"
-			:aria-pressed="cardStyle === 'pixel'"
-			aria-label="像素牌面"
-			:title="cardStyle === 'pixel' ? '像素牌面：開' : '像素牌面：關'"
-			@click="setCardStyle(cardStyle === 'pixel' ? 'original' : 'pixel')"
-		>
-			<svg viewBox="0 0 12 16" class="h-6 w-[18px]" shape-rendering="crispEdges" aria-hidden="true">
-				<rect x="0.5" y="0.5" width="11" height="15" fill="none" stroke="currentColor" />
-				<rect x="3" y="3" width="2" height="2" fill="currentColor" />
-				<rect x="7" y="3" width="2" height="2" fill="currentColor" />
-				<rect x="5" y="7" width="2" height="2" fill="currentColor" />
-				<rect x="3" y="11" width="2" height="2" fill="currentColor" />
-				<rect x="7" y="11" width="2" height="2" fill="currentColor" />
-			</svg>
-		</button>
+		<FloatingMenu />
 
 		<!-- 過場中先隱形（版面照占位，淡入時不會跳動），播完再用 0.3 秒淡入 -->
 		<main

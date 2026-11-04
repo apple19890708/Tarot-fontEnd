@@ -179,7 +179,7 @@ export async function streamNarration(
     // 已經保存成紀錄時帶上它的 id，後端會在解讀完整產生後存回那筆紀錄
     readingId?: string
   },
-): Promise<{ model: string }> {
+): Promise<{ model: string; saved: boolean | null }> {
   const response = await fetch(`${API_BASE_URL}/api/readings/narrate`, {
     method: 'POST',
     // 這支不走 request()，Authorization 要自己帶；AI 解讀限會員使用
@@ -230,7 +230,8 @@ export async function streamNarration(
       if (event.type === 'delta') {
         options.onDelta(event.text)
       } else if (event.type === 'done') {
-        return { model: event.model }
+        // 舊版後端沒有 saved，當成不知道（null），畫面就不顯示存檔結果
+        return { model: event.model, saved: event.saved ?? null }
       } else {
         throw new Error(event.message)
       }

@@ -147,6 +147,8 @@ const pendingAutoReading = ref<ReadingResponse | null>(null)
 const narrationText = ref('')
 const narrationStatus = ref<NarrationStatus>('idle')
 const narrationError = ref('')
+// 最近一次解讀有沒有存回紀錄（null＝還沒保存成紀錄，或後端沒回報）
+const narrationSaved = ref<boolean | null>(null)
 // 進行中的 AI 請求；中斷它會讓後端一併停止 AI 生成
 let narrationController: AbortController | null = null
 
@@ -289,10 +291,11 @@ async function loadNarration(current: ReadingResponse) {
   narrationController = controller
   narrationText.value = ''
   narrationError.value = ''
+  narrationSaved.value = null
   narrationStatus.value = 'loading'
 
   try {
-    await streamNarration(current, {
+    const { saved } = await streamNarration(current, {
       signal: controller.signal,
       domain: domainParam.value,
       // 已經保存過才有 id；後端會在完整產生後把解讀存回那筆紀錄
@@ -306,6 +309,7 @@ async function loadNarration(current: ReadingResponse) {
     })
     if (controller === narrationController) {
       narrationStatus.value = 'done'
+      narrationSaved.value = saved
     }
   } catch (error) {
     // 被停止或被新的請求取代時，狀態已由呼叫端處理
@@ -479,6 +483,7 @@ function onReadingReady(result: ReadingResponse) {
   narrationText.value = ''
   narrationError.value = ''
   narrationStatus.value = result.analysis ? 'ready' : 'idle'
+  narrationSaved.value = null
   // 新的一次占卜是新的結果，保存狀態重來
   savedReadingId.value = ''
   saveStatus.value = 'idle'
@@ -572,6 +577,7 @@ function restart() {
   reading.value = null
   narrationText.value = ''
   narrationStatus.value = 'idle'
+  narrationSaved.value = null
   savedReadingId.value = ''
   saveStatus.value = 'idle'
   saveError.value = ''
@@ -588,6 +594,7 @@ async function redraw() {
   reading.value = null
   narrationText.value = ''
   narrationStatus.value = 'idle'
+  narrationSaved.value = null
   savedReadingId.value = ''
   saveStatus.value = 'idle'
   saveError.value = ''
@@ -735,6 +742,7 @@ onBeforeUnmount(resetSceneBus)
               :narration-status="narrationStatus"
               :narration-text="narrationText"
               :narration-error="narrationError"
+              :narration-saved="narrationSaved"
               :save-status="saveStatus"
               :save-error="saveError"
               @save-reading="handleSaveReading"

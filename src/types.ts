@@ -149,7 +149,7 @@ export interface AnalysisTheme {
   missingSuits: Suit[]
   dominantElements: Element[]
   text: string
-  // v7 新增：元素與數字的分布，獨立成段放在「走到哪個階段」下方。舊版後端沒有
+  // v7 新增：元素（與缺少的花色）的說明；v11 起不再含數字。欄位名稱沿用。舊版後端沒有
   elementNumberText?: string
 }
 
@@ -203,10 +203,37 @@ export interface AnalysisNumberStage {
   trend: 'forward' | 'backward' | 'same' | null
   evidence: number[]
   // v7 新增：依牌陣順序的階段路徑與整條路徑的形狀；舊版後端沒有
-  sequence?: { index: number; number: number; stage: string }[]
-  shape?: NumberStageShape
+  // v11：宮廷牌也納入，沒有數字時 number 是 null；時間線少於兩格時 shape 是 null
+  sequence?: {
+    index: number
+    number: number | null
+    stage: string
+    // v11：牌的種類；大牌另附化簡前的編號（只有大牌才有這個鍵）
+    kind?: 'pip' | 'major' | 'court'
+    majorNumber?: number
+    themeLabel?: string | null
+  }[]
+  shape?: NumberStageShape | null
   skipped?: number[]
+  // v11：時間線上的牌（index，依時間先後）。只有過去／現在／未來／結果這類位置算時間線
+  timeline?: number[]
+  // v11：每張牌的記號與階段，給前端畫時間軸
+  steps?: NumberStageStep[]
+  // v11：只有結論的文字；畫了時間軸時用它，避免路徑講兩次
+  summary?: string
   text: string
+}
+
+export interface NumberStageStep {
+  index: number
+  label: string | null
+  name: string
+  // 「4」「13→4」或宮廷階級「侍者」
+  mark: string
+  theme: string | null
+  stage: string
+  // 口語的階段名稱（剛起步、面對考驗…）
+  stageLabel: string
 }
 
 export interface AnalysisWeights {
@@ -228,6 +255,15 @@ export interface AnalysisWeights {
 
 // 規則 11：量化指標
 export type QuantDimension = 'action' | 'emotion' | 'logic' | 'material'
+
+export type QuantLevel = 1 | 2 | 3
+
+export type QuantLevels = {
+  momentum: QuantLevel
+  resistance: QuantLevel
+  confidence: QuantLevel
+  focus: QuantLevel
+}
 export type QuantDirection = 'strongPositive' | 'positive' | 'neutral' | 'negative' | 'strongNegative'
 export type QuestionDomain = 'work' | 'money' | 'love' | 'social' | 'study' | 'general'
 
@@ -247,6 +283,8 @@ export interface AnalysisQuant {
   focus?: number
   confidence: number
   confidenceLow: boolean
+  // 傾向條的三格分級（1～3），門檻由後端依實際分布決定；舊版後端沒有
+  levels?: QuantLevels
   contributions: { index: number; v: number; weight: number; share: number }[]
   text: string
 }
@@ -295,7 +333,8 @@ export interface ReadingResponse {
 // /api/readings/narrate 以 NDJSON 串流回傳，每行一個事件
 export type NarrationStreamEvent =
   | { type: 'delta'; text: string }
-  | { type: 'done'; model: string }
+  // saved：有指定紀錄時是否已存回那筆（null＝沒有指定紀錄；舊版後端沒有這個欄位）
+  | { type: 'done'; model: string; saved?: boolean | null }
   | { type: 'error'; message: string }
 
 export interface ApiError {

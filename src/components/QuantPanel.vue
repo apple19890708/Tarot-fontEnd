@@ -11,7 +11,7 @@ import {
 import { computed } from 'vue'
 import { Radar } from 'vue-chartjs'
 
-import type { AnalysisQuant, QuantDimension, ReadingCard } from '../types'
+import type { AnalysisQuant, QuantDimension, QuantLevel, QuantLevels, ReadingCard } from '../types'
 
 // 只註冊雷達圖需要的模組，其餘不註冊以利 tree-shaking
 ChartJS.register(RadarController, RadialLinearScale, PointElement, LineElement, Filler, Tooltip)
@@ -21,11 +21,13 @@ const props = defineProps<{
   cards: ReadingCard[]
 }>()
 
+// 必須和後端 ruleConfig.js 的 DIMENSION_LABELS 一致，quant.text 會用同一組詞。
+// 後端刻意不用「情感／思維」：那是花色的領域名，混用會讀成自相矛盾。
 const DIMENSION_LABELS: Record<QuantDimension, string> = {
   action: '行動',
-  emotion: '情感',
-  logic: '思維',
-  material: '物質',
+  emotion: '感受',
+  logic: '想法',
+  material: '現實',
 }
 
 const DIMENSION_ORDER: QuantDimension[] = ['action', 'emotion', 'logic', 'material']
@@ -83,52 +85,77 @@ const radarOptions = computed(() => ({
 // 傾向條的三格等級。
 // 原本叫「使不使得上力」「推進順不順」，兩個名稱聽起來像在問同一件事，
 // 而且名稱是問句、數值是答句，看的人要自己對起來。改成名詞＋一行說明。
-type Meter = { name: string; hint: string; value: number; labels: [string, string, string] }
+// tone 決定格子顏色：阻力格數多是壞事，不能和推力用同一個顏色，否則看不出多是好是壞。
+type Meter = {
+  name: string
+  hint: string
+  level: QuantLevel
+  labels: [string, string, string]
+  tone: 'good' | 'bad' | 'neutral'
+}
 
-// 傾向條的三格等級。
-// 原本叫「使不使得上力」「推進順不順」，兩個名稱聽起來像在問同一件事，
-// 而且名稱是問句、數值是答句，看的人要自己對起來。改成名詞＋一行說明。
-const meters = computed<Meter[]>(() => {
-  const list: Meter[] = [
-    {
-      name: '推力',
-      hint: '站在你這邊的力量有多少',
-      value: props.quant.momentum,
-      labels: ['幾乎沒有', '有一些', '相當充足'],
-    },
-    {
-      name: '阻力',
-      hint: '擋路的、或是使不出來的有多少',
-      value: props.quant.resistance,
-      labels: ['很小', '有一些', '相當大'],
-    },
-  ]
+const METER_FILL: Record<Meter['tone'], string> = {
+  good: 'bg-emerald-300/70',
+  bad: 'bg-rose-300/70',
+  neutral: 'bg-amber-200/80',
+}
 
-  // 舊版後端沒有 focus，那一格整格不顯示
-  if (typeof props.quant.focus === 'number') {
-    list.push({
-      name: '焦點集中度',
-      hint: '力氣壓在少數面向，還是平均攤開',
-      value: props.quant.focus,
-      labels: ['很分散', '普通', '很集中'],
-    })
-  }
+// 焦點集中度不放在這裡，改成雷達圖下方的說明：它描述的就是雷達圖的形狀，
+// 分開放會出現「圖看起來很集中、格子卻寫普通」的落差。
+const meters = computed<Meter[]>(() => [
+  {
+    name: '推力',
+    hint: '站在你這邊的力量有多少',
+    level: levelOf('momentum', props.quant.momentum),
+    labels: ['幾乎沒有', '有一些', '相當充足'],
+    tone: 'good',
+  },
+  {
+    name: '阻力',
+    hint: '卡住你的力量有多少',
+    level: levelOf('resistance', props.quant.resistance),
+    labels: ['很小', '有一些', '相當大'],
+    tone: 'bad',
+  },
+  {
+    name: '可信度',
+    hint: '牌面訊號越雜，越只能當參考',
+    level: levelOf('confidence', props.quant.confidence),
+    labels: ['偏低', '普通', '高'],
+    tone: 'neutral',
+  },
+])
 
-  list.push({
-    name: '訊息明朗度',
-    hint: '這組牌的訊號清不清楚，越低越只能當參考',
-    value: props.quant.confidence,
-    labels: ['偏模糊', '普通', '相當清楚'],
-  })
-
-  return list
-})
-
-function meterLevel(value: number) {
+// 分級門檻由後端依實際分布決定（quant.levels），前端不自己定。
+// 只有舊版後端沒回傳 levels 時，才退回舊的固定門檻。
+function levelOf(key: keyof QuantLevels, value: number): QuantLevel {
+  const fromServer = props.quant.levels?.[key]
+  if (fromServer) return fromServer
   if (value >= 0.5) return 3
   if (value >= 0.3) return 2
   return 1
 }
+
+// 雷達圖的主軸：取能量最高的面向，第二名夠接近（≥ 峰值 70%）才一起列。
+// 這只是把 energy 排序當標籤，不是解讀文字。
+const MAIN_AXIS_RATIO = 0.7
+const mainAxes = computed(() => {
+  const sorted = [...DIMENSION_ORDER].sort((a, b) => (props.quant.energy[b] ?? 0) - (props.quant.energy[a] ?? 0))
+  const top = sorted[0]
+  const peak = top ? (props.quant.energy[top] ?? 0) : 0
+  if (peak <= 0) return []
+  return sorted
+    .slice(0, 2)
+    .filter((key, i) => i === 0 || (props.quant.energy[key] ?? 0) >= peak * MAIN_AXIS_RATIO)
+    .map((key) => DIMENSION_LABELS[key])
+})
+
+// 舊版後端沒有 focus，就不顯示集中度
+const focusLabel = computed(() =>
+  typeof props.quant.focus === 'number'
+    ? ['很分散', '普通', '很集中'][levelOf('focus', props.quant.focus) - 1]
+    : null,
+)
 
 // 只顯示有實際份量的牌，依帶動幅度排序
 const topContributions = computed(() =>
@@ -141,15 +168,19 @@ function cardName(index: number) {
 
 // share 的正負在接近 0 時只是雜訊（曾經有張逆位牌的投影值是 +0.03，
 // 卻因此被標成「推動」，和正文「卡」「使不出來」正面衝突）。
-// 低於死區一律不分正負；逆位也要標出來，不能只看符號。
+// 低於死區一律不分正負。
+// 用「往順利／往不順」而不是「帶動／拖住」：share 是上方指針（DI）的拆解，
+// 用同一組詞才看得出兩者的關係，也不會和「推力」那格混在一起。
+// 逆位標在牌名旁，不接在方向後面：「往順利・逆位」讀起來像逆位造成順利，
+// 實際上逆位只是把力道打折，方向不變。
 const SHARE_DEAD_ZONE = 0.1
 
 function shareLabel(item: { index: number; share: number }) {
-  const reversed = props.cards[item.index]?.orientation === 'reversed'
-  const base =
-    Math.abs(item.share) < SHARE_DEAD_ZONE ? '影響有限' : item.share > 0 ? '帶動' : '拖住'
+  return Math.abs(item.share) < SHARE_DEAD_ZONE ? '影響有限' : item.share > 0 ? '往順利' : '往不順'
+}
 
-  return reversed ? `${base}・逆位` : base
+function isReversed(index: number) {
+  return props.cards[index]?.orientation === 'reversed'
 }
 
 function shareStyle(item: { index: number; share: number }) {
@@ -201,27 +232,31 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
         </p>
       </div>
 
+      <!-- confidenceLow 的提醒句已在 quant.text 結尾（後端產生），這裡不再另外顯示一次 -->
       <p class="text-sm leading-7 text-stone-200/85">{{ quant.text }}</p>
-
-      <p
-        v-if="quant.confidenceLow"
-        class="rounded-2xl border border-dashed border-amber-200/25 bg-amber-100/5 px-4 py-2 text-sm leading-6 text-amber-100/80"
-      >
-        這組牌的訊息比較雜，當參考就好。
-      </p>
     </section>
 
     <!-- 四軸能量 -->
     <section class="space-y-2">
-      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">這次在講什麼</h3>
-      <p class="text-xs text-stone-400">這組牌把力氣花在哪些面向，跟好壞無關</p>
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">這次的重心落在哪</h3>
+      <p class="text-xs text-stone-400">牌面的能量集中在哪些面向（只看分布，不代表好壞）</p>
       <div class="relative h-56 w-full min-w-0">
         <Radar :data="radarData" :options="radarOptions" />
       </div>
+      <!-- 圖的刻度會跟著峰值縮放，形狀容易看起來比實際集中，用文字補上實際程度 -->
+      <p v-if="mainAxes.length > 0 || focusLabel" class="text-center text-xs text-stone-400">
+        <template v-if="mainAxes.length > 0">
+          主軸：<span class="text-amber-50">{{ mainAxes.join('、') }}</span>
+        </template>
+        <template v-if="mainAxes.length > 0 && focusLabel">｜</template>
+        <template v-if="focusLabel">
+          集中度：<span class="text-amber-50">{{ focusLabel }}</span>
+        </template>
+      </p>
     </section>
 
-    <!-- 推力、阻力、集中度、明朗度 -->
-    <section class="grid min-w-0 gap-3 sm:grid-cols-2">
+    <!-- 推力、阻力、可信度 -->
+    <section class="grid min-w-0 gap-3 sm:grid-cols-3">
       <div
         v-for="meter in meters"
         :key="meter.name"
@@ -229,15 +264,15 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
       >
         <div class="flex items-baseline justify-between gap-2 text-sm">
           <span class="text-stone-300/80">{{ meter.name }}</span>
-          <span class="font-medium text-amber-50">{{ meter.labels[meterLevel(meter.value) - 1] }}</span>
+          <span class="font-medium text-amber-50">{{ meter.labels[meter.level - 1] }}</span>
         </div>
-        <p class="mt-0.5 text-[11px] leading-5 text-stone-500">{{ meter.hint }}</p>
+        <p class="mt-0.5 text-xs leading-5 text-stone-400">{{ meter.hint }}</p>
         <div class="mt-2 flex gap-1.5">
           <span
             v-for="step in 3"
             :key="step"
             class="h-1.5 flex-1 rounded-full"
-            :class="step <= meterLevel(meter.value) ? 'bg-amber-200/80' : 'bg-white/10'"
+            :class="step <= meter.level ? METER_FILL[meter.tone] : 'bg-white/10'"
           />
         </div>
       </div>
@@ -245,23 +280,36 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
 
     <!-- 貢獻排行 -->
     <section v-if="topContributions.length > 0" class="space-y-2">
-      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">哪張牌份量最重</h3>
-      <p class="text-xs text-stone-400">
-        這一段算的是每張牌把整體往哪邊帶，和上面的雷達圖是兩套算法，不要互相對照
+      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">每張牌往哪邊拉</h3>
+      <!-- share 是除以總和後的佔比，再弱的組合也一定有長條，要講清楚免得和「推力」對不上 -->
+      <p class="text-xs leading-5 text-stone-400">
+        長條越長，這張牌對結果的影響越大。顏色淡的是逆位，力道比較弱。
       </p>
+      <!-- 刻度：和指針用同一組「不順／順利」 -->
+      <div class="flex items-center gap-2 text-[10px] text-stone-500 sm:gap-3 sm:text-xs">
+        <span class="w-20 flex-shrink-0 sm:w-28" />
+        <span class="flex flex-1 justify-between">
+          <span class="text-rose-200/60">← 往不順</span>
+          <span class="text-emerald-200/60">往順利 →</span>
+        </span>
+        <span class="w-12 flex-shrink-0 sm:w-16" />
+      </div>
       <ul class="space-y-2">
         <li
           v-for="item in topContributions"
           :key="item.index"
           class="flex items-center gap-2 text-xs sm:gap-3 sm:text-sm"
         >
-          <span class="w-16 flex-shrink-0 truncate text-stone-200 sm:w-24">{{ cardName(item.index) }}</span>
-          <!-- 中線為 0，向右為推動、向左為拉扯 -->
+          <span class="flex w-20 flex-shrink-0 items-baseline gap-1 sm:w-28">
+            <span class="truncate text-stone-200">{{ cardName(item.index) }}</span>
+            <span v-if="isReversed(item.index)" class="flex-shrink-0 text-[10px] text-stone-500">逆位</span>
+          </span>
+          <!-- 中線為 0，向右往順利、向左往不順 -->
           <span class="relative h-2 flex-1 rounded-full bg-white/5">
             <span class="absolute left-1/2 top-0 h-full w-px bg-white/20" />
             <span
               class="absolute top-0 h-full rounded-full"
-              :class="item.share >= 0 ? 'bg-emerald-300/70' : 'bg-rose-300/70'"
+              :class="[item.share >= 0 ? 'bg-emerald-300/70' : 'bg-rose-300/70', isReversed(item.index) ? 'opacity-45' : '']"
               :style="
                 item.share >= 0
                   ? { left: '50%', width: `${Math.abs(item.share) * 50}%` }
@@ -269,7 +317,7 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
               "
             />
           </span>
-          <span class="w-14 flex-shrink-0 text-right text-[10px] sm:w-20 sm:text-xs" :class="shareStyle(item)">
+          <span class="w-12 flex-shrink-0 text-right text-[10px] sm:w-16 sm:text-xs" :class="shareStyle(item)">
             {{ shareLabel(item) }}
           </span>
         </li>

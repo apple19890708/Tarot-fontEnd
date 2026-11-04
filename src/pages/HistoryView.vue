@@ -57,6 +57,8 @@ const isMobileIndexOpen = ref(false)
 const narrationText = ref('')
 const narrationStatus = ref<NarrationStatus>('idle')
 const narrationError = ref('')
+// 最近一次重新產生的解讀有沒有存回這筆紀錄
+const narrationSaved = ref<boolean | null>(null)
 let narrationController: AbortController | null = null
 
 const isEmpty = computed(() => isListLoaded.value && readings.value.length === 0)
@@ -173,6 +175,7 @@ async function loadDetail(id: string) {
   narrationText.value = ''
   narrationError.value = ''
   narrationStatus.value = 'idle'
+  narrationSaved.value = null
 
   try {
     const response = await fetchReadingDetail(id)
@@ -207,6 +210,7 @@ function resetDetail() {
   isDetailLoading.value = false
   narrationText.value = ''
   narrationStatus.value = 'idle'
+  narrationSaved.value = null
 }
 
 watch(selectedId, (id) => (id ? loadDetail(id) : resetDetail()), { immediate: true })
@@ -260,10 +264,11 @@ async function requestNarration() {
   narrationController = controller
   narrationText.value = ''
   narrationError.value = ''
+  narrationSaved.value = null
   narrationStatus.value = 'loading'
 
   try {
-    await streamNarration(current.reading, {
+    const { saved } = await streamNarration(current.reading, {
       signal: controller.signal,
       domain: current.domain || undefined,
       // 回顧舊紀錄時 reading 本身沒有 id，要用紀錄的 id，解讀才會存回同一筆
@@ -277,9 +282,11 @@ async function requestNarration() {
     })
     if (controller === narrationController) {
       narrationStatus.value = 'done'
-      // 後端已把文字存進這筆紀錄，讓「有 AI 解讀」篩選跟著更新
+      narrationSaved.value = saved
+      // 後端已把文字存進這筆紀錄（重新產生時是覆蓋同一筆），讓「有 AI 解讀」篩選跟著更新。
+      // 明確回報失敗時不改；舊版後端回 null，照舊當成有存
       const summary = readings.value.find((item) => item.id === current.id)
-      if (summary) {
+      if (summary && saved !== false) {
         summary.hasNarration = true
       }
     }
@@ -549,6 +556,8 @@ onBeforeUnmount(() => {
               :narration-status="narrationStatus"
               :narration-text="narrationText"
               :narration-error="narrationError"
+              :narration-saved="narrationSaved"
+              is-record
               hide-flow-actions
               @request-narration="requestNarration"
               @stop-narration="stopNarration"
