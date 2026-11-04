@@ -46,7 +46,6 @@ const emit = defineEmits<{
   reshuffle: []
   pick: [index: number]
   undoPick: []
-  addInputCard: [card: CardSummary]
   setInputCard: [index: number, card: CardSummary]
   removeInputCard: [index: number]
   toggleInputOrientation: [index: number]
@@ -190,14 +189,6 @@ async function flyInputCard(card: CardSummary, index: number, source: Element | 
   launch({ ...card, orientation: 'upright' }, from, target, true)
 }
 
-function onAddInputCard(card: CardSummary, event: MouseEvent) {
-  // 與 HomeView 的 addInputCard 相同：放進第一個空著的位置
-  const index = props.inputCards.findIndex((item) => !item)
-  emit('addInputCard', card)
-  if (index >= 0) {
-    void flyInputCard(card, index, event.currentTarget as Element | null)
-  }
-}
 
 // ---- 自動抽牌的動畫 ----
 // 按下之後要等後端回傳才知道抽到什麼，所以先洗牌佔住這段等待；
@@ -384,17 +375,22 @@ function onDragEnd() {
   dropIndex.value = null
 }
 
-// ---- 手機的選牌視窗 ----
-// 手機放不下「位置清單 ＋ 常駐選牌清單」，改成點某個位置才跳出滿版的選牌視窗，
-// 選完就關掉；桌機維持左右並排，清單一直看得到。
+// ---- 選牌視窗 ----
+// 點某個位置才跳出選牌視窗，選完就關掉。手機是滿版，桌機是置中的視窗。
+// 原本桌機在右側常駐一份 78 張的清單，佔掉半個版面，改成和手機一樣的流程。
+// isMobile 現在只用來決定能不能拖曳排序（手機的拖曳和捲動會互相干擾）。
 const MOBILE_QUERY = '(max-width: 767px)'
 const isMobile = ref(typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches)
 let mobileQuery: MediaQueryList | null = null
 
 function onMobileChange(event: MediaQueryListEvent) {
   isMobile.value = event.matches
-  if (!isMobile.value) {
-    pickerIndex.value = null
+}
+
+// 桌機可以按 Esc 關掉選牌視窗
+function onPickerKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && pickerIndex.value !== null) {
+    closePicker()
   }
 }
 
@@ -402,15 +398,13 @@ onMounted(() => {
   mobileQuery = window.matchMedia(MOBILE_QUERY)
   isMobile.value = mobileQuery.matches
   mobileQuery.addEventListener('change', onMobileChange)
+  window.addEventListener('keydown', onPickerKeydown)
 })
 
 // 正在選牌的位置；null 表示沒開視窗
 const pickerIndex = ref<number | null>(null)
 
 function openPicker(index: number) {
-  if (!isMobile.value) {
-    return
-  }
   // 每次重新開始找，不要延續上一個位置的關鍵字
   emit('update:cardSearch', '')
   pickerIndex.value = index
@@ -447,6 +441,7 @@ watch(pickerIndex, (index) => {
 
 onBeforeUnmount(() => {
   mobileQuery?.removeEventListener('change', onMobileChange)
+  window.removeEventListener('keydown', onPickerKeydown)
   document.body.style.overflow = ''
 })
 
@@ -687,32 +682,11 @@ const cardGroups = computed(() => {
       <!-- 左右並排：左邊是位置與已輸入的牌，右邊是選牌清單。
            以前選牌排在最下面，每加一張都要捲到底。768px 以下寬度不夠分欄，改回上下排列。
            右欄要放得下一排五張、四個字的牌名，所以給得比左欄寬鬆。 -->
-      <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] md:items-start xl:grid-cols-[minmax(0,1fr)_minmax(0,34rem)]">
-        <div class="space-y-4">
-        <!-- 有牌陣：先把每個位置代表什麼攤開，否則使用者不知道該依什麼順序輸入 -->
+      <div class="space-y-4">
+        <!-- 有牌陣：每個位置代表什麼已經寫在下面每一列裡，這裡只留牌陣說明 -->
         <div v-if="spread" class="border-2 border-white/10 bg-black/15 p-4">
           <p class="text-xs uppercase tracking-[0.2em] text-stone-400">{{ spread.name }}・位置順序</p>
           <p class="mt-1 text-xs leading-5 text-stone-400/90">{{ spread.description }}</p>
-          <!-- 手機每個位置的說明已經寫在下面那一列裡，這裡就不重複 -->
-          <ol class="mt-3 hidden space-y-1.5 md:block">
-            <li
-              v-for="(slot, index) in slots"
-              :key="index"
-              class="flex gap-2 text-sm leading-6"
-              :class="inputCards[index] ? 'text-stone-100' : 'text-stone-400'"
-            >
-              <span
-                class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-[11px]"
-                :class="inputCards[index] ? 'bg-amber-200/80 text-slate-950' : 'bg-white/10 text-stone-400'"
-              >
-                {{ index + 1 }}
-              </span>
-              <span>
-                <span class="font-medium">{{ slot.label }}</span>
-                <span v-if="slot.prompt" class="ml-1 text-[11px] text-stone-400/80">{{ slot.prompt }}</span>
-              </span>
-            </li>
-          </ol>
         </div>
 
         <!-- 不指定牌陣：位置含意由使用者自己定義，留白就只當成「第 N 張」 -->
@@ -747,8 +721,8 @@ const cardGroups = computed(() => {
           </div>
         </div>
 
-        <!-- 每個位置都先排好，還沒放牌的位置也看得到；手機點一下就跳出選牌視窗 -->
-        <ul class="space-y-2">
+        <!-- 每個位置都先排好，還沒放牌的位置也看得到；點一下就跳出選牌視窗。桌機排成兩欄，省下高度 -->
+        <ul class="grid gap-2 md:grid-cols-2">
           <li
             v-for="(slot, index) in slots"
             :key="index"
@@ -763,10 +737,10 @@ const cardGroups = computed(() => {
             @drop.prevent="onDrop(index)"
             @dragend="onDragEnd"
           >
-            <!-- 位置名稱。手機把這個位置代表什麼也寫在這裡，上面那份清單就不用再看一次 -->
-            <span class="w-16 shrink-0 text-[11px] leading-tight text-stone-300 md:w-24">
+            <!-- 位置名稱與這個位置代表什麼。說明太長時截成兩行，完整文字放在 title -->
+            <span class="w-16 shrink-0 text-[11px] leading-tight text-stone-300 md:w-28" :title="slot.prompt || undefined">
               {{ index + 1 }}. {{ slot.label }}
-              <span v-if="slot.prompt" class="mt-0.5 block text-[10px] leading-tight text-stone-500 md:hidden">
+              <span v-if="slot.prompt" class="mt-0.5 line-clamp-2 text-[10px] leading-tight text-stone-500">
                 {{ slot.prompt }}
               </span>
             </span>
@@ -781,8 +755,7 @@ const cardGroups = computed(() => {
 
             <button
               type="button"
-              class="flex min-w-0 flex-1 items-center gap-2 px-1 py-1 text-left transition active:translate-x-[2px] active:translate-y-[2px]"
-              :class="isMobile ? 'cursor-pointer hover:bg-white/5' : 'cursor-default'"
+              class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-1 py-1 text-left transition hover:bg-white/5 active:translate-x-[2px] active:translate-y-[2px]"
               @click="openPicker(index)"
             >
               <!-- 固定大小的縮圖框：飛牌的終點。替身飛行期間只留虛線框，抵達後才換成牌圖 -->
@@ -806,7 +779,7 @@ const cardGroups = computed(() => {
                 {{ inputCards[index]!.nameZh }}
               </span>
               <span v-else class="min-w-0 flex-1 truncate text-sm text-stone-500">
-                {{ isMobile ? '點一下選牌' : '從右邊的清單選牌' }}
+                點一下選牌
               </span>
             </button>
 
@@ -829,56 +802,6 @@ const cardGroups = computed(() => {
             </template>
           </li>
         </ul>
-        </div>
-
-        <!-- 手機不常駐這份清單，改由選牌視窗顯示 -->
-        <div class="hidden space-y-2 md:block md:sticky md:top-4">
-          <input
-            :value="cardSearch"
-            type="search"
-            class="w-full border-2 border-white/10 bg-white/5 px-4 py-2 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40"
-            placeholder="搜尋牌名…"
-            @input="emit('update:cardSearch', ($event.target as HTMLInputElement).value)"
-          />
-          <p v-if="cardsError" class="border-2 border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">
-            {{ cardsError }}
-          </p>
-          <!-- 捲動區用不透明底色，sticky 的分組標題才能完全蓋住捲到後面的牌，中間不留縫 -->
-          <div class="max-h-[30rem] overflow-y-auto border-2 border-white/10 bg-slate-950 px-2 pb-2">
-            <div v-for="group in cardGroups" :key="group.key">
-              <p
-                class="sticky top-0 z-10 -mx-2 bg-slate-950 px-2 pb-1.5 pt-3 text-xs uppercase tracking-[0.2em] text-stone-400"
-              >
-                {{ group.label }}
-              </p>
-              <!-- 數字牌（或大牌）一排五張，宮廷牌接在下面一排四張；手機放不下牌名，一律一排兩張 -->
-              <div
-                v-for="row in [
-                  { key: 'cards', cols: 'grid-cols-2 sm:grid-cols-5', cards: group.cards },
-                  { key: 'courts', cols: 'grid-cols-2 sm:grid-cols-4', cards: group.courts },
-                ].filter((item) => item.cards.length > 0)"
-                :key="row.key"
-                class="grid gap-1.5 pt-1.5"
-                :class="row.cols"
-              >
-                <button
-                  v-for="card in row.cards"
-                  :key="card.id"
-                  class="cursor-pointer truncate border-2 px-2 py-1.5 text-center text-[12px] transition disabled:cursor-not-allowed disabled:opacity-40 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
-                  :class="selectedInputIds.has(card.id)
-                    ? 'border-amber-200/40 bg-amber-200/20 text-amber-50'
-                    : 'border-white/10 bg-white/5 text-stone-200 hover:bg-white/10'"
-                  type="button"
-                  :title="card.nameZh"
-                  :disabled="selectedInputIds.has(card.id) || inputEnough"
-                  @click="onAddInputCard(card, $event)"
-                >
-                  {{ card.nameZh }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <button
@@ -891,7 +814,7 @@ const cardGroups = computed(() => {
       </button>
 
       <!--
-        手機的選牌視窗：點某個位置才打開，選完就關掉。
+        選牌視窗：點某個位置才打開，選完就關掉。手機滿版；桌機是置中的視窗，點背景或按 Esc 關閉。
         teleport 到 body，不然外層卡片的 會把 fixed 定位困在卡片裡。
       -->
       <Teleport to="body">
@@ -905,7 +828,11 @@ const cardGroups = computed(() => {
         >
           <div
             v-if="pickerIndex !== null"
-            class="fixed inset-0 z-50 flex flex-col bg-neutral-950 text-stone-100"
+            class="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-black/70 md:p-6"
+            @click.self="closePicker"
+          >
+          <div
+            class="flex h-full w-full flex-col bg-neutral-950 text-stone-100 md:h-auto md:max-h-[85vh] md:max-w-3xl md:border-2 md:border-white/15"
             role="dialog"
             aria-modal="true"
             aria-label="選一張牌"
@@ -950,13 +877,15 @@ const cardGroups = computed(() => {
                 >
                   {{ group.label }}
                 </p>
+                <!-- 數字牌（或大牌）一排五張，宮廷牌接在下面一排四張；手機放不下牌名，一律一排兩張 -->
                 <div
                   v-for="row in [
-                    { key: 'cards', cards: group.cards },
-                    { key: 'courts', cards: group.courts },
+                    { key: 'cards', cols: 'grid-cols-2 sm:grid-cols-5', cards: group.cards },
+                    { key: 'courts', cols: 'grid-cols-2 sm:grid-cols-4', cards: group.courts },
                   ].filter((item) => item.cards.length > 0)"
                   :key="row.key"
-                  class="grid grid-cols-2 gap-1.5 pt-1.5"
+                  class="grid gap-1.5 pt-1.5"
+                  :class="row.cols"
                 >
                   <button
                     v-for="card in row.cards"
@@ -964,7 +893,7 @@ const cardGroups = computed(() => {
                     class="cursor-pointer truncate border-2 px-2 py-2 text-center text-[12px] transition disabled:cursor-not-allowed disabled:opacity-40 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
                     :class="inputCards[pickerIndex ?? 0]?.id === card.id
                       ? 'border-amber-200/40 bg-amber-200/20 text-amber-50'
-                      : 'border-white/10 bg-white/5 text-stone-200'"
+                      : 'border-white/10 bg-white/5 text-stone-200 hover:bg-white/10'"
                     type="button"
                     :title="card.nameZh"
                     :disabled="usedElsewhere(card)"
@@ -975,6 +904,7 @@ const cardGroups = computed(() => {
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </Transition>
       </Teleport>

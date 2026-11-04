@@ -256,17 +256,6 @@ function setInputCard(index: number, card: CardSummary) {
   list[index] = { ...card, orientation: 'upright' }
 }
 
-// 從旁邊的清單點選：放進第一個還空著的位置
-function addInputCard(card: CardSummary) {
-  if (inputCards.value.some((item) => item?.id === card.id)) {
-    return
-  }
-  const index = inputCards.value.findIndex((item) => !item)
-  if (index >= 0) {
-    setInputCard(index, card)
-  }
-}
-
 function removeInputCard(index: number) {
   inputCards.value[index] = undefined
 }
@@ -726,7 +715,6 @@ onBeforeUnmount(resetSceneBus)
               @reshuffle="shuffleDeck"
               @pick="pickFromDeck"
               @undo-pick="undoPick"
-              @add-input-card="addInputCard"
               @set-input-card="setInputCard"
               @remove-input-card="removeInputCard"
               @toggle-input-orientation="toggleInputOrientation"

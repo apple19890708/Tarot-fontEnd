@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import { isLoggedIn, restore, session } from '../lib/auth'
+import { isLoggedIn, onSessionExpired, restore, session } from '../lib/auth'
 
 const HomeView = () => import('../pages/HomeView.vue')
 const RoutesAdmin = () => import('../pages/RoutesAdmin.vue')
@@ -48,6 +48,17 @@ router.beforeEach(async (to) => {
   }
 
   return true
+})
+
+// 守衛只在換頁時檢查。已經停在要登入的頁面上時 token 過期（任何請求收到 401），
+// 登入狀態會被清掉卻不會換頁，畫面就停在「請先登入」的錯誤上。
+// 這時照守衛的規則導去登入頁，登入後由 redirect 帶回原頁。
+// 主動登出不在這裡處理：App.vue 的登出會自己回首頁，兩邊都導頁會互搶。
+onSessionExpired(() => {
+  const current = router.currentRoute.value
+  if (current.meta.auth || current.meta.role) {
+    void router.replace({ path: '/login', query: { redirect: current.fullPath } })
+  }
 })
 
 export default router

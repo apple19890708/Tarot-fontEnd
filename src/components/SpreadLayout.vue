@@ -87,6 +87,7 @@ function orientationLabel(card: ReadingCard | null) {
             class="group block w-full cursor-pointer text-left [perspective:600px] active:translate-x-[2px] active:translate-y-[2px]"
             :aria-pressed="flippedKeys.has(slot.position.key)"
             :aria-label="`${slot.position.label}：${slot.position.prompt}`"
+            :title="`${slot.position.label}：${slot.position.prompt}`"
             @click="toggleFlip(slot.position.key)"
           >
             <!-- 翻面容器：正反面各自絕對定位疊在一起，整個容器繞 Y 軸轉 -->
@@ -113,15 +114,19 @@ function orientationLabel(card: ReadingCard | null) {
                 <span v-else class="text-lg font-semibold text-stone-500">{{ slot.index + 1 }}</span>
               </span>
 
-              <!-- 背面：這個位置代表什麼。字級隨斷點縮放，最長的 17 字在各尺寸都放得下 -->
+              <!--
+                背面：這個位置代表什麼。牌陣格子多時牌會縮到很窄，字放不下就截斷加刪節號，
+                完整文字放在按鈕的 title（滑過顯示）與 aria-label。
+                justify-center-safe：內容超出時從上方對齊，切掉的是說明尾端，不會把位置名稱切掉
+              -->
               <span
-                class="absolute inset-0 flex flex-col justify-center gap-0.5 overflow-hidden border-2 border-amber-200/40 bg-amber-100/8 px-1.5 py-1 text-center [backface-visibility:hidden] [transform:rotateY(180deg)]"
+                class="absolute inset-0 flex flex-col justify-center-safe gap-0.5 overflow-hidden border-2 border-amber-200/40 bg-amber-100/8 px-1.5 py-1 text-center [backface-visibility:hidden] [transform:rotateY(180deg)]"
               >
-                <span class="font-medium text-amber-100 text-[11px] leading-tight lg:text-xs">
+                <span class="line-clamp-2 shrink-0 break-words font-medium text-amber-100 text-[11px] leading-tight lg:text-xs">
                   {{ slot.position.label }}
                 </span>
                 <span
-                  class="break-words text-stone-200/85 text-[11px] leading-[1.2] lg:leading-snug"
+                  class="line-clamp-4 break-words text-stone-200/85 text-[11px] leading-[1.2] sm:line-clamp-6 lg:line-clamp-none lg:leading-snug"
                 >
                   {{ slot.position.prompt }}
                 </span>

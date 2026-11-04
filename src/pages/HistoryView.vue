@@ -11,6 +11,7 @@ import {
   fetchReadingHistory,
   fetchSpreads,
   streamNarration,
+  UnauthorizedError,
 } from '../lib/api'
 import { canUseAi } from '../lib/auth'
 import { prefersReducedMotion } from '../lib/motion'
@@ -134,7 +135,8 @@ async function loadList() {
       selectReading(readings.value[0].id)
     }
   } catch (error) {
-    if (requestId !== listRequestId) {
+    // 401：登入狀態已被清掉，router 的 watch 會把人導去登入頁，這裡不必再顯示「請先登入」
+    if (requestId !== listRequestId || error instanceof UnauthorizedError) {
       return
     }
     listError.value = error instanceof Error ? error.message : '無法載入占卜紀錄'
@@ -191,7 +193,7 @@ async function loadDetail(id: string) {
       narrationStatus.value = response.reading.analysis ? 'ready' : 'idle'
     }
   } catch (error) {
-    if (requestId !== detailRequestId) {
+    if (requestId !== detailRequestId || error instanceof UnauthorizedError) {
       return
     }
     detailError.value = error instanceof Error ? error.message : '找不到這筆紀錄'
@@ -357,8 +359,11 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <!-- 桌機上左邊的索引標籤緊貼著菜單，中間不留空 -->
-    <div class="flex min-w-0 items-start gap-6 lg:gap-0">
+    <!--
+      桌機上左邊的索引標籤緊貼著菜單，中間不留空。
+      清單載入失敗、一筆都沒拿到時整塊不顯示，只留上面的錯誤訊息與重試，不要擺一個空的菜單框
+    -->
+    <div v-if="isListLoaded || !listError" class="flex min-w-0 items-start gap-6 lg:gap-0">
       <!--
         左欄：桌機黏在畫面上、可收合成窄欄；手機只在打開時滿版顯示。
         收合時寬度用 transition 縮放（右欄是 flex-1，會跟著平順變寬），

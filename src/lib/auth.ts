@@ -12,11 +12,26 @@ import {
 
 export { canUseAi, currentUser, isAdmin, isLoggedIn, session } from './session'
 
-// 任何請求收到 401 就把本機狀態清乾淨。導頁交給路由守衛處理，
-// 這裡不動 router，避免 lib 反過來相依 router。
+// token 失效（請求收到 401）時要通知的對象。router 用它把停在要登入頁面上的人導去登入頁；
+// 這裡不直接動 router，避免 lib 反過來相依 router。主動登出不走這裡，見 logout()
+const expiredListeners = new Set<() => void>()
+
+export function onSessionExpired(listener: () => void) {
+  expiredListeners.add(listener)
+  return () => {
+    expiredListeners.delete(listener)
+  }
+}
+
+// 任何請求收到 401 就把本機狀態清乾淨
 onUnauthorized(() => {
+  const wasLoggedIn = session.user !== null
   clearSession()
   session.ready = true
+  // 同一頁好幾個請求一起 401 時只通知一次
+  if (wasLoggedIn) {
+    expiredListeners.forEach((listener) => listener())
+  }
 })
 
 export async function login(email: string, password: string) {
