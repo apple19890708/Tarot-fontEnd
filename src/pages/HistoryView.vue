@@ -10,13 +10,14 @@ import {
   fetchReadingDetail,
   fetchReadingHistory,
   fetchSpreads,
+  fetchMarketSnapshot,
   streamNarration,
   UnauthorizedError,
 } from '../lib/api'
 import { canUseAi } from '../lib/auth'
 import { prefersReducedMotion } from '../lib/motion'
 import { installWashi } from '../lib/pixelArt'
-import type { NarrationStatus, ReadingDetail, ReadingSummary, Spread } from '../types'
+import type { MarketSnapshot, MarketStatus, NarrationStatus, ReadingDetail, ReadingSummary, Spread } from '../types'
 
 // 右側的紀錄是和紙菜單，紋理要在畫出來之前放進 CSS 變數
 installWashi()
@@ -60,6 +61,14 @@ const narrationStatus = ref<NarrationStatus>('idle')
 const narrationError = ref('')
 // 最近一次重新產生的解讀有沒有存回這筆紀錄
 const narrationSaved = ref<boolean | null>(null)
+// 股市諮詢的行情：先顯示當時存下來的那一份，按了才查最新報價
+const marketSnapshot = ref<MarketSnapshot | null>(null)
+const marketStatus = ref<MarketStatus>('idle')
+const marketError = ref('')
+// 重複按「更新報價」或換了結果時，只採用最新一次的回應
+let marketRequestId = 0
+// 目前顯示的是紀錄裡存下來的（true），還是剛查到的最新報價（false）
+const marketIsSaved = ref(false)
 let narrationController: AbortController | null = null
 
 const isEmpty = computed(() => isListLoaded.value && readings.value.length === 0)
@@ -178,6 +187,10 @@ async function loadDetail(id: string) {
   narrationError.value = ''
   narrationStatus.value = 'idle'
   narrationSaved.value = null
+  marketSnapshot.value = null
+  marketStatus.value = 'idle'
+  marketError.value = ''
+  marketRequestId += 1
 
   try {
     const response = await fetchReadingDetail(id)
@@ -188,6 +201,9 @@ async function loadDetail(id: string) {
     // 當初用過 AI 就直接顯示存下來的那一份；沒用過的留著「請 AI 解讀」的選項
     if (response.narration) {
       narrationText.value = response.narration.text
+      marketSnapshot.value = response.narration.market ?? null
+      marketStatus.value = marketSnapshot.value ? 'ready' : 'idle'
+      marketIsSaved.value = Boolean(marketSnapshot.value)
       narrationStatus.value = 'done'
     } else {
       narrationStatus.value = response.reading.analysis ? 'ready' : 'idle'
@@ -213,9 +229,50 @@ function resetDetail() {
   narrationText.value = ''
   narrationStatus.value = 'idle'
   narrationSaved.value = null
+  marketSnapshot.value = null
+  marketStatus.value = 'idle'
+  marketError.value = ''
+  marketRequestId += 1
 }
 
 watch(selectedId, (id) => (id ? loadDetail(id) : resetDetail()), { immediate: true })
+
+// ---- 股市諮詢的行情 ----
+async function loadMarket() {
+  const question = detail.value?.domain === 'stock' ? detail.value.reading.question : null
+  if (question === null) {
+    return
+  }
+  const requestId = (marketRequestId += 1)
+  marketStatus.value = 'loading'
+  marketError.value = ''
+  try {
+    const { snapshot } = await fetchMarketSnapshot(question)
+    if (requestId === marketRequestId) {
+      marketSnapshot.value = snapshot
+      marketStatus.value = 'ready'
+    }
+  } catch (error) {
+    if (requestId === marketRequestId) {
+      marketError.value = error instanceof Error ? error.message : '行情暫時查不到，請稍後再試。'
+      marketStatus.value = 'error'
+    }
+  }
+}
+
+async function refreshMarket() {
+  await loadMarket()
+  if (marketStatus.value === 'ready') {
+    marketIsSaved.value = false
+  }
+}
+
+// 股市諮詢的舊紀錄沒有存到行情（例如當時沒做 AI 解讀）時，直接查最新的
+watch(detail, (current) => {
+  if (current?.domain === 'stock' && !marketSnapshot.value) {
+    void loadMarket()
+  }
+})
 
 async function confirmDelete(id: string) {
   if (pendingDeleteId.value !== id) {
@@ -267,6 +324,7 @@ async function requestNarration() {
   narrationText.value = ''
   narrationError.value = ''
   narrationSaved.value = null
+  // 行情不清掉：AI 開始寫之前畫面上照樣有數字，收到 AI 用的那一份再換掉
   narrationStatus.value = 'loading'
 
   try {
@@ -275,6 +333,16 @@ async function requestNarration() {
       domain: current.domain || undefined,
       // 回顧舊紀錄時 reading 本身沒有 id，要用紀錄的 id，解讀才會存回同一筆
       readingId: current.id,
+      onMarket: (snapshot) => {
+        if (controller === narrationController) {
+          // AI 用的是這一份，畫面跟著換成同一份，兩邊講的數字才會一致
+          marketRequestId += 1
+          marketSnapshot.value = snapshot
+          marketStatus.value = 'ready'
+          marketError.value = ''
+          marketIsSaved.value = false
+        }
+      },
       onDelta: (text) => {
         if (controller === narrationController) {
           narrationText.value += text
@@ -562,6 +630,12 @@ onBeforeUnmount(() => {
               :narration-text="narrationText"
               :narration-error="narrationError"
               :narration-saved="narrationSaved"
+              :stock-mode="detail.domain === 'stock'"
+              :market="marketSnapshot"
+              :market-status="marketStatus"
+              :market-error="marketError"
+              :market-is-saved="marketIsSaved"
+              @refresh-market="refreshMarket"
               is-record
               hide-flow-actions
               @request-narration="requestNarration"

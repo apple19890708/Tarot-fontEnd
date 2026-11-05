@@ -6,6 +6,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { canUseAi, isLoggedIn } from '../lib/auth'
 
 import BackToTop from './BackToTop.vue'
+import MarketPanel from './MarketPanel.vue'
 import PixelChevron from './PixelChevron.vue'
 import QuantPanel from './QuantPanel.vue'
 import ReadingAnalysisPanel from './ReadingAnalysisPanel.vue'
@@ -14,7 +15,7 @@ import SpreadLayout from './SpreadLayout.vue'
 import { cardImageUrl } from '../lib/cardStyle'
 import { prefersReducedMotion } from '../lib/motion'
 import { provideSectionNav, type SectionNavItem } from '../lib/sectionNav'
-import type { Element, NarrationStatus, ReadingResponse, SaveStatus, Spread } from '../types'
+import type { Element, MarketSnapshot, MarketStatus, NarrationStatus, ReadingResponse, SaveStatus, Spread } from '../types'
 
 const props = defineProps<{
   reading: ReadingResponse
@@ -32,6 +33,13 @@ const props = defineProps<{
   isRecord?: boolean
   // 最近一次 AI 解讀有沒有存回紀錄（null＝沒有對應的紀錄或不知道）
   narrationSaved?: boolean | null
+  // 股市諮詢：結果頁改成「行情與技術指標 → AI 股市分析 → 牌面輔助」，不顯示一般塔羅的判斷依據與結語
+  stockMode?: boolean
+  market?: MarketSnapshot | null
+  marketStatus?: MarketStatus
+  marketError?: string
+  // 回顧紀錄時顯示的是當時存下來的行情
+  marketIsSaved?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -40,6 +48,7 @@ const emit = defineEmits<{
   requestNarration: []
   stopNarration: []
   saveReading: []
+  refreshMarket: []
 }>()
 
 // 判斷依據：還沒有 AI 解讀時預設展開；解讀開始出現就自動收合，讓位給解讀。
@@ -161,8 +170,12 @@ async function scrollToSection(el: HTMLElement) {
 }
 
 function collectSections(): SectionNavItem[] {
-  const nodes = rootEl.value?.querySelectorAll<HTMLElement>('[data-nav]') ?? []
-  return Array.from(nodes).map((el) => ({
+  const nodes = Array.from(rootEl.value?.querySelectorAll<HTMLElement>('[data-nav]') ?? [])
+  // 股市諮詢用 CSS order 重排了區塊，DOM 順序和畫面不同，改照畫面上的位置排
+  if (props.stockMode) {
+    nodes.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
+  }
+  return nodes.map((el) => ({
     label: el.dataset.nav ?? '',
     level: el.dataset.navLevel === '2' ? 2 : 1,
     go: () => void scrollToSection(el),
@@ -195,12 +208,17 @@ function formatSuit(suit: string | null) {
 
 <template>
   <!-- data-nav：浮動選單「跳到段落」的目標（見 lib/sectionNav.ts） -->
-  <div ref="rootEl" class="min-w-0 space-y-4 sm:space-y-6">
+  <!-- 用 flex + order：股市諮詢時把行情與 AI 分析排到牌面前面，區塊本身不必寫兩份 -->
+  <div ref="rootEl" class="flex min-w-0 flex-col gap-4 sm:gap-6">
     <div class="space-y-3 border-b border-white/10 pb-4 sm:space-y-4 sm:pb-6">
       <div class="flex min-w-0 flex-wrap items-end justify-between gap-4">
         <div class="min-w-0">
-          <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.35em]">Reading Result</p>
-          <h2 class="mt-1.5 text-2xl font-semibold text-stone-50 sm:mt-2 sm:text-3xl">{{ reading.spread.name }}</h2>
+          <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.35em]">
+            {{ stockMode ? 'Market Consult' : 'Reading Result' }}
+          </p>
+          <h2 class="mt-1.5 text-2xl font-semibold text-stone-50 sm:mt-2 sm:text-3xl">
+            {{ stockMode ? `股市諮詢 · ${reading.spread.name}` : reading.spread.name }}
+          </h2>
         </div>
         <div v-if="!hideFlowActions" class="flex flex-wrap gap-2">
           <!-- 占卜結果預設不留存，按這個才會存進「我的紀錄」 -->
@@ -252,12 +270,33 @@ function formatSuit(suit: string | null) {
 
     </div>
 
-    <div v-if="resultSpread" data-nav="牌陣" class="border-2 border-white/10 bg-slate-950/45 p-3 sm:p-5">
-      <p class="mb-3 text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Spread Layout</p>
+    <MarketPanel
+      v-if="stockMode"
+      data-nav="行情與技術指標"
+      class="order-1"
+      :snapshot="market ?? null"
+      :status="marketStatus ?? 'idle'"
+      :error="marketError"
+      :is-saved="marketIsSaved"
+      @refresh="emit('refreshMarket')"
+    />
+
+    <div
+      v-if="resultSpread"
+      :data-nav="stockMode ? '牌面輔助' : '牌陣'"
+      class="border-2 border-white/10 bg-slate-950/45 p-3 sm:p-5"
+      :class="{ 'order-3': stockMode }"
+    >
+      <p class="mb-3 text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">
+        {{ stockMode ? 'Tarot Guidance' : 'Spread Layout' }}
+      </p>
+      <p v-if="stockMode" class="mb-4 text-sm leading-7 text-stone-300/80">
+        牌面不預測價格，只用來提醒這次操作的心態與風險；AI 分析會挑出關鍵的幾張放進判斷裡。
+      </p>
       <SpreadLayout :spread="resultSpread" :cards="reading.cards" />
     </div>
 
-    <div data-nav="每張牌的牌義" class="grid min-w-0 gap-4 xl:grid-cols-2">
+    <div data-nav="每張牌的牌義" class="grid min-w-0 gap-4 xl:grid-cols-2" :class="{ 'order-4': stockMode }">
       <article
         v-for="(entry, index) in reading.cards"
         :key="`${entry.position?.key ?? index}-${entry.card.id}`"
@@ -339,8 +378,9 @@ function formatSuit(suit: string | null) {
     <div
       v-if="narrationStatus !== 'idle'"
       ref="narrationEl"
-      data-nav="AI 解讀"
+      :data-nav="stockMode ? 'AI 股市分析' : 'AI 解讀'"
       class="border-2 border-amber-100/15 bg-gradient-to-br from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:p-6"
+      :class="{ 'order-2': stockMode }"
     >
       <!--
         有內容（產生中或已產生）時，整個標題列就是收合開關，右邊只放箭頭，和「查看判斷依據」同一個樣子。
@@ -357,14 +397,21 @@ function formatSuit(suit: string | null) {
         @click="narrationStatus !== 'ready' && toggleNarration()"
       >
         <span class="block min-w-0">
-          <span class="block text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Reading</span>
-          <span class="mt-2 block text-lg font-semibold text-stone-50 sm:text-xl">這組牌想說的事</span>
+          <span class="block text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">
+            {{ stockMode ? 'Analysis' : 'Reading' }}
+          </span>
+          <span class="mt-2 block text-lg font-semibold text-stone-50 sm:text-xl">
+            {{ stockMode ? 'AI 股市分析' : '這組牌想說的事' }}
+          </span>
         </span>
         <PixelChevron v-if="narrationStatus !== 'ready'" class="text-stone-300" :open="narrationOpen" />
       </component>
 
       <div v-if="narrationStatus === 'ready'" class="mt-4 space-y-4">
-        <p class="text-sm leading-7 text-stone-300/80">
+        <p v-if="stockMode" class="text-sm leading-7 text-stone-300/80">
+          AI 會依據上方的即時行情與技術指標，寫出短線方向、支撐壓力與附觸發價位的操作情境，牌面只用來提醒操作心態。文字會陸續出現，隨時可以停止。
+        </p>
+        <p v-else class="text-sm leading-7 text-stone-300/80">
           想要更完整的白話解讀嗎？AI 會把這組牌串成這件事接下來會怎麼發展，並給出具體的做法。文字會陸續出現，隨時可以停止。
         </p>
         <button
@@ -373,7 +420,7 @@ function formatSuit(suit: string | null) {
           type="button"
           @click="emit('requestNarration')"
         >
-          請 AI 解讀這組牌
+          {{ stockMode ? '請 AI 分析行情' : '請 AI 解讀這組牌' }}
         </button>
 
         <!-- 未登入：按鈕照樣顯示，點了會帶去登入頁 -->
@@ -476,6 +523,7 @@ function formatSuit(suit: string | null) {
         >
           <span class="text-sm leading-7 text-stone-300/80">
             <template v-if="narrationStatus === 'stopped'">已停止產生，以上是目前寫出的部分。</template>
+            <template v-else-if="stockMode">{{ narrationError }}可以先參考上方的行情與技術指標，或稍後再試一次。</template>
             <template v-else>{{ narrationError }}可以先參考下方規則分析的結果，或稍後再試一次。</template>
           </span>
           <button
@@ -491,7 +539,8 @@ function formatSuit(suit: string | null) {
     </div>
 
     <!-- 原生 details 收合時沒辦法做動畫，改用 grid-rows 0fr↔1fr 展開收合，不必量高度 -->
-    <div v-if="reading.analysis" ref="analysisWrapEl" data-nav="判斷依據">
+    <!-- 股市諮詢不顯示一般塔羅的判斷依據與結語：那一頁的主體是行情與技術分析 -->
+    <div v-if="reading.analysis && !stockMode" ref="analysisWrapEl" data-nav="判斷依據">
       <button
         type="button"
         class="flex w-full items-center justify-between border-2 border-white/10 bg-white/5 px-4 py-2 text-left text-[12px] text-stone-200/80 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
@@ -523,7 +572,7 @@ function formatSuit(suit: string | null) {
       </div>
     </div>
 
-    <div data-nav="結語" class="border-2 border-amber-100/10 bg-gradient-to-r from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:p-5">
+    <div v-if="!stockMode" data-nav="結語" class="border-2 border-amber-100/10 bg-gradient-to-r from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:p-5">
       <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Guidance</p>
       <p class="mt-3 text-sm leading-7 text-stone-100/85 sm:text-base sm:leading-8">{{ reading.guidance }}</p>
     </div>

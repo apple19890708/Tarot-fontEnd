@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 
 import SkeletonBlock from '../components/SkeletonBlock.vue'
-import { fetchAdminUsers, setUserAiAccess } from '../lib/api'
+import { fetchAdminUsers, setUserAiAccess, setUserStockAccess } from '../lib/api'
 import { installWashi } from '../lib/pixelArt'
 import type { AuthUser } from '../types'
 
@@ -43,19 +43,22 @@ async function load(target = page.value) {
   }
 }
 
-// 正在送出的那一列，避免連點
+// 正在送出的那一格（使用者 id ＋ 權限），避免連點
 const updatingId = ref('')
 
-async function toggleAiAccess(user: AuthUser) {
+type AccessField = 'aiAccess' | 'stockAccess'
+const ACCESS_SETTERS = { aiAccess: setUserAiAccess, stockAccess: setUserStockAccess }
+
+async function toggleAccess(user: AuthUser, field: AccessField) {
   if (updatingId.value || user.role === 'admin') {
     return
   }
 
-  updatingId.value = user.id
+  updatingId.value = `${user.id}:${field}`
   error.value = ''
 
   try {
-    const result = await setUserAiAccess(user.id, !user.aiAccess)
+    const result = await ACCESS_SETTERS[field](user.id, !user[field])
     // 只換這一列，不重抓整頁，避免排序或分頁跳動
     const index = users.value.findIndex((item) => item.id === user.id)
     if (index >= 0) {
@@ -94,7 +97,7 @@ onMounted(() => load(1))
     <div class="space-y-1 border-b-2 border-dashed border-[#3b2618]/30 pb-4">
       <h1 class="font-pixel text-[24px] text-[#2a1a14]">會員列表</h1>
       <p class="text-sm leading-7 text-[#2a1a14]/75">
-        共 {{ total }} 位會員。AI 解析預設關閉，要逐一開通；管理者一律可用。
+        共 {{ total }} 位會員。AI 解析與金融股市（股市諮詢、股市追蹤）預設關閉，要分別逐一開通；管理者一律可用。
         要把某個帳號升為管理者，在後端執行
         <code class="bg-[#3b2618] px-1.5 py-0.5 text-xs text-[#f1e7cf]">npm run user:promote -- &lt;email&gt;</code>。
       </p>
@@ -106,13 +109,14 @@ onMounted(() => load(1))
 
     <!-- 手機欄位放不下，表格自己橫向捲動，不撐破頁面 -->
     <div class="mt-4 overflow-x-auto border-2 border-[#3b2618]">
-      <table class="w-full min-w-[40rem] text-left text-sm">
+      <table class="w-full min-w-[48rem] text-left text-sm">
         <thead class="bg-[#3b2618] font-pixel text-[12px] text-[#f1e7cf]">
           <tr>
             <th class="px-4 py-2 font-normal">Email</th>
             <th class="px-4 py-2 font-normal">顯示名稱</th>
             <th class="px-4 py-2 font-normal">角色</th>
             <th class="px-4 py-2 font-normal">AI 解析</th>
+            <th class="px-4 py-2 font-normal">金融股市</th>
             <th class="px-4 py-2 text-right font-normal">註冊時間</th>
           </tr>
         </thead>
@@ -123,11 +127,12 @@ onMounted(() => load(1))
               <td class="px-4 py-3"><SkeletonBlock class="h-4 w-20 rounded-none bg-[#3b2618]/15!" /></td>
               <td class="px-4 py-3"><SkeletonBlock class="h-6 w-16 rounded-none bg-[#3b2618]/15!" /></td>
               <td class="px-4 py-3"><SkeletonBlock class="h-7 w-28 rounded-none bg-[#3b2618]/15!" /></td>
+              <td class="px-4 py-3"><SkeletonBlock class="h-7 w-28 rounded-none bg-[#3b2618]/15!" /></td>
               <td class="px-4 py-3"><SkeletonBlock class="ml-auto h-4 w-32 rounded-none bg-[#3b2618]/15!" /></td>
             </tr>
           </template>
           <tr v-else-if="!users.length">
-            <td colspan="5" class="px-4 py-6 text-center text-[#2a1a14]/60">還沒有任何會員。</td>
+            <td colspan="6" class="px-4 py-6 text-center text-[#2a1a14]/60">還沒有任何會員。</td>
           </tr>
           <tr
             v-for="user in users"
@@ -146,21 +151,21 @@ onMounted(() => load(1))
                 {{ user.role }}
               </span>
             </td>
-            <td class="px-4 py-3">
+            <td v-for="field in (['aiAccess', 'stockAccess'] as const)" :key="field" class="px-4 py-3">
               <span v-if="user.role === 'admin'" class="text-xs text-[#2a1a14]/55">管理者一律可用</span>
               <button
                 v-else
                 type="button"
-                :disabled="updatingId === user.id"
+                :disabled="updatingId === `${user.id}:${field}`"
                 class="cursor-pointer border-2 border-[#3b2618] px-2.5 py-1 text-xs shadow-[2px_2px_0_rgba(0,0,0,0.3)] transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
                 :class="
-                  user.aiAccess
+                  user[field]
                     ? 'bg-[#a8322a] text-[#f1e7cf] hover:bg-[#bf3d33]'
                     : 'bg-[#e9dcc0] text-[#2a1a14] hover:bg-[#f6eedb]'
                 "
-                @click="toggleAiAccess(user)"
+                @click="toggleAccess(user, field)"
               >
-                {{ updatingId === user.id ? '更新中…' : user.aiAccess ? '已開通．點此收回' : '未開通．點此開通' }}
+                {{ updatingId === `${user.id}:${field}` ? '更新中…' : user[field] ? '已開通．點此收回' : '未開通．點此開通' }}
               </button>
             </td>
             <td class="px-4 py-3 text-right tabular-nums text-[#2a1a14]/65">{{ formatDate(user.createdAt) }}</td>

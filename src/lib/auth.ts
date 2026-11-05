@@ -10,7 +10,7 @@ import {
   setToken,
 } from './session'
 
-export { canUseAi, currentUser, isAdmin, isLoggedIn, session } from './session'
+export { canUseAi, canUseStock, currentUser, isAdmin, isLoggedIn, session } from './session'
 
 // token 失效（請求收到 401）時要通知的對象。router 用它把停在要登入頁面上的人導去登入頁；
 // 這裡不直接動 router，避免 lib 反過來相依 router。主動登出不走這裡，見 logout()

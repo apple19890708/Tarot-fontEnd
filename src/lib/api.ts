@@ -6,6 +6,10 @@ import type {
   CustomPosition,
   HealthResponse,
   ManualCardPick,
+  MarketAlert,
+  MarketAlertTarget,
+  MarketSnapshot,
+  MarketTrackSummary,
   NarrationStreamEvent,
   QuestionDomain,
   ReadingDetail,
@@ -85,6 +89,14 @@ export function setUserAiAccess(userId: string, allowed: boolean) {
   })
 }
 
+// 開通／收回某個會員的金融股市權限（admin 專用）
+export function setUserStockAccess(userId: string, allowed: boolean) {
+  return request<{ user: AuthUser }>(`/api/admin/users/${userId}/stock-access`, {
+    method: 'PATCH',
+    body: JSON.stringify({ allowed }),
+  })
+}
+
 export function fetchAdminUsers(params: { page?: number; pageSize?: number } = {}) {
   const query = new URLSearchParams()
   if (params.page) {
@@ -128,6 +140,51 @@ export function createManualReading(payload: {
   })
 }
 
+// 股市諮詢的行情與技術指標。限 admin 與開通金融股市的會員（和股市諮詢本身一致），不呼叫 AI、不產生費用
+export function fetchMarketSnapshot(question: string) {
+  return request<{ snapshot: MarketSnapshot }>('/api/market/snapshot', {
+    method: 'POST',
+    body: JSON.stringify({ question }),
+  })
+}
+
+// 建議追蹤：過去的操作建議和之後實際走勢的對照
+export function fetchMarketTrack() {
+  return request<MarketTrackSummary>('/api/market/track')
+}
+
+export function clearMarketTrack() {
+  return request<{ deleted: number }>('/api/market/track', { method: 'DELETE' })
+}
+
+// 價位提醒
+export function fetchMarketAlerts() {
+  return request<{ alerts: MarketAlert[] }>('/api/market/alerts')
+}
+
+// target：從操作建議一鍵設定；query：手動輸入代號或名稱
+export function createMarketAlert(payload: {
+  target?: MarketAlertTarget
+  query?: string
+  condition: MarketAlert['condition']
+  price: number
+  note?: string
+}) {
+  return request<{ alert: MarketAlert }>('/api/market/alerts', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function deleteMarketAlert(id: string) {
+  return request<{ deleted: boolean }>(`/api/market/alerts/${id}`, { method: 'DELETE' })
+}
+
+// 檢查還沒觸發的提醒：回傳全部提醒、這次新觸發的、各標的目前價格
+export function checkMarketAlerts() {
+  return request<{ alerts: MarketAlert[]; triggered: MarketAlert[]; prices: Record<string, number> }>(
+    '/api/market/alerts/check',
+    { method: 'POST', body: JSON.stringify({}) },
+  )
+}
+
 // ===== 占卜紀錄（v13）=====
 // 要不要留存由使用者在結果頁決定，不是自動存
 
@@ -139,7 +196,7 @@ export function saveReadingRecord(payload: {
   domain?: QuestionDomain
   spreadKey?: string
   positions?: CustomPosition[]
-  narration?: { text: string; model?: string }
+  narration?: { text: string; model?: string; market?: MarketSnapshot | null }
 }) {
   return request<{ id: string; createdAt: string }>('/api/readings', {
     method: 'POST',
@@ -175,6 +232,8 @@ export async function streamNarration(
   options: {
     signal: AbortSignal
     onDelta: (text: string) => void
+    // 股市問題時，後端會先送出查到的市場資料
+    onMarket?: (snapshot: MarketSnapshot) => void
     domain?: QuestionDomain
     // 已經保存成紀錄時帶上它的 id，後端會在解讀完整產生後存回那筆紀錄
     readingId?: string
@@ -229,6 +288,8 @@ export async function streamNarration(
       const event = JSON.parse(line) as NarrationStreamEvent
       if (event.type === 'delta') {
         options.onDelta(event.text)
+      } else if (event.type === 'market') {
+        options.onMarket?.(event.snapshot)
       } else if (event.type === 'done') {
         // 舊版後端沒有 saved，當成不知道（null），畫面就不顯示存檔結果
         return { model: event.model, saved: event.saved ?? null }

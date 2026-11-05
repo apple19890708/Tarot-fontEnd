@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import { isLoggedIn, onSessionExpired, restore, session } from '../lib/auth'
+import { canUseStock, isLoggedIn, onSessionExpired, restore, session } from '../lib/auth'
 
 const HomeView = () => import('../pages/HomeView.vue')
 const RoutesAdmin = () => import('../pages/RoutesAdmin.vue')
@@ -8,13 +8,16 @@ const LoginView = () => import('../pages/LoginView.vue')
 const RegisterView = () => import('../pages/RegisterView.vue')
 const AdminUsers = () => import('../pages/AdminUsers.vue')
 const HistoryView = () => import('../pages/HistoryView.vue')
+const MarketTrackView = () => import('../pages/MarketTrackView.vue')
 
 // meta.auth：要登入；meta.role：要指定角色；meta.guest：已登入就不該再看到（登入／註冊頁）
+// meta.stock：要有金融股市權限（admin 或被開通的會員），例如股市追蹤
 // meta.scene：像素世界的場景（city 街景、door 居酒屋門口、interior 店內）；沒寫就是 sky 星夜
 // meta.sceneDim：背景壓暗多少（0～1）；沒寫是 0.15（要讀資料的頁面，背景只當畫框）
 const routes = [
   { path: '/', name: 'home', component: HomeView, meta: { title: '占卜', scene: 'city', sceneDim: 0 } },
   { path: '/history', name: 'history', component: HistoryView, meta: { auth: true, title: '我的紀錄', scene: 'interior' } },
+  { path: '/market', name: 'market', component: MarketTrackView, meta: { auth: true, stock: true, title: '股市追蹤', scene: 'interior' } },
   { path: '/login', name: 'login', component: LoginView, meta: { guest: true, title: '登入', scene: 'door', sceneDim: 0.1 } },
   { path: '/register', name: 'register', component: RegisterView, meta: { guest: true, title: '註冊', scene: 'door', sceneDim: 0.1 } },
   { path: '/routes', name: 'routes-admin', component: RoutesAdmin, meta: { role: 'admin', title: '路由管理' } },
@@ -40,6 +43,11 @@ router.beforeEach(async (to) => {
 
   // 權限不夠就回首頁，不是導去登入頁——他已經登入了，問題是角色不對
   if (to.meta.role && session.user?.role !== to.meta.role) {
+    return { path: '/' }
+  }
+
+  // 股市追蹤這類金融股市功能：沒被開通就回首頁（真正的放行在後端）
+  if (to.meta.stock && !canUseStock.value) {
     return { path: '/' }
   }
 

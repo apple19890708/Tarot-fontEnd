@@ -265,7 +265,8 @@ export type QuantLevels = {
   focus: QuantLevel
 }
 export type QuantDirection = 'strongPositive' | 'positive' | 'neutral' | 'negative' | 'strongNegative'
-export type QuestionDomain = 'work' | 'money' | 'love' | 'social' | 'study' | 'general'
+// stock（股市諮詢）只有 admin 與開通「金融股市」的會員能選；後端也會擋
+export type QuestionDomain = 'work' | 'money' | 'love' | 'social' | 'study' | 'stock' | 'general'
 
 export interface AnalysisQuant {
   domain: QuestionDomain
@@ -332,6 +333,8 @@ export interface ReadingResponse {
 
 // /api/readings/narrate 以 NDJSON 串流回傳，每行一個事件
 export type NarrationStreamEvent =
+  // 股市問題才有，排在第一個：AI 解讀時查到的報價與技術指標（舊版後端沒有這個事件）
+  | { type: 'market'; snapshot: MarketSnapshot }
   | { type: 'delta'; text: string }
   // saved：有指定紀錄時是否已存回那筆（null＝沒有指定紀錄；舊版後端沒有這個欄位）
   | { type: 'done'; model: string; saved?: boolean | null }
@@ -352,6 +355,8 @@ export interface AuthUser {
   role: UserRole
   // AI 解析權限：admin 一律 true，member 要由管理者開通；舊版後端沒有這個欄位
   aiAccess?: boolean
+  // 金融股市權限（股市諮詢、股市追蹤）：admin 一律 true，member 要由管理者開通；舊版後端沒有這個欄位
+  stockAccess?: boolean
   createdAt?: string
 }
 
@@ -399,7 +404,385 @@ export interface ReadingHistoryResponse {
 export interface SavedNarration {
   text: string
   model: string
+  // 解讀當下查到的市場資料；不是股市問題、或舊紀錄時沒有
+  market?: MarketSnapshot | null
   createdAt: string
+}
+
+// ===== 市場資料（AI 解讀股市問題時由後端查詢）=====
+// 數字都是後端算好的，前端只負責排版，不自行計算或下判斷
+export interface MarketQuote {
+  price: number
+  prevClose: number | null
+  change: number | null
+  changePct: number | null
+  open: number | null
+  high: number | null
+  low: number | null
+  time: string | null
+  // 這筆報價所屬的交易日（YYYY-MM-DD）
+  date: string | null
+}
+
+export interface MarketIndicators {
+  ma5: number | null
+  ma20: number | null
+  ma60: number | null
+  rsi14: number | null
+  k: number | null
+  d: number | null
+  prevK: number | null
+  prevD: number | null
+  macdDif: number | null
+  macdSignal: number | null
+  macdHist: number | null
+  macdPrevHist: number | null
+  change5d: number | null
+  change20d: number | null
+  change60d: number | null
+  high20: number | null
+  low20: number | null
+  high60: number | null
+  low60: number | null
+  volumeRatio: number | null
+}
+
+export interface MarketItem {
+  symbol: string | null
+  code: string | null
+  // tse 上市、otc 上櫃；美股為 null（舊版後端沒有這個欄位）
+  exchange?: string | null
+  name: string
+  market: 'tw' | 'us'
+  kind: 'index' | 'stock'
+  currency: string
+  session: 'intraday' | 'closed'
+  source: string
+  quote: MarketQuote
+  // 歷史資料不足 20 天時為 null（例如櫃買指數只有即時報價）
+  indicators: MarketIndicators | null
+  // 判讀標籤與支撐壓力；沒有指標時為 null（舊版後端沒有這個欄位）
+  analysis?: MarketAnalysis | null
+  // 歷史回測、策略比較、機器學習預測；歷史資料不足一年時為 null
+  research?: MarketResearch | null
+  // 價格走勢圖（最近約 120 個交易日）
+  chart?: MarketChart | null
+  // 操作建議（規則計算）；沒有技術指標時為 null
+  advice?: MarketAdvice | null
+  // 籌碼面（台股才有）
+  chips?: MarketChips | null
+  // 估值（台股個股才有）
+  valuation?: MarketValuation | null
+  barCount: number
+}
+
+export interface MarketChipsPart {
+  name: string
+  total: number
+  // 正值連續買超天數、負值連續賣超天數
+  streak: number
+  text: string
+}
+
+export interface MarketChips {
+  // 個股是「張」，大盤是「億元」
+  unit: string
+  scope: 'stock' | 'market'
+  // 上櫃只有最新一日
+  latestOnly?: boolean
+  dates: string[]
+  foreign: (number | null)[]
+  trust: (number | null)[]
+  dealer: (number | null)[]
+  // 資料來源缺值時各欄位可能是 null
+  margin: {
+    balance: number | null
+    change: number | null
+    days: number | null
+    shortBalance: number | null
+    shortChange: number | null
+  } | null
+  summary: {
+    foreign: MarketChipsPart
+    trust: MarketChipsPart
+    dealer: MarketChipsPart
+    margin: { text: string; direction: number; changePct: number } | null
+  } | null
+}
+
+export interface MarketValuation {
+  pe: number | null
+  dividendYield: number | null
+  pb: number | null
+  // 在全體上市櫃公司裡的百分位（高於多少比例的公司）
+  pePercentile: number | null
+  yieldPercentile: number | null
+  pbPercentile: number | null
+  summary: { notes: string[]; expensive: boolean } | null
+}
+
+export interface MarketAdviceEvidence {
+  group: string
+  label: string
+  detail: string | null
+  // 1 偏多、-1 偏空、0 中性
+  direction: number
+  // false：樣本不足或模型不可靠，沒有列入判斷
+  counted: boolean
+}
+
+export interface MarketAdvice {
+  stance: 'bullish' | 'bearish' | 'neutral'
+  stanceLabel: string
+  confidence: 'high' | 'medium' | 'low'
+  confidenceLabel: string
+  score: number
+  summary: string
+  horizon: string
+  evidence: MarketAdviceEvidence[]
+  levels: {
+    stopLoss: MarketLevel
+    stopLossLabel: string
+    targets: MarketLevel[]
+    targetsLabel: string
+    // 偏空時為 null（不建議買進，這個比例沒有意義）
+    riskReward: number | null
+  }
+  forNew: string
+  forHolders: string
+  positionSize: string
+  risks: string[]
+}
+
+export interface MarketChart {
+  dates: string[]
+  close: (number | null)[]
+  ma5: (number | null)[]
+  ma20: (number | null)[]
+  ma60: (number | null)[]
+  volume: (number | null)[]
+}
+
+// ---- 歷史回測（這檔標的自己的歷史）----
+export interface MarketHorizonStats {
+  days: number
+  count: number
+  winRate: number | null
+  avgReturn: number | null
+  medianReturn: number | null
+  worst: number | null
+  best: number | null
+}
+
+export interface MarketSignalBacktest {
+  key: string
+  label: string
+  value: string
+  // 訊號「首次出現」的次數
+  occurrences: number
+  lastSeen: string | null
+  // 樣本數達到 minSamples 才算數
+  sufficient: boolean
+  horizons: MarketHorizonStats[]
+  // 分段驗證：前段與後段的 10 日勝率（和各段自己的基準比）
+  periods?: {
+    early: { count: number; winRate: number | null; baseline: number | null }
+    late: { count: number; winRate: number | null; baseline: number | null }
+    splitDate: string
+  }
+  // false：前後期方向相反；null：兩段樣本不夠，無法判斷
+  consistent?: boolean | null
+}
+
+export interface MarketBacktest {
+  horizons: number[]
+  // 基準：任意一天買進
+  baseline: { days: number; winRate: number | null; avgReturn: number | null; count: number }[]
+  signals: MarketSignalBacktest[]
+  minSamples: number
+}
+
+export interface MarketStrategyResult {
+  key: string
+  label: string
+  description: string
+  totalReturn: number | null
+  annualReturn: number | null
+  maxDrawdown: number | null
+  trades: number
+  tradeWinRate: number | null
+  exposure: number | null
+  holdingNow: boolean
+  // 被停損出場的次數（只有停損版本會大於 0）
+  stops?: number
+  // 資金曲線，起點為 100
+  curve: { date: string; value: number }[]
+  // 加上停損的版本（買進持有為 null）
+  withStop?: MarketStrategySummary | null
+  // 分段驗證：前段與後段各自的報酬，以及同期間的買進持有
+  periods?: {
+    early: MarketStrategySummary & { buyHold: number | null }
+    late: MarketStrategySummary & { buyHold: number | null }
+  }
+  // 前後兩段都贏過買進持有（買進持有為 null）
+  robust?: boolean | null
+}
+
+export interface MarketStrategySummary {
+  totalReturn: number | null
+  maxDrawdown: number | null
+  trades: number
+  tradeWinRate: number | null
+  stops: number
+}
+
+export interface MarketStrategies {
+  from: string
+  to: string
+  // 分段驗證的切點
+  splitDate?: string
+  stopLossPct?: number
+  years: number
+  roundTripCost: number
+  strategies: MarketStrategyResult[]
+}
+
+// ---- 機器學習預測 ----
+export interface MarketPredictionFactor {
+  key: string
+  label: string
+  // 標準化後的權重：正值代表這個特徵越大越偏向上漲
+  weight: number
+  // 今天這個特徵把機率往哪邊推
+  contribution: number | null
+}
+
+export interface MarketPrediction {
+  model: string
+  horizon: number
+  probabilityUp: number | null
+  testAccuracy: number
+  baselineAccuracy: number
+  edge: number
+  testUpRate: number
+  trainSamples: number
+  testSamples: number
+  testFrom: string
+  testTo: string
+  // 樣本外準確率有明顯贏過基準才是 true
+  reliable: boolean
+  // 有加入大盤特徵時：大盤名稱與「不加大盤」的準確率
+  marketContext?: { label: string; accuracyWithoutMarket: number } | null
+  factors: MarketPredictionFactor[]
+}
+
+export interface MarketResearch {
+  backtest: MarketBacktest | null
+  strategies: MarketStrategies | null
+  prediction: MarketPrediction | null
+}
+
+// 技術指標的判讀（文字由後端產生）。tone 只用來上色：bull 偏多、bear 偏空、warn 留意、neutral 中性
+export interface MarketSignal {
+  key: string
+  label: string
+  value: string
+  tone: 'bull' | 'bear' | 'warn' | 'neutral'
+}
+
+export interface MarketLevel {
+  price: number
+  // 這個價位來自哪裡，例如「MA20」「近 20 日低點」
+  label: string
+}
+
+export interface MarketAnalysis {
+  signals: MarketSignal[]
+  supports: MarketLevel[]
+  resistances: MarketLevel[]
+}
+
+export type MarketStatus = 'idle' | 'loading' | 'ready' | 'error'
+
+// ===== 建議追蹤（自動對答案）=====
+export interface MarketCallOutcome {
+  days: number
+  // false：還沒過這麼多個交易日
+  ready: boolean
+  return: number | null
+  // 偏多上漲、偏空下跌為 true；觀望為 null
+  hit: boolean | null
+}
+
+export interface MarketCallRecord {
+  id: string
+  symbol: string
+  code: string | null
+  name: string
+  market: 'tw' | 'us'
+  date: string
+  price: number
+  stance: MarketAdvice['stance']
+  confidence: MarketAdvice['confidence']
+  stopLoss: number | null
+  targets: number[]
+  outcomes: MarketCallOutcome[]
+  // 偏多建議 20 日內先碰到哪個：target 目標、stop 停損、open 都還沒
+  path: 'target' | 'stop' | 'open' | null
+}
+
+export interface MarketStanceStats {
+  count: number
+  hitRate: number | null
+  avgReturn: number | null
+  avgMove: number | null
+}
+
+export interface MarketTrackHorizon {
+  days: number
+  evaluated: number
+  hitRate: number | null
+  bullish: MarketStanceStats
+  bearish: MarketStanceStats
+  neutral: MarketStanceStats
+  byConfidence: Record<'high' | 'medium' | 'low', { count: number; hitRate: number | null }>
+}
+
+export interface MarketTrackSummary {
+  total: number
+  pending: number
+  horizons: MarketTrackHorizon[]
+  targetFirstRate: number | null
+  targetPathCount: number
+  calls: MarketCallRecord[]
+}
+
+// ===== 價位提醒 =====
+export interface MarketAlertTarget {
+  symbol: string | null
+  code: string | null
+  exchange: string | null
+  market: 'tw' | 'us'
+  kind: 'index' | 'stock'
+  name: string
+}
+
+export interface MarketAlert {
+  id: string
+  target: MarketAlertTarget
+  condition: 'above' | 'below'
+  price: number
+  note: string
+  active: boolean
+  triggeredAt: string | null
+  triggeredPrice: number | null
+  createdAt: string
+}
+
+export interface MarketSnapshot {
+  asOf: string
+  items: MarketItem[]
+  notes: string[]
 }
 
 // 單筆回顧：reading 由後端重算，narration 是當初存下來的 AI 解讀

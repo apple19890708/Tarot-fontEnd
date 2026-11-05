@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { canUseStock } from '../lib/auth'
 import SelectField from './SelectField.vue'
 import SpreadLayout from './SpreadLayout.vue'
 import type { QuestionDomain, Spread } from '../types'
@@ -22,7 +23,7 @@ const emit = defineEmits<{
   next: []
 }>()
 
-const DOMAIN_OPTIONS: { value: QuestionDomain | ''; label: string }[] = [
+const BASE_DOMAIN_OPTIONS: { value: QuestionDomain | ''; label: string; group?: string }[] = [
   { value: '', label: '自動判斷' },
   { value: 'work', label: '工作 / 事業' },
   { value: 'money', label: '財務 / 金錢' },
@@ -30,6 +31,14 @@ const DOMAIN_OPTIONS: { value: QuestionDomain | ''; label: string }[] = [
   { value: 'social', label: '人際 / 家庭' },
   { value: 'study', label: '學業 / 決策' },
 ]
+
+// 股市諮詢只給 admin 與開通「金融股市」的會員，另成一組和一般問題類型隔開。
+// 這裡只決定顯不顯示，後端會再檢查一次
+const domainOptions = computed(() =>
+  canUseStock.value
+    ? [...BASE_DOMAIN_OPTIONS, { value: 'stock' as const, label: '股市諮詢', group: '金融股市' }]
+    : BASE_DOMAIN_OPTIONS,
+)
 
 const FREE_SPREAD_KEY = ''
 const FREE_MAX_CARDS = 10
@@ -63,10 +72,13 @@ const freeCountOptions = computed(() =>
       <SelectField
         :model-value="domain"
         label="問題類型"
-        :options="DOMAIN_OPTIONS"
+        :options="domainOptions"
         @update:model-value="emit('update:domain', $event as QuestionDomain | '')"
       />
-      <span class="block text-xs text-stone-400">
+      <span v-if="domain === 'stock'" class="block text-xs leading-5 text-amber-100/80">
+        AI 解讀時會即時查詢報價與技術指標，以數據分析為主、牌面為輔。問題裡寫上股票代號或名稱（例如 2330、台積電、輝達），沒寫就看加權指數。
+      </span>
+      <span v-else class="block text-xs text-stone-400">
         指定類型可讓分析的權重更準；留著自動判斷則由問題文字推測。
       </span>
     </div>

@@ -12,9 +12,10 @@ import {
   fetchCards,
   fetchSpreads,
   saveReadingRecord,
+  fetchMarketSnapshot,
   streamNarration,
 } from '../lib/api'
-import { canUseAi, isLoggedIn, onLogout } from '../lib/auth'
+import { canUseAi, canUseStock, isLoggedIn, onLogout } from '../lib/auth'
 import { refreshHealth } from '../lib/health'
 import { installPixelCardBack } from '../lib/pixelArt'
 import { resetSceneBus, sceneBus } from '../lib/sceneBus'
@@ -26,6 +27,8 @@ import type {
   DrawMode,
   ManualCardPick,
   NarrationStatus,
+  MarketSnapshot,
+  MarketStatus,
   QuestionDomain,
   InputCard,
   ReadingResponse,
@@ -53,6 +56,18 @@ const question = ref('')
 const selectedDomain = ref<QuestionDomain | ''>('')
 // 只在「不指定牌陣」時使用
 const freeCardCount = ref(3)
+
+// 股市諮詢只給有金融股市權限的人：登出、權限被收回、或從快照還原出這個值時，退回自動判斷。
+// 這裡只是讓畫面一致，真正的放行在後端
+watch(
+  [canUseStock, selectedDomain],
+  ([allowed, domain]) => {
+    if (domain === 'stock' && !allowed) {
+      selectedDomain.value = ''
+    }
+  },
+  { immediate: true },
+)
 
 // 未選時不送這個欄位，讓後端自己判斷
 const domainParam = computed(() => selectedDomain.value || undefined)
@@ -149,6 +164,12 @@ const narrationStatus = ref<NarrationStatus>('idle')
 const narrationError = ref('')
 // 最近一次解讀有沒有存回紀錄（null＝還沒保存成紀錄，或後端沒回報）
 const narrationSaved = ref<boolean | null>(null)
+// 股市諮詢的行情與技術指標：結果頁一出來就查，AI 解讀時再換成 AI 用的那一份
+const marketSnapshot = ref<MarketSnapshot | null>(null)
+const marketStatus = ref<MarketStatus>('idle')
+const marketError = ref('')
+// 重複按「更新報價」或換了結果時，只採用最新一次的回應
+let marketRequestId = 0
 // 進行中的 AI 請求；中斷它會讓後端一併停止 AI 生成
 let narrationController: AbortController | null = null
 
@@ -267,6 +288,39 @@ function toggleInputOrientation(index: number) {
   }
 }
 
+// 股市諮詢的結果頁改成行情與技術分析，其他問題類型維持原本的塔羅結果頁
+const isStockResult = computed(() => selectedDomain.value === 'stock')
+
+// ---- 股市諮詢的行情 ----
+async function loadMarket() {
+  const question = reading.value && isStockResult.value ? reading.value.question : null
+  if (question === null) {
+    return
+  }
+  const requestId = (marketRequestId += 1)
+  marketStatus.value = 'loading'
+  marketError.value = ''
+  try {
+    const { snapshot } = await fetchMarketSnapshot(question)
+    if (requestId === marketRequestId) {
+      marketSnapshot.value = snapshot
+      marketStatus.value = 'ready'
+    }
+  } catch (error) {
+    if (requestId === marketRequestId) {
+      marketError.value = error instanceof Error ? error.message : '行情暫時查不到，請稍後再試。'
+      marketStatus.value = 'error'
+    }
+  }
+}
+
+// 進到股市諮詢的結果（新抽的、或登入回來還原的）就查行情
+watch(reading, (current) => {
+  if (current && isStockResult.value && !marketSnapshot.value) {
+    void loadMarket()
+  }
+})
+
 // ---- AI 解讀 ----
 
 function cancelNarration() {
@@ -281,6 +335,7 @@ async function loadNarration(current: ReadingResponse) {
   narrationText.value = ''
   narrationError.value = ''
   narrationSaved.value = null
+  // 行情不清掉：AI 開始寫之前畫面上照樣有數字，收到 AI 用的那一份再換掉
   narrationStatus.value = 'loading'
 
   try {
@@ -289,6 +344,15 @@ async function loadNarration(current: ReadingResponse) {
       domain: domainParam.value,
       // 已經保存過才有 id；後端會在完整產生後把解讀存回那筆紀錄
       readingId: savedReadingId.value || undefined,
+      onMarket: (snapshot) => {
+        if (controller === narrationController) {
+          // AI 用的是這一份，畫面跟著換成同一份，兩邊講的數字才會一致
+          marketRequestId += 1
+          marketSnapshot.value = snapshot
+          marketStatus.value = 'ready'
+          marketError.value = ''
+        }
+      },
       onDelta: (text) => {
         if (controller === narrationController) {
           narrationText.value += text
@@ -454,7 +518,9 @@ async function handleSaveReading() {
       positions: customPositionsOf(current),
       // 分析之後由後端重算，但 AI 解讀無法重算，已經產生好的要一起存
       narration:
-        narrationStatus.value === 'done' && narrationText.value ? { text: narrationText.value } : undefined,
+        narrationStatus.value === 'done' && narrationText.value
+          ? { text: narrationText.value, market: marketSnapshot.value }
+          : undefined,
     })
     savedReadingId.value = id
     saveStatus.value = 'saved'
@@ -473,6 +539,10 @@ function onReadingReady(result: ReadingResponse) {
   narrationError.value = ''
   narrationStatus.value = result.analysis ? 'ready' : 'idle'
   narrationSaved.value = null
+  marketSnapshot.value = null
+  marketStatus.value = 'idle'
+  marketError.value = ''
+  marketRequestId += 1
   // 新的一次占卜是新的結果，保存狀態重來
   savedReadingId.value = ''
   saveStatus.value = 'idle'
@@ -567,6 +637,10 @@ function restart() {
   narrationText.value = ''
   narrationStatus.value = 'idle'
   narrationSaved.value = null
+  marketSnapshot.value = null
+  marketStatus.value = 'idle'
+  marketError.value = ''
+  marketRequestId += 1
   savedReadingId.value = ''
   saveStatus.value = 'idle'
   saveError.value = ''
@@ -584,6 +658,10 @@ async function redraw() {
   narrationText.value = ''
   narrationStatus.value = 'idle'
   narrationSaved.value = null
+  marketSnapshot.value = null
+  marketStatus.value = 'idle'
+  marketError.value = ''
+  marketRequestId += 1
   savedReadingId.value = ''
   saveStatus.value = 'idle'
   saveError.value = ''
@@ -731,6 +809,11 @@ onBeforeUnmount(resetSceneBus)
               :narration-text="narrationText"
               :narration-error="narrationError"
               :narration-saved="narrationSaved"
+              :stock-mode="isStockResult"
+              :market="marketSnapshot"
+              :market-status="marketStatus"
+              :market-error="marketError"
+              @refresh-market="loadMarket"
               :save-status="saveStatus"
               :save-error="saveError"
               @save-reading="handleSaveReading"

@@ -18,6 +18,10 @@ export const isAdmin = computed(() => session.user?.role === 'admin')
 export const canUseAi = computed(
   () => session.user?.role === 'admin' || session.user?.aiAccess === true,
 )
+// 金融股市（股市諮詢、股市追蹤、價位提醒）：和 AI 權限分開開通，同樣只決定畫面，放行在後端
+export const canUseStock = computed(
+  () => session.user?.role === 'admin' || session.user?.stockAccess === true,
+)
 
 // 無痕視窗或封鎖儲存時 localStorage 會丟例外，一律吞掉，當成沒有登入
 export function getToken(): string {

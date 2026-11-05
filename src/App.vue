@@ -4,7 +4,9 @@ import { useRoute, useRouter } from 'vue-router'
 
 import FloatingMenu from './components/FloatingMenu.vue'
 import PixelWorld from './components/PixelWorld.vue'
-import { currentUser, isAdmin, isLoggedIn, logout } from './lib/auth'
+import { canUseStock, currentUser, isAdmin, isLoggedIn, logout } from './lib/auth'
+import { dismissTriggered, startAlertWatcher, stopAlertWatcher, triggeredAlerts } from './lib/marketAlerts'
+import { formatNumber } from './lib/marketChart'
 import { healthLabel, refreshHealth } from './lib/health'
 import { prefersReducedMotion } from './lib/motion'
 import type { SceneKey } from './lib/pixel/core'
@@ -14,6 +16,10 @@ const router = useRouter()
 const route = useRoute()
 
 onMounted(refreshHealth)
+
+// 價位提醒：有金融股市權限的人開著網頁時定期檢查；登出或權限被收回就停
+watch(canUseStock, (allowed) => (allowed ? startAlertWatcher() : stopAlertWatcher()), { immediate: true })
+onBeforeUnmount(stopAlertWatcher)
 
 // 像素世界的場景由路由的 meta.scene 決定，沒寫的頁面（含管理者自訂的路由）是最安靜的星夜。
 // 路由準備好之前先不畫，免得第一次載入時把「起始空路由」當成星夜、播一段多餘的過場
@@ -74,8 +80,19 @@ watch(() => route.fullPath, () => (menuOpen.value = false))
 const navVisible = computed(() => isDesktop.value || menuOpen.value)
 
 // 目前所在的頁面亮起；用路由名稱比對，網址帶 query（例如紀錄頁的 ?id=）也算同一頁
-function navClass(name: string) {
-  return route.name === name ? 'text-amber-200' : 'text-stone-200/80 hover:text-amber-200'
+// 會員專屬的頁面另外上色，一眼看得出哪些是登入後才有的：
+// 一般會員頁（我的紀錄）藍、金融股市權限頁（股市追蹤）綠；目前所在的頁面變亮並加底線
+const NAV_TIER_STYLES = {
+  member: { idle: 'text-sky-300/80 hover:text-sky-200', active: 'text-sky-200 underline underline-offset-4' },
+  stock: { idle: 'text-emerald-300/80 hover:text-emerald-200', active: 'text-emerald-200 underline underline-offset-4' },
+} as const
+
+function navClass(name: string, tier: 'public' | keyof typeof NAV_TIER_STYLES = 'public') {
+  const active = route.name === name
+  if (tier === 'public') {
+    return active ? 'text-amber-200' : 'text-stone-200/80 hover:text-amber-200'
+  }
+  return active ? NAV_TIER_STYLES[tier].active : NAV_TIER_STYLES[tier].idle
 }
 
 // 導覽列只顯示目前角色進得去的頁面
@@ -86,10 +103,13 @@ const navRoutes = computed(() =>
     // 要登入才進得去的頁面（例如我的紀錄），沒登入就不列出來
     .filter((route) => !route.meta?.auth || isLoggedIn.value)
     .filter((route) => !route.meta?.role || route.meta.role === currentUser.value?.role)
+    .filter((route) => !route.meta?.stock || canUseStock.value)
     .map((route) => ({
       name: String(route.name),
       path: route.path,
       label: String(route.meta?.title || route.name),
+      // 上色用：金融股市權限頁 > 登入才有的頁 > 一般頁（管理者頁維持一般樣式）
+      tier: route.meta?.stock ? ('stock' as const) : route.meta?.auth ? ('member' as const) : ('public' as const),
     })),
 )
 
@@ -152,7 +172,7 @@ function signOut() {
 						id="main-nav"
 						class="absolute inset-x-0 top-full z-30 flex max-h-80 flex-col items-stretch gap-2.5 overflow-hidden border-b-4 border-[#3b2618] bg-[#0f1526] px-5 py-4 shadow-[0_6px_0_rgba(0,0,0,0.45)] sm:static sm:z-auto sm:max-h-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1 sm:overflow-visible sm:whitespace-nowrap sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none"
 					>
-						<router-link v-for="r in navRoutes" :key="r.name" :to="r.path" class="font-pixel text-[12px] transition" :class="navClass(r.name)">{{ r.label }}</router-link>
+						<router-link v-for="r in navRoutes" :key="r.name" :to="r.path" class="font-pixel text-[12px] transition" :class="navClass(r.name, r.tier)">{{ r.label }}</router-link>
 
 						<template v-if="isLoggedIn">
 							<span class="font-pixel text-[12px] text-stone-300/70">
@@ -183,6 +203,26 @@ function signOut() {
 		>
 			<router-view />
 		</main>
+
+		<!-- 價位提醒到價：固定在右下角，按掉才消失 -->
+		<div v-if="triggeredAlerts.length" class="fixed bottom-4 right-4 z-50 flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-2" aria-live="assertive">
+			<div
+				v-for="alert in triggeredAlerts"
+				:key="alert.id"
+				class="border-2 border-amber-200/50 bg-[#0f1526] p-3 shadow-[0_6px_0_rgba(0,0,0,0.45)]"
+			>
+				<div class="flex items-start justify-between gap-2">
+					<p class="text-sm font-semibold text-amber-100">
+						{{ alert.target.name }} {{ alert.condition === 'above' ? '漲到' : '跌到' }} {{ formatNumber(alert.price) }}
+					</p>
+					<button type="button" class="cursor-pointer text-stone-400 hover:text-stone-100" aria-label="關閉提醒" @click="dismissTriggered(alert.id)">✕</button>
+				</div>
+				<p class="mt-1 text-xs text-stone-300">目前 {{ formatNumber(alert.triggeredPrice) }}<template v-if="alert.note">｜{{ alert.note }}</template></p>
+				<router-link to="/market" class="mt-2 inline-block font-pixel text-[12px] text-amber-200 hover:underline" @click="dismissTriggered(alert.id)">
+					到股市追蹤看看
+				</router-link>
+			</div>
+		</div>
 	</div>
 </template>
 

@@ -5,7 +5,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } fro
 // 因此改用 button + listbox 自行實作，才能與整體的深色玻璃風格一致。
 const props = defineProps<{
   modelValue: T
-  options: { value: T; label: string }[]
+  // group：和前一個選項不同時，在它上方畫一條分隔線與分組名稱（例如限定功能另成一組）
+  options: { value: T; label: string; group?: string }[]
   label: string
 }>()
 
@@ -152,9 +153,15 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
         :aria-labelledby="labelId"
         tabindex="-1"
       >
+        <template v-for="(option, index) in options" :key="option.value">
         <li
-          v-for="(option, index) in options"
-          :key="option.value"
+          v-if="option.group && option.group !== options[index - 1]?.group"
+          class="mx-2 mt-1 border-t border-white/10 px-1 pb-1 pt-2 text-[11px] tracking-wide text-amber-200/70"
+          role="presentation"
+        >
+          {{ option.group }}
+        </li>
+        <li
           class="flex cursor-pointer items-center justify-between rounded-xl px-3 py-2 text-sm transition"
           :class="[
             index === activeIndex ? 'bg-white/10 text-stone-50' : 'text-stone-300',
@@ -169,6 +176,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
           <span>{{ option.label }}</span>
           <span v-if="option.value === modelValue" class="text-amber-200" aria-hidden="true">✓</span>
         </li>
+        </template>
       </ul>
     </Transition>
   </div>
