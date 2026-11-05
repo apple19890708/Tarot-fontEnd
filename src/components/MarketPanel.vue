@@ -5,6 +5,7 @@ import MarketAdvice from './market/MarketAdvice.vue'
 import MarketChips from './market/MarketChips.vue'
 import MarketPriceChart from './market/MarketPriceChart.vue'
 import MarketResearch from './market/MarketResearch.vue'
+import { useCooldown } from '../lib/useCooldown'
 import SkeletonBlock from './SkeletonBlock.vue'
 import type { MarketItem, MarketSignal, MarketSnapshot, MarketStatus } from '../types'
 
@@ -19,6 +20,14 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ refresh: [] }>()
+
+// 「更新報價」按完 30 秒內不能再按（載入狀態由父元件控制，這裡只管冷卻）
+const cooldown = useCooldown(30)
+function refresh() {
+  if (props.status === 'loading' || cooldown.active.value) return
+  emit('refresh')
+  cooldown.start()
+}
 
 const asOfText = computed(() =>
   props.snapshot
@@ -109,10 +118,10 @@ function indicatorRows(item: MarketItem) {
       <button
         class="cursor-pointer border-2 border-white/15 bg-white/5 px-3 py-1 text-[12px] text-stone-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         type="button"
-        :disabled="status === 'loading'"
-        @click="emit('refresh')"
+        :disabled="status === 'loading' || cooldown.active.value"
+        @click="refresh"
       >
-        {{ status === 'loading' ? '查詢中…' : isSaved ? '查詢最新報價' : '更新報價' }}
+        {{ status === 'loading' ? '查詢中…' : (isSaved ? '查詢最新報價' : '更新報價') + (cooldown.active.value ? `（${cooldown.remaining.value}）` : '') }}
       </button>
     </div>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import StepDraw from '../components/StepDraw.vue'
 import StepQuestion from '../components/StepQuestion.vue'
@@ -379,6 +379,7 @@ async function loadNarration(current: ReadingResponse) {
 }
 
 const router = useRouter()
+const route = useRoute()
 
 // ---- 結果快照 ----
 // 從結果頁離開去登入（或重新整理）會把元件卸載，抽到的牌就不見了。
@@ -684,9 +685,35 @@ const offLogout = onLogout(() => {
 })
 onBeforeUnmount(offLogout)
 
+// 從別頁帶著問題進來（例如股市追蹤的「快速占卜」）：?q=問題&domain=類別&spread=牌陣。
+// 開一次新的占卜（不還原上次的結果），填好步驟 1，再把網址的參數拿掉，重新整理時不會重複帶入
+const PREFILL_DOMAINS: QuestionDomain[] = ['work', 'money', 'love', 'social', 'study', 'stock', 'general']
+function applyQueryPrefill() {
+  const { q, domain, spread } = route.query
+  if (typeof q !== 'string' && typeof domain !== 'string' && typeof spread !== 'string') {
+    return false
+  }
+  restart()
+  if (typeof q === 'string') {
+    question.value = q.slice(0, 200)
+  }
+  // 類別沒權限時（例如股市諮詢）由上面的 watch 退回自動判斷
+  if (typeof domain === 'string' && PREFILL_DOMAINS.includes(domain as QuestionDomain)) {
+    selectedDomain.value = domain as QuestionDomain
+  }
+  // 牌陣不存在時，bootstrap 載完清單會改用第一個
+  if (typeof spread === 'string') {
+    selectedSpreadKey.value = spread
+  }
+  void router.replace({ query: {} })
+  return true
+}
+
 onMounted(() => {
-  // 先還原結果，再去載牌陣與牌庫；還原成功的話會直接停在步驟 3
-  restoreResultSnapshot()
+  // 有帶入參數就從步驟 1 開始；否則先還原結果，還原成功的話會直接停在步驟 3。之後再去載牌陣與牌庫
+  if (!applyQueryPrefill()) {
+    restoreResultSnapshot()
+  }
   bootstrap()
 })
 

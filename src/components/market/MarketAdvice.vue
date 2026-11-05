@@ -15,7 +15,7 @@ const props = defineProps<{
 // 一鍵把停損或目標價設成提醒：key 是價格，值是設定狀態
 const alertState = ref<Record<string, 'saving' | 'saved' | string>>({})
 
-async function setAlert(condition: MarketAlert['condition'], price: number, note: string) {
+async function setAlert(condition: 'above' | 'below', price: number, note: string) {
   const item = props.item
   if (!item) return
   const key = `${condition}-${price}`
@@ -40,7 +40,7 @@ async function setAlert(condition: MarketAlert['condition'], price: number, note
   }
 }
 
-function alertLabel(condition: MarketAlert['condition'], price: number) {
+function alertLabel(condition: 'above' | 'below', price: number) {
   const state = alertState.value[`${condition}-${price}`]
   if (state === 'saving') return '設定中…'
   if (state === 'saved') return '已設提醒'

@@ -1,0 +1,15 @@
+{
+  "name": "Orange Tarot",
+  "short_name": "Orange Tarot",
+  "description": "塔羅占卜與股市追蹤",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#0f1526",
+  "lang": "zh-Hant",
+  "icons": [
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

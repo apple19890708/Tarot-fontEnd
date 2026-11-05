@@ -1,9 +1,11 @@
 // 股市諮詢的圖表共用設定：註冊 chart.js 元件、深色主題的軸線與文字、各條線的顏色。
 import {
+  ArcElement,
   BarController,
   BarElement,
   CategoryScale,
   Chart as ChartJS,
+  DoughnutController,
   Filler,
   Legend,
   LinearScale,
@@ -14,9 +16,11 @@ import {
 } from 'chart.js'
 
 ChartJS.register(
+  ArcElement,
   BarController,
   BarElement,
   CategoryScale,
+  DoughnutController,
   Filler,
   Legend,
   LinearScale,

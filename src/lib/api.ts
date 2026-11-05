@@ -7,9 +7,24 @@ import type {
   HealthResponse,
   ManualCardPick,
   MarketAlert,
+  MarketAlertKind,
+  MarketAlertParams,
   MarketAlertTarget,
+  MarketAssetHistory,
+  MarketSearchResult,
   MarketSnapshot,
   MarketTrackSummary,
+  MarketDividend,
+  MarketFees,
+  MarketNewsItem,
+  MarketNotifyStatus,
+  MarketOverview,
+  MarketScreenFilters,
+  MarketScreenResult,
+  MarketTrade,
+  MarketWatchDetail,
+  MarketWatchGroup,
+  MarketWatchItem,
   NarrationStreamEvent,
   QuestionDomain,
   ReadingDetail,
@@ -163,14 +178,22 @@ export function fetchMarketAlerts() {
 }
 
 // target：從操作建議一鍵設定；query：手動輸入代號或名稱
+// kind 預設 price（condition＋price）；其他種類用 params（見 MarketAlertParams）
 export function createMarketAlert(payload: {
   target?: MarketAlertTarget
   query?: string
-  condition: MarketAlert['condition']
-  price: number
+  kind?: MarketAlertKind
+  condition?: 'above' | 'below'
+  price?: number
+  params?: Partial<MarketAlertParams>
   note?: string
 }) {
   return request<{ alert: MarketAlert }>('/api/market/alerts', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+// 重新啟用已觸發的提醒
+export function reactivateMarketAlert(id: string) {
+  return request<{ alert: MarketAlert }>(`/api/market/alerts/${id}/reactivate`, { method: 'POST', body: JSON.stringify({}) })
 }
 
 export function deleteMarketAlert(id: string) {
@@ -183,6 +206,140 @@ export function checkMarketAlerts() {
     '/api/market/alerts/check',
     { method: 'POST', body: JSON.stringify({}) },
   )
+}
+
+// ===== 自訂股票追蹤 =====
+
+// 輸入框的下拉候選；signal 讓輸入很快時可以取消前一次查詢
+export function searchMarketTargets(market: 'tw' | 'us', q: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ market, q })
+  return request<{ results: MarketSearchResult[] }>(`/api/market/search?${params}`, { signal })
+}
+
+export function fetchWatchlist() {
+  return request<{
+    asOf: string
+    fees?: MarketFees
+    // 下一次月營收公布截止日（每月 10 日前公布上個月）；舊版後端沒有
+    revenueDeadline?: { deadline: string; forMonth: string }
+    // 自選清單（舊版後端沒有）
+    groups?: MarketWatchGroup[]
+    items: MarketWatchItem[]
+  }>('/api/market/watchlist')
+}
+
+// target：從下拉選單選的；沒有就用 query 讓後端找。trades 可以帶第一筆買進
+export function createWatch(payload: {
+  market: 'tw' | 'us'
+  query: string
+  target?: MarketSearchResult
+  trades?: MarketTrade[]
+  // 放進哪個清單；不帶就是未分類
+  group?: string | null
+}) {
+  return request<{ item: MarketWatchItem }>('/api/market/watchlist', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+// 買賣紀錄、股利各自整批替換（可以只送其中一個，空陣列代表清除）；回傳含報價與重算後的損益
+export function updateWatchHoldings(id: string, payload: { trades?: MarketTrade[]; dividends?: MarketDividend[] }) {
+  return request<{ item: MarketWatchItem }>(`/api/market/watchlist/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+// 追蹤清單裡台股公司最近 30 天的重大訊息（新的在前）
+export function fetchMarketNews() {
+  return request<{ news: MarketNewsItem[] }>('/api/market/news')
+}
+
+// 選股：依條件從全市場篩選（每人每分鐘最多 10 次）
+export function screenMarket(filters: MarketScreenFilters) {
+  return request<{ result: MarketScreenResult }>('/api/market/screen', { method: 'POST', body: JSON.stringify({ filters }) })
+}
+
+// 大盤概況：主要指數、漲跌家數、類股漲跌、三大法人、美股與匯率（後端快取 10 分鐘）
+export function fetchMarketOverview() {
+  return request<{ overview: MarketOverview }>('/api/market/overview')
+}
+
+// 資產走勢：每日快照與大盤比較
+export function fetchAssetHistory() {
+  return request<MarketAssetHistory>('/api/market/history')
+}
+
+// 展開卡片時才查：價格走勢圖、籌碼與估值
+export function fetchWatchDetail(id: string) {
+  return request<{ detail: MarketWatchDetail }>(`/api/market/watchlist/${id}/detail`)
+}
+
+// 交易成本設定
+export function fetchMarketSettings() {
+  return request<{ fees: MarketFees }>('/api/market/settings')
+}
+
+export function saveMarketSettings(fees: MarketFees) {
+  return request<{ fees: MarketFees }>('/api/market/settings', { method: 'PUT', body: JSON.stringify({ fees }) })
+}
+
+// ---- 到價推播：瀏覽器推播（所有人）、Discord Webhook（只有 admin）----
+export function fetchNotifyStatus() {
+  return request<MarketNotifyStatus>('/api/market/notify')
+}
+
+// 這台裝置開啟瀏覽器推播：subscription 是瀏覽器給的 PushSubscription（toJSON）
+export function addPushDevice(subscription: PushSubscriptionJSON, label: string) {
+  return request<MarketNotifyStatus>('/api/market/notify/push', { method: 'POST', body: JSON.stringify({ subscription, label }) })
+}
+
+export function removePushDevice(id: string) {
+  return request<MarketNotifyStatus>(`/api/market/notify/push/${id}`, { method: 'DELETE' })
+}
+
+// 綁定（或換一個）Webhook：後端會先送一則確認訊息，成功才儲存。只有 admin 能用（其他人 403）
+export function linkDiscord(webhookUrl: string) {
+  return request<MarketNotifyStatus>('/api/market/notify/discord', { method: 'PUT', body: JSON.stringify({ webhookUrl }) })
+}
+
+export function unlinkDiscord() {
+  return request<MarketNotifyStatus>('/api/market/notify/discord', { method: 'DELETE' })
+}
+
+// 測試通知：送到所有已開啟的管道；push 是送出的裝置數
+export function sendTestNotify() {
+  return request<{ push: number; discord: boolean; errors?: string[] }>('/api/market/notify/test', { method: 'POST', body: JSON.stringify({}) })
+}
+
+// 換清單（null＝未分類）
+export function moveWatchToGroup(id: string, group: string | null) {
+  return request<{ item: MarketWatchItem }>(`/api/market/watchlist/${id}`, { method: 'PATCH', body: JSON.stringify({ group }) })
+}
+
+// 自訂順序：依序傳入 id
+export function reorderWatchlist(ids: string[]) {
+  return request<{ ok: boolean }>('/api/market/watchlist/order', { method: 'PUT', body: JSON.stringify({ ids }) })
+}
+
+// ---- 自選清單 ----
+export function createWatchGroup(name: string) {
+  return request<{ group: MarketWatchGroup }>('/api/market/groups', { method: 'POST', body: JSON.stringify({ name }) })
+}
+
+export function renameWatchGroup(id: string, name: string) {
+  return request<{ group: MarketWatchGroup }>(`/api/market/groups/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+}
+
+// 刪除清單：裡面的股票移到未分類；回傳剩下的清單
+export function deleteWatchGroup(id: string) {
+  return request<{ groups: MarketWatchGroup[] }>(`/api/market/groups/${id}`, { method: 'DELETE' })
+}
+
+export function reorderWatchGroups(ids: string[]) {
+  return request<{ groups: MarketWatchGroup[] }>('/api/market/groups/order', { method: 'PUT', body: JSON.stringify({ ids }) })
+}
+
+export function deleteWatch(id: string) {
+  return request<{ deleted: boolean }>(`/api/market/watchlist/${id}`, { method: 'DELETE' })
 }
 
 // ===== 占卜紀錄（v13）=====

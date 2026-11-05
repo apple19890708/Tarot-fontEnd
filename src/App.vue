@@ -5,8 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import FloatingMenu from './components/FloatingMenu.vue'
 import PixelWorld from './components/PixelWorld.vue'
 import { canUseStock, currentUser, isAdmin, isLoggedIn, logout } from './lib/auth'
-import { dismissTriggered, startAlertWatcher, stopAlertWatcher, triggeredAlerts } from './lib/marketAlerts'
-import { formatNumber } from './lib/marketChart'
+import { alertDetail, alertTitle, dismissTriggered, startAlertWatcher, stopAlertWatcher, triggeredAlerts } from './lib/marketAlerts'
 import { healthLabel, refreshHealth } from './lib/health'
 import { prefersReducedMotion } from './lib/motion'
 import type { SceneKey } from './lib/pixel/core'
@@ -81,10 +80,10 @@ const navVisible = computed(() => isDesktop.value || menuOpen.value)
 
 // 目前所在的頁面亮起；用路由名稱比對，網址帶 query（例如紀錄頁的 ?id=）也算同一頁
 // 會員專屬的頁面另外上色，一眼看得出哪些是登入後才有的：
-// 一般會員頁（我的紀錄）藍、金融股市權限頁（股市追蹤）綠；目前所在的頁面變亮並加底線
+// 一般會員頁（我的紀錄）藍、金融股市權限頁（股市追蹤）綠；目前所在的頁面只變色（和其他頁一樣變琥珀色），不加底線
 const NAV_TIER_STYLES = {
-  member: { idle: 'text-sky-300/80 hover:text-sky-200', active: 'text-sky-200 underline underline-offset-4' },
-  stock: { idle: 'text-emerald-300/80 hover:text-emerald-200', active: 'text-emerald-200 underline underline-offset-4' },
+  member: { idle: 'text-sky-300/80 hover:text-sky-200', active: 'text-amber-200' },
+  stock: { idle: 'text-emerald-300/80 hover:text-emerald-200', active: 'text-amber-200' },
 } as const
 
 function navClass(name: string, tier: 'public' | keyof typeof NAV_TIER_STYLES = 'public') {
@@ -213,11 +212,11 @@ function signOut() {
 			>
 				<div class="flex items-start justify-between gap-2">
 					<p class="text-sm font-semibold text-amber-100">
-						{{ alert.target.name }} {{ alert.condition === 'above' ? '漲到' : '跌到' }} {{ formatNumber(alert.price) }}
+						{{ alert.target.name }} {{ alertTitle(alert) }}
 					</p>
 					<button type="button" class="cursor-pointer text-stone-400 hover:text-stone-100" aria-label="關閉提醒" @click="dismissTriggered(alert.id)">✕</button>
 				</div>
-				<p class="mt-1 text-xs text-stone-300">目前 {{ formatNumber(alert.triggeredPrice) }}<template v-if="alert.note">｜{{ alert.note }}</template></p>
+				<p class="mt-1 text-xs text-stone-300">{{ alertDetail(alert) }}</p>
 				<router-link to="/market" class="mt-2 inline-block font-pixel text-[12px] text-amber-200 hover:underline" @click="dismissTriggered(alert.id)">
 					到股市追蹤看看
 				</router-link>

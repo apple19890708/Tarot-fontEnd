@@ -47,6 +47,9 @@
 - **權限**：路由用 `meta.auth`／`meta.role`／`meta.guest` 宣告，判斷集中在 `router.beforeEach`，元件不要自己擋。守衛會先 `await restore()`，不要繞過它。
 - **帶 token**：`api.ts` 的 `request()` 會自動加 Authorization；不走 `request()` 的呼叫（例如 `streamNarration`）要自己帶 `authHeaders()`。收到 401 一律當成登出。
 - 非同步請求要處理載入中、失敗兩種狀態；可能被重複觸發的請求要忽略過期的回應（參考 `loadNarration` 的 request id 作法）。
+- **載入中一律用 Skeleton**：新頁面、新分頁、新區塊只要會載入資料，載入中都要用 `SkeletonBlock` 畫出和載入後版面同形狀的骨架（卡片數、欄數、列數、按鈕列對得上），不要只放一兩條通用長條或只寫「載入中…」。要等資料才出現的元素（例如期間切換按鈕）也要先放同尺寸的佔位，避免版面跳動。範例見 `src/components/market/MarketHitRate.vue`。
+- **更新按鈕要防呆**：股票相關頁面的「更新」「重新查詢」「開始篩選」「送測試通知」這類會打 API 的按鈕，載入中要停用，按完後還要冷卻一段時間（用 `src/lib/useCooldown.ts`，按鈕上顯示剩餘秒數），避免使用者一直按。目前冷卻：大盤概況與更新報價 30 秒、選股 6 秒、測試通知 15 秒。
+- **長頁面要有回到頂端**：股票相關的頁面（股市追蹤、股市諮詢結果）放 `BackToTop`，往下捲超過一個畫面高就出現。
 
 ## 部署
 

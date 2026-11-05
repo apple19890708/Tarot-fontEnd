@@ -767,16 +767,338 @@ export interface MarketAlertTarget {
   name: string
 }
 
+// 提醒種類：price 價格、changePct 單日漲跌幅、ma 均線、kd、rsi、volume 量比
+export type MarketAlertKind = 'price' | 'changePct' | 'ma' | 'kd' | 'rsi' | 'volume'
+
+export interface MarketAlertParams {
+  // changePct：up／down；ma、rsi：above／below；kd：golden／dead
+  direction: string
+  value: number | null
+  // ma：20 或 60
+  period: number | null
+}
+
 export interface MarketAlert {
   id: string
   target: MarketAlertTarget
-  condition: 'above' | 'below'
-  price: number
+  // 舊版後端沒有 kind，當成 price
+  kind?: MarketAlertKind
+  // price 種類才有
+  condition: 'above' | 'below' | null
+  price: number | null
+  params?: MarketAlertParams | null
+  // 條件的文字（後端產生），例如「跌破季線（MA60）」；舊版後端沒有
+  description?: string
+  // 觸發時的補充說明，例如「MA60 1,050」
+  triggeredNote?: string
   note: string
   active: boolean
   triggeredAt: string | null
   triggeredPrice: number | null
+  // 已經用 Discord 通知過的時間（舊版後端沒有這個欄位）
+  notifiedAt?: string | null
   createdAt: string
+}
+
+// ===== 重大訊息（公開資訊觀測站）=====
+// 說明全文是公司原文，畫面只當純文字顯示
+export interface MarketNewsItem {
+  id: string
+  code: string
+  exchange: 'tse' | 'otc'
+  name: string
+  // 發言日期 YYYY-MM-DD 與時間 HH:MM:SS
+  date: string
+  time: string
+  title: string
+  detail: string
+  clause: string
+}
+
+// ===== 選股 =====
+export type MarketScreenSort = 'dividendYield' | 'pe' | 'pb' | 'revenueYoy' | 'volume' | 'changePct' | 'foreignStreak'
+
+// 篩選條件：沒填的不篩
+export interface MarketScreenFilters {
+  includeEtf?: boolean
+  peMax?: number
+  yieldMin?: number
+  pbMax?: number
+  revenueYoyMin?: number
+  revenueCumYoyMin?: number
+  foreignStreakMin?: number
+  trustStreakMin?: number
+  priceMin?: number
+  priceMax?: number
+  // 成交量（張）
+  volumeMin?: number
+  // 技術面（只對前 30 檔計算）
+  aboveMa60?: boolean
+  bullishMa?: boolean
+  rsiMin?: number
+  rsiMax?: number
+  sort?: MarketScreenSort
+}
+
+export interface MarketScreenRow {
+  code: string
+  name: string
+  exchange: 'tse' | 'otc'
+  etf: boolean
+  close: number | null
+  changePct: number | null
+  volume: number | null
+  pe: number | null
+  dividendYield: number | null
+  pb: number | null
+  revenueMonth: string | null
+  revenueYoy: number | null
+  revenueCumYoy: number | null
+  // 正數連買、負數連賣（上櫃最多 1 日）
+  foreignStreak: number | null
+  trustStreak: number | null
+}
+
+export interface MarketScreenResult {
+  asOf: string
+  // 價量資料的日期（前一個交易日收盤）
+  quoteDate: string | null
+  // 上市籌碼連買用了幾個交易日
+  chipDays: number
+  universeSize: number
+  // 技術面之前符合的檔數
+  total: number
+  technicalChecked: number
+  // 最多 100 檔
+  results: MarketScreenRow[]
+  notes: string[]
+}
+
+// ===== 大盤概況 =====
+export interface MarketIndexCard {
+  name: string
+  symbol: string | null
+  price: number | null
+  change: number | null
+  changePct: number | null
+  date: string | null
+  session: 'intraday' | 'closed'
+  // 最近約 60 個交易日的收盤（櫃買指數沒有歷史資料，只有一點）
+  spark: number[]
+}
+
+// 漲跌家數：最新一個交易日收盤
+export interface MarketBreadth {
+  up: number
+  down: number
+  flat: number
+  date: string | null
+}
+
+export interface MarketSector {
+  name: string
+  close: number | null
+  changePct: number
+  date: string | null
+}
+
+export interface MarketOverview {
+  asOf: string
+  tw: MarketIndexCard[]
+  us: MarketIndexCard[]
+  // 某一邊資料沒取到時是 null
+  breadth: { tse: MarketBreadth | null; otc: MarketBreadth | null } | null
+  // 類股指數漲跌（前一個交易日收盤），由高到低
+  sectors: MarketSector[]
+  // 上市三大法人買賣超（億元，最近 5 個交易日）
+  institutional: MarketChips | null
+  notes: string[]
+}
+
+// ===== 自訂股票追蹤 =====
+// 輸入框下拉候選：和提醒的標的同一個形狀（美股沒有 code／exchange）
+export type MarketSearchResult = Omit<MarketAlertTarget, 'code' | 'exchange'> & {
+  code?: string | null
+  exchange?: string | null
+}
+
+// 一筆買賣：台股 quantity 單位是「張」（1 張 = 1000 股，可有小數代表零股），美股是「股」；date 是成交日期（選填）
+export interface MarketTrade {
+  side: 'buy' | 'sell'
+  quantity: number
+  price: number
+  date: string | null
+}
+
+// 現金股利入帳（實際收到的總額）
+export interface MarketDividend {
+  amount: number
+  date: string | null
+}
+
+// 交易成本設定：台股手續費折扣（1 = 不打折、0.28 = 2.8 折）、最低手續費；美股每筆手續費
+export interface MarketFees {
+  twDiscount: number
+  twMinFee: number
+  usFee: number
+}
+
+// 還沒賣掉的那部分（先進先出後剩下的買進）
+export interface MarketOpenLot {
+  quantity: number
+  price: number
+  date: string | null
+  // 含買進手續費
+  cost: number
+  value: number | null
+  // 已扣掉預估賣出成本
+  pnl: number | null
+  pnlPct: number | null
+}
+
+// 持股損益（後端依買賣、股利、交易成本與目前報價計算）。報價取不到時市值相關欄位為 null
+export interface MarketPosition {
+  quantity: number
+  // 平均成本（每股，含買進手續費）
+  avgCost: number | null
+  costBasis: number
+  marketValue: number | null
+  // 現在全部賣出要付的手續費與稅（預估）
+  sellCost: number | null
+  // 未實現損益：已扣掉預估賣出成本
+  unrealized: number | null
+  unrealizedPct: number | null
+  realized: number
+  dividends: number
+  // 未實現 + 已實現 + 股利
+  totalReturn: number | null
+  today: number | null
+  feesPaid: number
+  taxPaid: number
+  // 和 trades 一一對應：每筆的手續費、稅、賣出的已實現損益
+  trades: { fee: number; tax: number; realized: number | null }[]
+  openLots: MarketOpenLot[]
+}
+
+// 資產走勢（每日快照）：value／cost 是台幣合併後的總額；returnPct 是時間加權累積報酬率（%）
+export interface MarketAssetPoint {
+  date: string
+  value: number
+  cost: number
+  realized: number
+  dividends: number
+  usdTwd: number | null
+  returnPct: number
+}
+
+// 大盤同期累積漲跌（%），日期和快照對齊
+export interface MarketBenchmark {
+  key: string
+  label: string
+  points: { date: string; returnPct: number | null }[]
+}
+
+export interface MarketAssetHistory {
+  points: MarketAssetPoint[]
+  benchmarks: MarketBenchmark[]
+}
+
+// 已開啟瀏覽器推播的裝置。endpoint 用來判斷「是不是這台裝置」
+export interface MarketPushDevice {
+  id: string
+  label: string
+  endpoint: string
+  createdAt: string
+}
+
+// 推播狀態：瀏覽器推播給所有人；Discord 只有 admin 才有（其他人是 null）。
+// webhook 網址不會回傳，hint 是遮罩後的提示（例如 discord.com/api/webhooks/1234…5678/••••）
+export interface MarketNotifyStatus {
+  push: {
+    // 伺服器有沒有設定 VAPID 金鑰
+    available: boolean
+    publicKey: string | null
+    devices: MarketPushDevice[]
+  }
+  discord: { linked: boolean; linkedAt: string | null; hint: string | null } | null
+}
+
+// 清單的一列摘要（輕量版，不含回測與預測）；判讀文字來自後端
+export interface MarketWatchSummary {
+  name: string
+  currency: string
+  session: 'intraday' | 'closed'
+  source: string
+  quote: MarketQuote
+  // 歷史資料不足時為 null
+  changes: { d5: number | null; d20: number | null; d60: number | null } | null
+  volumeRatio: number | null
+  // 52 週高低；position 0 = 在低點、100 = 在高點；fromHigh 是距離高點的 %
+  range52w: { high: number; low: number; position: number | null; fromHigh: number } | null
+  // 最近約 60 個交易日的收盤價，由舊到新
+  spark: number[]
+  signals: MarketSignal[]
+  supports: MarketLevel[]
+  resistances: MarketLevel[]
+  // 籌碼小標記，例如「外資連 3 買」（台股個股、資料有取到才有；舊版後端沒有這個欄位）
+  chipsTag?: { text: string; tone: 'bull' | 'bear' } | null
+  // 台股個股的除權息（今天以後最近一次）與最新月營收；舊版後端或非台股沒有
+  events?: MarketCorporateEvents | null
+}
+
+// 除權息預告：cashDividend 是每股現金股利（元），stockRatio 是配股比例
+export interface MarketExDividend {
+  date: string
+  type: string
+  cashDividend: number | null
+  stockRatio: number | null
+}
+
+// 最新月營收：revenue 單位千元；mom 月增、yoy 年增、cumYoy 累計年增（%）
+export interface MarketRevenue {
+  month: string
+  revenue: number | null
+  mom: number | null
+  yoy: number | null
+  cumYoy: number | null
+  note: string
+}
+
+export interface MarketCorporateEvents {
+  exDividend: MarketExDividend | null
+  revenue: MarketRevenue | null
+}
+
+// 展開卡片的詳情：價格走勢圖、籌碼與估值（台股才有）
+export interface MarketWatchDetail {
+  chart: MarketChart | null
+  analysis: MarketAnalysis | null
+  chips: MarketChips | null
+  valuation: MarketValuation | null
+  notes: string[]
+}
+
+// 自選清單（一檔股票只屬於一個清單；沒有清單的是「未分類」）
+export interface MarketWatchGroup {
+  id: string
+  name: string
+  order: number
+}
+
+export interface MarketWatchItem {
+  id: string
+  target: MarketAlertTarget
+  // 所屬清單的 id，null 是未分類；order 是自訂順序（舊版後端沒有這兩欄）
+  group?: string | null
+  order?: number
+  // 買賣紀錄（依順序先進先出）與股利；空陣列代表沒有
+  trades: MarketTrade[]
+  dividends: MarketDividend[]
+  // 沒有任何買賣與股利時為 null
+  position: MarketPosition | null
+  createdAt: string
+  // 報價暫時取不到時為 null
+  summary: MarketWatchSummary | null
 }
 
 export interface MarketSnapshot {

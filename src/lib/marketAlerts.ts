@@ -2,7 +2,7 @@
 // 伺服器沒有常駐排程，所以只有網頁開著時才會檢查（每 3 分鐘，分頁在背景時暫停）。
 import { ref } from 'vue'
 
-import { checkMarketAlerts, createMarketAlert, deleteMarketAlert, fetchMarketAlerts } from './api'
+import { checkMarketAlerts, createMarketAlert, deleteMarketAlert, fetchMarketAlerts, reactivateMarketAlert } from './api'
 import type { MarketAlert, MarketAlertTarget } from '../types'
 
 const CHECK_INTERVAL_MS = 3 * 60 * 1000
@@ -20,17 +20,20 @@ export function alertKey(target: MarketAlertTarget) {
   return target.symbol || `${target.exchange}_${target.code}`
 }
 
-function conditionText(alert: MarketAlert) {
-  return alert.condition === 'above' ? '漲到' : '跌到'
+// 條件文字以後端的 description 為準；舊版後端沒有時退回價格提醒的寫法
+export function alertTitle(alert: MarketAlert) {
+  return alert.description || `${alert.condition === 'above' ? '漲到' : '跌到'} ${alert.price ?? ''}`
+}
+
+export function alertDetail(alert: MarketAlert) {
+  return [alert.triggeredPrice !== null ? `目前 ${alert.triggeredPrice}` : '', alert.triggeredNote, alert.note].filter(Boolean).join('｜')
 }
 
 // 瀏覽器允許時另外送系統通知；不允許就只有畫面上的提示
 function notify(alert: MarketAlert) {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
   try {
-    new Notification(`${alert.target.name} ${conditionText(alert)} ${alert.price}`, {
-      body: `目前 ${alert.triggeredPrice}${alert.note ? `｜${alert.note}` : ''}`,
-    })
+    new Notification(`${alert.target.name} ${alertTitle(alert)}`, { body: alertDetail(alert) })
   } catch {
     // 部分瀏覽器（例如 iOS）不支援在頁面裡建立通知，畫面上的提示照常
   }
@@ -72,6 +75,11 @@ export async function addMarketAlert(payload: Parameters<typeof createMarketAler
   marketAlerts.value = [alert, ...marketAlerts.value]
   void requestAlertPermission()
   return alert
+}
+
+export async function reactivateAlert(id: string) {
+  const { alert } = await reactivateMarketAlert(id)
+  marketAlerts.value = marketAlerts.value.map((item) => (item.id === id ? alert : item))
 }
 
 export async function removeMarketAlert(id: string) {
