@@ -31,6 +31,10 @@ import type {
   ReadingHistoryResponse,
   ReadingResponse,
   Spread,
+  StockAnalysisRecord,
+  StockAnalysisStreamEvent,
+  StockAnalysisSummary,
+  StockAnalysisView,
 } from '../types'
 import { getToken, notifyUnauthorized } from './session'
 
@@ -271,6 +275,78 @@ export function fetchAssetHistory() {
 // 展開卡片時才查：價格走勢圖、籌碼與估值
 export function fetchWatchDetail(id: string) {
   return request<{ detail: MarketWatchDetail }>(`/api/market/watchlist/${id}/detail`)
+}
+
+// ===== 個股分析（v17 規格 F）=====
+// 彈窗資料：完整分析、持股、事件與 AI 額度（不呼叫 AI）
+export function fetchStockAnalysis(watchId: string) {
+  return request<{ analysis: StockAnalysisView }>(`/api/market/watchlist/${watchId}/analysis`)
+}
+
+// 「我的紀錄」的股票分析
+export function fetchStockAnalyses() {
+  return request<{ analyses: StockAnalysisSummary[] }>('/api/market/analyses')
+}
+
+export function fetchStockAnalysisRecord(id: string) {
+  return request<{ analysis: StockAnalysisRecord }>(`/api/market/analyses/${id}`)
+}
+
+export function deleteStockAnalysis(id: string) {
+  return request<{ deleted: boolean }>(`/api/market/analyses/${id}`, { method: 'DELETE' })
+}
+
+// 以串流接收個股 AI 分析（會計費）。完整產生後後端會存成一筆紀錄，done 帶回它的摘要。
+// signal 中斷時後端會跟著停止 AI 生成，這裡會丟出 AbortError
+export async function streamStockAnalysis(
+  watchId: string,
+  options: { signal: AbortSignal; onDelta: (text: string) => void },
+): Promise<{ model: string; analysis: StockAnalysisSummary | null }> {
+  const response = await fetch(`${API_BASE_URL}/api/market/watchlist/${watchId}/analysis/ai`, {
+    method: 'POST',
+    // 這支不走 request()，Authorization 要自己帶
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    signal: options.signal,
+  })
+
+  if (!response.ok || !response.body) {
+    const payload = (await response.json().catch(() => null)) as { message?: string } | null
+    if (response.status === 401) {
+      notifyUnauthorized()
+      throw new UnauthorizedError(payload?.message || '請先登入。')
+    }
+    throw new Error(payload?.message || 'AI 分析暫時無法使用')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  for (;;) {
+    const { done, value } = await reader.read()
+    buffer += decoder.decode(value, { stream: !done })
+
+    const lines = buffer.split('\n')
+    buffer = done ? '' : (lines.pop() ?? '')
+
+    for (const line of lines) {
+      if (!line.trim()) {
+        continue
+      }
+      const event = JSON.parse(line) as StockAnalysisStreamEvent
+      if (event.type === 'delta') {
+        options.onDelta(event.text)
+      } else if (event.type === 'done') {
+        return { model: event.model, analysis: event.analysis }
+      } else {
+        throw new Error(event.message)
+      }
+    }
+
+    if (done) {
+      throw new Error('AI 分析連線意外中斷')
+    }
+  }
 }
 
 // 交易成本設定

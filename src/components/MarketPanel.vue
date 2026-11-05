@@ -17,6 +17,8 @@ const props = defineProps<{
   error?: string
   // 回顧舊紀錄時，顯示的是當時存下來的資料
   isSaved?: boolean
+  // 不顯示「更新報價」（例如「我的紀錄」的股票分析只看當時的資料）
+  hideRefresh?: boolean
 }>()
 
 const emit = defineEmits<{ refresh: [] }>()
@@ -116,6 +118,7 @@ function indicatorRows(item: MarketItem) {
         </p>
       </div>
       <button
+        v-if="!hideRefresh"
         class="cursor-pointer border-2 border-white/15 bg-white/5 px-3 py-1 text-[12px] text-stone-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         type="button"
         :disabled="status === 'loading' || cooldown.active.value"

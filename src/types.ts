@@ -1107,6 +1107,70 @@ export interface MarketSnapshot {
   notes: string[]
 }
 
+// ===== 個股分析（v17 規格 F）=====
+// 持股摘要：交給 AI 與存進紀錄的那一份（數字由後端算好）
+export interface StockHolding {
+  market: 'tw' | 'us'
+  currency: string
+  quantity: number
+  avgCost: number | null
+  costBasis: number | null
+  marketValue: number | null
+  unrealized: number | null
+  unrealizedPct: number | null
+  realized: number | null
+  dividends: number | null
+  totalReturn: number | null
+}
+
+// AI 深度分析的額度：dailyLimit 為 null 代表不限（admin）；retryAt 是這一檔下次可以再跑的時間
+export interface StockAnalysisQuota {
+  dailyLimit: number | null
+  usedToday: number
+  retryAt: string | null
+}
+
+// 「我的紀錄」股票分析的列表摘要
+export interface StockAnalysisSummary {
+  id: string
+  watch: string | null
+  target: MarketAlertTarget
+  // 分析當時的股價
+  quote: { price: number | null; change: number | null; changePct: number | null; date: string | null }
+  model: string
+  createdAt: string
+}
+
+export interface StockAnalysisRecord extends StockAnalysisSummary {
+  text: string
+  // 當時交給 AI 的單檔快照與持股
+  snapshot: StockAnalysisSnapshot | null
+  holding: StockHolding | null
+}
+
+export interface StockAnalysisSnapshot extends MarketSnapshot {
+  events?: MarketCorporateEvents | null
+}
+
+// 個股分析彈窗的資料
+export interface StockAnalysisView {
+  asOf: string
+  // 報價取不到時為 null，原因在 notes
+  item: MarketItem | null
+  notes: string[]
+  events: MarketCorporateEvents | null
+  news: MarketNewsItem[]
+  holding: StockHolding | null
+  quota: StockAnalysisQuota
+  // 這檔最近一次的 AI 分析
+  latest: (StockAnalysisSummary & { text: string }) | null
+}
+
+export type StockAnalysisStreamEvent =
+  | { type: 'delta'; text: string }
+  | { type: 'done'; model: string; analysis: StockAnalysisSummary | null }
+  | { type: 'error'; message: string }
+
 // 單筆回顧：reading 由後端重算，narration 是當初存下來的 AI 解讀
 export interface ReadingDetail {
   id: string

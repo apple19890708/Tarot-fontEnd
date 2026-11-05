@@ -14,6 +14,7 @@ import MarketWatchDetail from './MarketWatchDetail.vue'
 import MarketEventsCalendar from './MarketEventsCalendar.vue'
 import MarketGroupManager from './MarketGroupManager.vue'
 import MarketNewsList from './MarketNewsList.vue'
+import StockAnalysisDialog from './StockAnalysisDialog.vue'
 import StockSearchInput from './StockSearchInput.vue'
 import type { MarketAlertTarget, MarketFees, MarketPosition, MarketSearchResult, MarketSignal, MarketNewsItem, MarketTrade, MarketWatchGroup, MarketWatchItem } from '../../types'
 
@@ -242,6 +243,12 @@ function quickReading(item: MarketWatchItem) {
   const id = item.target.kind === 'stock' ? idOf(item.target) : null
   const q = `${name}${id ? `（${id}）` : ''}接下來的走勢與操作方向？`
   void router.push({ name: 'home', query: { q, domain: 'stock', spread: 'investment-decision' } })
+}
+
+// ---- 個股分析彈窗 ----
+const analysisFor = ref<{ id: string; name: string } | null>(null)
+function openAnalysis(item: MarketWatchItem) {
+  analysisFor.value = { id: item.id, name: item.summary?.name || item.target.name }
 }
 
 // ---- 卡片展開 ----
@@ -940,6 +947,14 @@ const INPUT_CLASS =
               </button>
               <button
                 type="button"
+                class="cursor-pointer border-2 border-sky-200/40 bg-sky-200/10 px-2 py-0.5 text-[11px] text-sky-50 transition hover:bg-sky-200/20 font-pixel"
+                title="完整的行情、籌碼、回測與操作建議，也可以要求 AI 深度分析"
+                @click="openAnalysis(item)"
+              >
+                個股分析
+              </button>
+              <button
+                type="button"
                 class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/10 px-2 py-0.5 text-[11px] text-amber-50 transition hover:bg-amber-200/20 font-pixel"
                 title="帶入這檔股票，用「股市諮詢」與「投資決策」牌陣占卜"
                 @click="quickReading(item)"
@@ -989,5 +1004,7 @@ const INPUT_CLASS =
         </p>
       </template>
     </template>
+
+    <StockAnalysisDialog v-if="analysisFor" :watch-id="analysisFor.id" :name="analysisFor.name" @close="analysisFor = null" />
   </section>
 </template>

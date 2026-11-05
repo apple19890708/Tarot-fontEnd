@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import ReadingHistoryIndex from '../components/ReadingHistoryIndex.vue'
 import SkeletonBlock from '../components/SkeletonBlock.vue'
 import StepResult from '../components/StepResult.vue'
+import StockAnalysisHistory from '../components/market/StockAnalysisHistory.vue'
 import {
   deleteReading,
   fetchReadingDetail,
@@ -14,7 +15,7 @@ import {
   streamNarration,
   UnauthorizedError,
 } from '../lib/api'
-import { canUseAi } from '../lib/auth'
+import { canUseAi, canUseStock } from '../lib/auth'
 import { prefersReducedMotion } from '../lib/motion'
 import { installWashi } from '../lib/pixelArt'
 import type { MarketSnapshot, MarketStatus, NarrationStatus, ReadingDetail, ReadingSummary, Spread } from '../types'
@@ -37,8 +38,17 @@ const isListLoaded = ref(false)
 
 const spreads = ref<Spread[]>([])
 
-// 選中的那一筆放在網址（?id=），重新整理還是同一筆
-const selectedId = computed(() => (typeof route.query.id === 'string' ? route.query.id : ''))
+// 上方切換：塔羅紀錄（預設）／股票分析（?tab=stock，只有股市權限的人看得到）。兩邊的清單與內容完全分開
+type HistoryTab = 'tarot' | 'stock'
+const tab = computed<HistoryTab>(() => (route.query.tab === 'stock' && canUseStock.value ? 'stock' : 'tarot'))
+function switchTab(next: HistoryTab) {
+  if (next === tab.value) return
+  // 換邊時不帶 id：兩邊的 id 是不同的紀錄
+  router.replace({ query: next === 'stock' ? { tab: 'stock' } : {} })
+}
+
+// 選中的那一筆放在網址（?id=），重新整理還是同一筆；在股票分析那一邊時 id 屬於股票紀錄，這裡不理它
+const selectedId = computed(() => (tab.value === 'tarot' && typeof route.query.id === 'string' ? route.query.id : ''))
 
 const detail = ref<ReadingDetail | null>(null)
 const isDetailLoading = ref(false)
@@ -139,8 +149,8 @@ async function loadList() {
     readings.value = all.filter((item) => !seen.has(item.id) && seen.add(item.id))
     isListLoaded.value = true
 
-    // 網址沒指定時預設看最新一筆
-    if (!selectedId.value && readings.value[0]) {
+    // 網址沒指定時預設看最新一筆（在股票分析那一邊時不動網址）
+    if (tab.value === 'tarot' && !selectedId.value && readings.value[0]) {
       selectReading(readings.value[0].id)
     }
   } catch (error) {
@@ -236,6 +246,11 @@ function resetDetail() {
 }
 
 watch(selectedId, (id) => (id ? loadDetail(id) : resetDetail()), { immediate: true })
+
+// 從股票分析切回來：沒有選中的就看最新一筆
+watch(tab, (current) => {
+  if (current === 'tarot' && !selectedId.value && readings.value[0]) selectReading(readings.value[0].id)
+})
 
 // ---- 股市諮詢的行情 ----
 async function loadMarket() {
@@ -404,13 +419,39 @@ onBeforeUnmount(() => {
 <template>
   <div class="mx-auto flex w-full min-w-0 flex-col gap-6 py-4">
     <header class="rounded-[2rem] border border-white/10 bg-[#0f1526] p-6">
-      <p class="text-xs uppercase tracking-[0.35em] text-amber-100/70">Reading History</p>
-      <h1 class="mt-2 text-2xl font-semibold text-stone-50">我的占卜紀錄</h1>
-      <p class="mt-1 text-sm leading-6 text-stone-300/75">
+      <p class="text-xs uppercase tracking-[0.35em] text-amber-100/70">{{ tab === 'stock' ? 'Stock Analysis' : 'Reading History' }}</p>
+      <h1 class="mt-2 text-2xl font-semibold text-stone-50">{{ tab === 'stock' ? '我的股票分析' : '我的占卜紀錄' }}</h1>
+      <p v-if="tab === 'stock'" class="mt-1 text-sm leading-6 text-stone-300/75">
+        在「股市追蹤」的個股分析裡跑過的 AI 深度分析會留在這裡，最多 100 筆。每一筆都留著當時的行情與持股，
+        回頭看得出 AI 是根據什麼寫的。
+      </p>
+      <p v-else class="mt-1 text-sm leading-6 text-stone-300/75">
         在結果頁按「保存紀錄」的占卜會留在這裡，最多 100 筆。從清單選一筆，就能重看當時的牌與分析；
         保存時已經產生的 AI 解讀會一併留著，沒用過的也還能在這裡請 AI 解讀。
       </p>
+
+      <!-- 塔羅紀錄／股票分析切換：只有股市權限的人才有第二個 -->
+      <div v-if="canUseStock" class="mt-4 flex gap-2" role="tablist" aria-label="紀錄類別">
+        <button
+          v-for="option in ([{ value: 'tarot', label: '塔羅紀錄' }, { value: 'stock', label: '股票分析' }] as const)"
+          :key="option.value"
+          type="button"
+          role="tab"
+          :aria-selected="tab === option.value"
+          class="cursor-pointer border-2 px-4 py-1.5 font-pixel text-[12px] transition active:translate-x-[2px] active:translate-y-[2px]"
+          :class="tab === option.value
+            ? 'border-amber-200/50 bg-amber-200/15 text-amber-50'
+            : 'border-white/15 text-stone-300 hover:bg-white/10'"
+          @click="switchTab(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
     </header>
+
+    <StockAnalysisHistory v-if="tab === 'stock'" />
+
+    <template v-else>
 
     <div
       v-if="listError"
@@ -662,5 +703,6 @@ onBeforeUnmount(() => {
         </div>
       </section>
     </div>
+    </template>
   </div>
 </template>
