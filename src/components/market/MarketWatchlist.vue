@@ -8,6 +8,7 @@ import { signalGlossaryKeys } from '../../lib/marketGlossary'
 import { createWatch, createWatchGroup, deleteWatch, fetchMarketNews, fetchWatchlist, moveWatchToGroup, reorderWatchlist, saveMarketSettings } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { useCooldown } from '../../lib/useCooldown'
+import RefreshButton from '../RefreshButton.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import MarketAssetHistory from './MarketAssetHistory.vue'
 import MarketHoldingPie from './MarketHoldingPie.vue'
@@ -19,6 +20,7 @@ import MarketGroupManager from './MarketGroupManager.vue'
 import MarketNewsList from './MarketNewsList.vue'
 import StockAnalysisDialog from './StockAnalysisDialog.vue'
 import StockSearchInput from './StockSearchInput.vue'
+import SelectField from '../SelectField.vue'
 import type { MarketAlertTarget, MarketFees, MarketPosition, MarketSearchResult, MarketSignal, MarketNewsItem, MarketTrade, MarketWatchGroup, MarketWatchItem } from '../../types'
 
 // 自訂股票追蹤：自己加的觀察清單（台股／美股分開），可以記下買賣與股利算損益。
@@ -384,6 +386,12 @@ const groupName = (id: string | null | undefined) => groups.value.find((g) => g.
 const NEW_GROUP = '__new__'
 const MAX_GROUPS = 10
 const addTarget = ref('')
+// 「加到清單」的選項：未分類、既有清單、還沒滿就可以當場建立新清單
+const addTargetOptions = computed(() => [
+  { value: '', label: '未分類' },
+  ...groups.value.map((group) => ({ value: group.id, label: group.name })),
+  ...(groups.value.length < MAX_GROUPS ? [{ value: NEW_GROUP, label: '＋ 新清單…' }] : []),
+])
 const newGroupName = ref('')
 watch(addGroup, (id) => {
   if (addTarget.value !== NEW_GROUP) addTarget.value = id ?? ''
@@ -567,14 +575,14 @@ const INPUT_CLASS =
           加入想觀察的台股或美股，可以另外記下持股（台股以「張」計，零股可填小數；美股以「股」計）。頁面開著時每分鐘更新報價。
         </p>
       </div>
-      <button
-        type="button"
-        class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[14px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
-        :disabled="refreshing || status === 'loading' || refreshCooldown.active.value"
+      <RefreshButton
+        label="更新報價"
+        :loading="refreshing"
+        :disabled="status === 'loading'"
+        :failed="!!error"
+        :cooldown="refreshCooldown"
         @click="manualRefresh"
-      >
-        {{ refreshing ? '更新中…' : refreshCooldown.active.value ? `更新報價（${refreshCooldown.remaining.value}）` : '更新報價' }}
-      </button>
+      />
     </div>
 
     <!-- ── 新增 ── -->
@@ -621,12 +629,8 @@ const INPUT_CLASS =
       </div>
       <!-- 加到哪個清單：可以選既有清單，或當場建立新清單 -->
       <div class="flex flex-wrap items-center gap-2">
-        <label class="shrink-0 text-[12px] text-stone-400" for="watch-add-group">加到清單</label>
-        <select id="watch-add-group" v-model="addTarget" :class="INPUT_CLASS" class="flex-[1_1_9rem]">
-          <option value="">未分類</option>
-          <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option>
-          <option v-if="groups.length < MAX_GROUPS" :value="NEW_GROUP">＋ 新清單…</option>
-        </select>
+        <span class="shrink-0 text-[12px] text-stone-400" aria-hidden="true">加到清單</span>
+        <SelectField v-model="addTarget" :options="addTargetOptions" label="加到清單" variant="pixel" hide-label class="min-w-0 flex-[1_1_9rem]" />
         <input
           v-if="addTarget === NEW_GROUP"
           v-model="newGroupName"

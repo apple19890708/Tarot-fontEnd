@@ -84,5 +84,6 @@ export function useCooldown(seconds: number, key?: string) {
     if (key && typeof window !== 'undefined') window.removeEventListener('storage', onStorage)
   })
 
-  return { remaining, active: computed(() => remaining.value > 0), start, run }
+  // seconds：冷卻總秒數（按鈕畫剩餘進度條用）
+  return { remaining, seconds, active: computed(() => remaining.value > 0), start, run }
 }

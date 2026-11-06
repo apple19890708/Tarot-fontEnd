@@ -1226,6 +1226,8 @@ export interface FinanceNewsAnalysisSummary {
   id: string
   region: FinanceNewsScopeRegion
   theme: string | null
+  // 範圍的中文說明（「國內新聞，主題「AI／資料中心」」）；舊版後端沒有
+  scopeLabel?: string
   newsCount: number
   model: string
   createdAt: string

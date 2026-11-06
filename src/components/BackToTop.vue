@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { prefersReducedMotion } from '../lib/motion'
+import { smoothScrollTo } from '../lib/motion'
 
 // 結果頁很長，往下捲超過一個畫面高就浮出這顆按鈕，點了回到最上面。
 const visible = ref(false)
@@ -11,7 +11,7 @@ function update() {
 }
 
 function toTop() {
-  window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+  smoothScrollTo(0)
 }
 
 onMounted(() => {

@@ -4,6 +4,7 @@ import { computed, onActivated, onMounted, ref } from 'vue'
 import { fetchMarketOverview } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { useCooldown } from '../../lib/useCooldown'
+import RefreshButton from '../RefreshButton.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import MarketChips from './MarketChips.vue'
 import MarketSparkline from './MarketSparkline.vue'
@@ -32,7 +33,17 @@ async function load() {
 }
 // 手動更新：按完 30 秒內不能再按（後端也有 10 分鐘快取）
 const cooldown = useCooldown(30, 'market-overview-refresh')
-const refresh = () => cooldown.run(load)
+// 已經有資料時 load() 不會進入 loading（畫面不換成骨架），按鈕要自己知道「更新中」
+const refreshing = ref(false)
+const refresh = () =>
+  cooldown.run(async () => {
+    refreshing.value = true
+    try {
+      await load()
+    } finally {
+      refreshing.value = false
+    }
+  })
 
 onMounted(load)
 // 放在 KeepAlive 裡：切回這個分頁時更新（後端有快取，不會一直打外部來源）
@@ -89,14 +100,7 @@ function timeText(value: string) {
           主要指數有盤中報價；漲跌家數、類股與三大法人是最新一個交易日的收盤資料（證交所、櫃買中心公開資料）。
         </p>
       </div>
-      <button
-        type="button"
-        class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[14px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
-        :disabled="status === 'loading' || cooldown.active.value"
-        @click="refresh"
-      >
-        {{ status === 'loading' ? '更新中…' : cooldown.active.value ? `更新（${cooldown.remaining.value}）` : '更新' }}
-      </button>
+      <RefreshButton label="更新" :loading="status === 'loading' || refreshing" :failed="!!error" :cooldown="cooldown" @click="refresh" />
     </div>
 
     <!-- 載入中：指數卡、漲跌家數、熱力圖、法人、美股 -->
@@ -118,14 +122,7 @@ function timeText(value: string) {
 
     <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
       <span>{{ error }}</span>
-      <button
-        type="button"
-        class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[14px] disabled:opacity-60 font-pixel"
-        :disabled="cooldown.active.value"
-        @click="refresh"
-      >
-        {{ cooldown.active.value ? `重試（${cooldown.remaining.value}）` : '重試' }}
-      </button>
+      <RefreshButton label="重試" loading-label="重試中…" tone="danger" :loading="refreshing" :failed="!!error" :cooldown="cooldown" @click="refresh" />
     </div>
 
     <template v-else-if="overview">

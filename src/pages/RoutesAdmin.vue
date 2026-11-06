@@ -2,12 +2,17 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { confirmDialog } from '../lib/confirm'
+import SelectField from '../components/SelectField.vue'
 
 const router = useRouter()
 
 const name = ref('')
 const path = ref('')
 const permission = ref<'public' | 'private'>('public')
+const PERMISSION_OPTIONS = [
+  { value: 'public' as const, label: 'public' },
+  { value: 'private' as const, label: 'private' },
+]
 
 const routes = computed(() =>
   router
@@ -70,10 +75,7 @@ async function removeRoute(rname: string) {
       <div class="mt-2 flex flex-col gap-2">
         <input v-model="name" placeholder="Route name" class="rounded px-3 py-2 bg-black/10" />
         <input v-model="path" placeholder="/path" class="rounded px-3 py-2 bg-black/10" />
-        <select v-model="permission" class="rounded px-3 py-2 bg-black/10">
-          <option value="public">public</option>
-          <option value="private">private</option>
-        </select>
+        <SelectField v-model="permission" :options="PERMISSION_OPTIONS" label="權限" variant="pixel" hide-label />
         <div class="pt-2">
           <button @click="addRoute" class="cursor-pointer rounded bg-amber-300 px-4 py-2 text-sm">新增</button>
         </div>

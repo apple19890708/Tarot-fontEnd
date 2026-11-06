@@ -4,8 +4,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { confirmDialog } from '../lib/confirm'
 
 import ReadingHistoryIndex from '../components/ReadingHistoryIndex.vue'
+import RecordListShell from '../components/RecordListShell.vue'
 import SkeletonBlock from '../components/SkeletonBlock.vue'
 import StepResult from '../components/StepResult.vue'
+import FinanceNewsAnalysisHistory from '../components/market/FinanceNewsAnalysisHistory.vue'
 import StockAnalysisHistory from '../components/market/StockAnalysisHistory.vue'
 import {
   deleteReading,
@@ -17,7 +19,7 @@ import {
   UnauthorizedError,
 } from '../lib/api'
 import { canUseAi, canUseStock } from '../lib/auth'
-import { prefersReducedMotion } from '../lib/motion'
+import { smoothScrollTo } from '../lib/motion'
 import { installWashi } from '../lib/pixelArt'
 import type { MarketSnapshot, MarketStatus, NarrationStatus, ReadingDetail, ReadingSummary, Spread } from '../types'
 
@@ -26,7 +28,6 @@ installWashi()
 
 // 每人最多 100 筆、摘要很小，左欄一次載完（後端每頁上限 50），篩選才涵蓋全部紀錄
 const LIST_PAGE_SIZE = 50
-const COLLAPSED_KEY = 'tarot_history_index_collapsed'
 
 const route = useRoute()
 const router = useRouter()
@@ -39,14 +40,28 @@ const isListLoaded = ref(false)
 
 const spreads = ref<Spread[]>([])
 
-// 上方切換：塔羅紀錄（預設）／股票分析（?tab=stock，只有股市權限的人看得到）。兩邊的清單與內容完全分開
-type HistoryTab = 'tarot' | 'stock'
-const tab = computed<HistoryTab>(() => (route.query.tab === 'stock' && canUseStock.value ? 'stock' : 'tarot'))
+// 上方切換：塔羅紀錄（預設）／股票分析（?tab=stock）／財經新聞分析（?tab=news）。
+// 後兩個只有股市權限的人看得到；各分頁的清單與內容完全分開
+type HistoryTab = 'tarot' | 'stock' | 'news'
+const TABS = [
+  { value: 'tarot', label: '塔羅紀錄' },
+  { value: 'stock', label: '股票分析' },
+  { value: 'news', label: '財經新聞' },
+] as const
+const tab = computed<HistoryTab>(() => {
+  const wanted = route.query.tab
+  return (wanted === 'stock' || wanted === 'news') && canUseStock.value ? wanted : 'tarot'
+})
 function switchTab(next: HistoryTab) {
   if (next === tab.value) return
-  // 換邊時不帶 id：兩邊的 id 是不同的紀錄
-  router.replace({ query: next === 'stock' ? { tab: 'stock' } : {} })
+  // 換分頁時不帶 id：各分頁的 id 是不同的紀錄
+  router.replace({ query: next === 'tarot' ? {} : { tab: next } })
 }
+const HEADINGS = {
+  tarot: { eyebrow: 'Reading History', title: '我的占卜紀錄' },
+  stock: { eyebrow: 'Stock Analysis', title: '我的股票分析' },
+  news: { eyebrow: 'Finance News Analysis', title: '我的財經新聞分析' },
+} as const
 
 // 選中的那一筆放在網址（?id=），重新整理還是同一筆；在股票分析那一邊時 id 屬於股票紀錄，這裡不理它
 const selectedId = computed(() => (tab.value === 'tarot' && typeof route.query.id === 'string' ? route.query.id : ''))
@@ -59,10 +74,7 @@ const detailError = ref('')
 const deletingId = ref('')
 const deleteError = ref('')
 
-// ---- 版面：桌機兩欄、左欄可收合；手機清單滿版，選了就收合 ----
-const desktopQuery = typeof window !== 'undefined' ? window.matchMedia('(min-width: 64rem)') : null
-const isDesktop = ref(desktopQuery?.matches ?? true)
-const isIndexCollapsed = ref(readCollapsed())
+// ---- 版面：桌機兩欄、左欄可收合；手機清單滿版，選了就收合（外框是共用的 RecordListShell）----
 const isMobileIndexOpen = ref(false)
 
 // ---- AI 解讀（沒用過的紀錄仍可補做）----
@@ -82,7 +94,6 @@ const marketIsSaved = ref(false)
 let narrationController: AbortController | null = null
 
 const isEmpty = computed(() => isListLoaded.value && readings.value.length === 0)
-const showRail = computed(() => isDesktop.value && isIndexCollapsed.value)
 
 // 內容還沒載到之前，先用清單裡那一筆的張數決定骨架要排幾張牌，骨架才貼近真正的版面
 const selectedSummary = computed(() => readings.value.find((item) => item.id === selectedId.value) || null)
@@ -95,36 +106,6 @@ const detailSpread = computed(
   () => spreads.value.find((spread) => spread.key === detail.value?.reading.spread.key) || null,
 )
 
-// 無痕視窗或封鎖儲存時 localStorage 會丟例外，當成沒有偏好（展開）
-function readCollapsed() {
-  try {
-    return localStorage.getItem(COLLAPSED_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function toggleIndex() {
-  isIndexCollapsed.value = !isIndexCollapsed.value
-  try {
-    localStorage.setItem(COLLAPSED_KEY, isIndexCollapsed.value ? '1' : '0')
-  } catch {
-    // 存不了只是下次不記得，不影響功能
-  }
-}
-
-function onDesktopChange(event: MediaQueryListEvent) {
-  isDesktop.value = event.matches
-  if (event.matches) {
-    isMobileIndexOpen.value = false
-  }
-}
-
-// 手機清單滿版時，背後的頁面不要跟著捲
-watch(
-  () => isMobileIndexOpen.value && !isDesktop.value,
-  (locked) => document.body.classList.toggle('overflow-hidden', locked),
-)
 
 let listRequestId = 0
 
@@ -174,7 +155,7 @@ function selectReading(id: string) {
   // replace：切換紀錄不堆疊瀏覽紀錄，上一頁直接離開這頁
   router.replace({ query: { ...route.query, id } })
   // 換了一筆就回到頂端，從標題開始讀（桌機也一樣；減少動態時直接跳）
-  window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+  smoothScrollTo(0)
 }
 
 function clearSelection() {
@@ -395,7 +376,6 @@ function formatDate(value: string) {
 }
 
 onMounted(async () => {
-  desktopQuery?.addEventListener('change', onDesktopChange)
   await loadList()
   try {
     spreads.value = await fetchSpreads()
@@ -405,8 +385,6 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  desktopQuery?.removeEventListener('change', onDesktopChange)
-  document.body.classList.remove('overflow-hidden')
   // 離開頁面時停止 AI 生成，避免繼續計費
   cancelNarration()
 })
@@ -415,9 +393,13 @@ onBeforeUnmount(() => {
 <template>
   <div class="mx-auto flex w-full min-w-0 flex-col gap-6 py-4">
     <header class="rounded-[2rem] border border-white/10 bg-[#0f1526] p-6">
-      <p class="text-xs uppercase tracking-[0.35em] text-amber-100/70">{{ tab === 'stock' ? 'Stock Analysis' : 'Reading History' }}</p>
-      <h1 class="mt-2 text-2xl font-semibold text-stone-50">{{ tab === 'stock' ? '我的股票分析' : '我的占卜紀錄' }}</h1>
-      <p v-if="tab === 'stock'" class="mt-1 text-sm leading-6 text-stone-300/75">
+      <p class="text-xs uppercase tracking-[0.35em] text-amber-100/70">{{ HEADINGS[tab].eyebrow }}</p>
+      <h1 class="mt-2 text-2xl font-semibold text-stone-50">{{ HEADINGS[tab].title }}</h1>
+      <p v-if="tab === 'news'" class="mt-1 text-sm leading-6 text-stone-300/75">
+        在「股市追蹤」的「財經新聞」分頁跑過的 AI 影響分析會留在這裡，最多 30 份；股市頁只顯示今天最新的一份。
+        每一份都留著當時交給 AI 的新聞，點文中的小編號可以對回原始新聞。
+      </p>
+      <p v-else-if="tab === 'stock'" class="mt-1 text-sm leading-6 text-stone-300/75">
         在「股市追蹤」的個股分析裡跑過的 AI 深度分析會留在這裡，最多 100 筆。每一筆都留著當時的行情與持股，
         回頭看得出 AI 是根據什麼寫的。
       </p>
@@ -426,18 +408,26 @@ onBeforeUnmount(() => {
         保存時已經產生的 AI 解讀會一併留著，沒用過的也還能在這裡請 AI 解讀。
       </p>
 
-      <!-- 塔羅紀錄／股票分析切換：只有股市權限的人才有第二個 -->
-      <div v-if="canUseStock" class="mt-4 flex gap-2" role="tablist" aria-label="紀錄類別">
+      <!-- 紀錄類別：一排等寬的分段切換（像素框），選中的那格亮琥珀色、底下一道粗線；手機也不換行 -->
+      <div
+        v-if="canUseStock"
+        class="mt-5 grid grid-cols-3 border-2 border-[#3b2618] bg-black/25 shadow-[3px_3px_0_rgba(0,0,0,0.45)]"
+        role="tablist"
+        aria-label="紀錄類別"
+      >
         <button
-          v-for="option in ([{ value: 'tarot', label: '塔羅紀錄' }, { value: 'stock', label: '股票分析' }] as const)"
+          v-for="(option, index) in TABS"
           :key="option.value"
           type="button"
           role="tab"
           :aria-selected="tab === option.value"
-          class="cursor-pointer border-2 px-4 py-1.5 font-pixel text-[14px] transition active:translate-x-[2px] active:translate-y-[2px]"
-          :class="tab === option.value
-            ? 'border-amber-200/50 bg-amber-200/15 text-amber-50'
-            : 'border-white/15 text-stone-300 hover:bg-white/10'"
+          class="relative min-w-0 cursor-pointer touch-manipulation truncate px-2 py-2.5 text-center font-pixel text-[14px] transition-colors active:bg-white/15"
+          :class="[
+            index > 0 ? 'border-l-2 border-[#3b2618]' : '',
+            tab === option.value
+              ? 'bg-amber-200/15 text-amber-50 after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-amber-300'
+              : 'text-stone-400 hover:bg-white/5 hover:text-stone-200',
+          ]"
           @click="switchTab(option.value)"
         >
           {{ option.label }}
@@ -446,6 +436,7 @@ onBeforeUnmount(() => {
     </header>
 
     <StockAnalysisHistory v-if="tab === 'stock'" />
+    <FinanceNewsAnalysisHistory v-else-if="tab === 'news'" />
 
     <template v-else>
 
@@ -469,78 +460,19 @@ onBeforeUnmount(() => {
       清單載入失敗、一筆都沒拿到時整塊不顯示，只留上面的錯誤訊息與重試，不要擺一個空的菜單框
     -->
     <div v-if="isListLoaded || !listError" class="flex min-w-0 items-start gap-6 lg:gap-0">
-      <!--
-        左欄：桌機黏在畫面上、可收合成窄欄；手機只在打開時滿版顯示。
-        收合時寬度用 transition 縮放（右欄是 flex-1，會跟著平順變寬），
-        內容則先淡出再換成窄欄；展開的內容固定寬度，縮放途中被裁掉而不是擠成一團。
-        手機一直掛著，關閉時移到畫面左外側並隱藏，打開時從左邊滑入；lg 以上的 class 把這些全部蓋回來
-      -->
-      <aside
-        class="fixed inset-0 z-40 flex flex-col bg-[#161d33] p-5 lg:border-4 lg:border-r-0 lg:border-[#3b2618] transition-[translate,opacity,visibility] duration-300 ease-out motion-reduce:transition-none lg:sticky lg:inset-auto lg:top-5 lg:z-auto lg:visible lg:max-h-[calc(100vh-2.5rem)] lg:shrink-0 lg:translate-x-0 lg:overflow-hidden lg:shadow-[6px_6px_0_rgba(0,0,0,0.45)] lg:opacity-100 lg:backdrop-blur-none lg:transition-[width,padding] lg:pointer-events-auto"
-        :class="[
-          isMobileIndexOpen ? 'visible translate-x-0 opacity-100' : 'pointer-events-none invisible -translate-x-full opacity-0',
-          showRail ? 'lg:w-14 lg:p-2' : 'lg:w-72 lg:py-4 lg:pl-2 lg:pr-0',
-        ]"
-        aria-label="紀錄清單"
-      >
-        <Transition
-          mode="out-in"
-          enter-active-class="transition-opacity duration-150 ease-out motion-reduce:transition-none"
-          enter-from-class="opacity-0"
-          leave-active-class="transition-opacity duration-150 ease-in motion-reduce:transition-none"
-          leave-to-class="opacity-0"
-        >
-        <div v-if="showRail" key="rail" class="flex flex-col items-center">
-          <button
-            type="button"
-            class="cursor-pointer border-2 border-[#f1e7cf]/30 px-1.5 py-0.5 font-pixel text-[14px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200"
-            title="展開紀錄清單"
-            aria-label="展開紀錄清單"
-            @click="toggleIndex"
-          >
-            »
-          </button>
-          <span class="mt-3 text-xs text-[#f1e7cf]/60 [writing-mode:vertical-rl]">共 {{ readings.length }} 筆</span>
-        </div>
-
-        <!-- 寬度＝展開時 w-72 扣掉左邊框與 pl-2（右側不留，標籤才貼得到菜單），收合途中內容不會重新排版 -->
-        <div v-else key="panel" class="flex min-h-0 flex-1 flex-col lg:w-[17.25rem]">
-          <div class="mb-4 flex items-center justify-between gap-3 lg:pr-3">
-            <p class="font-pixel text-[12px] tracking-[0.2em] text-amber-200">紀錄清單</p>
-            <button
-              type="button"
-              class="hidden cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-[14px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px] lg:block"
-              @click="toggleIndex"
-            >
-              « 收合
-            </button>
-            <button
-              type="button"
-              class="cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-[14px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 lg:hidden"
-              @click="isMobileIndexOpen = false"
-            >
-              關閉
-            </button>
+      <!-- 左欄：共用外框（桌機可收合、手機滿版抽屜），清單用共用的索引標籤 -->
+      <RecordListShell v-model:open="isMobileIndexOpen" label="紀錄清單" :count="readings.length" collapse-key="tarot_history_index_collapsed">
+        <!-- 骨架照著真正的列排：標題兩行、底下一行資訊，載完不會換高度 -->
+        <div v-if="isListLoading && !isListLoaded" class="space-y-2">
+          <div v-for="n in 4" :key="n" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+            <SkeletonBlock class="h-4 w-full rounded-full" />
+            <SkeletonBlock class="mt-2 h-4 w-3/5 rounded-full" />
+            <SkeletonBlock class="mt-2.5 h-3 w-28 rounded-full" />
           </div>
-
-          <!-- 骨架照著真正的列排：問題兩行、底下一行資訊，載完不會換高度 -->
-          <div v-if="isListLoading && !isListLoaded" class="space-y-2">
-            <div v-for="n in 4" :key="n" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-              <SkeletonBlock class="h-4 w-full rounded-full" />
-              <SkeletonBlock class="mt-2 h-4 w-3/5 rounded-full" />
-              <SkeletonBlock class="mt-2.5 h-3 w-28 rounded-full" />
-            </div>
-          </div>
-          <p v-else-if="isEmpty" class="px-1 text-sm text-stone-400">還沒有紀錄</p>
-          <ReadingHistoryIndex
-            v-else-if="isListLoaded"
-            :readings="readings"
-            :selected-id="selectedId"
-            @select="selectReading"
-          />
         </div>
-        </Transition>
-      </aside>
+        <p v-else-if="isEmpty" class="px-1 text-sm text-stone-400">還沒有紀錄</p>
+        <ReadingHistoryIndex v-else-if="isListLoaded" :readings="readings" :selected-id="selectedId" @select="selectReading" />
+      </RecordListShell>
 
       <!-- 右欄：所選紀錄的內容 -->
       <!--

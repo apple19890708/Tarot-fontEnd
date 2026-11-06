@@ -24,10 +24,19 @@
 **skills**（固定流程照著走）
 
 - `verify`：改完程式的驗證流程（`npm run build` ＋ 套件、路徑檢查）
+- `ui-check`：畫面改動的交付前自檢（互動回饋、手機寬度、彈出層、資料一致性、狀態保存、版面層級）
 - `dev-server`：非開不可時，用 port 5180／後端 4100 啟動並**自行關閉**測試伺服器
 - `worklog`：寫 `doc/worklog/` 的週記（一週一檔，檔名是該週週一的日期）
 
 規範之間若有衝突，以本檔（CLAUDE.md）為準。
+
+## 開發準則（每次開發都要照做）
+
+1. **先找既有作法再動手**：同類需求先找專案裡已有的共用元件與函式（例如 `RefreshButton`、`confirmDialog`、`useCooldown`、`useScrollLock`、`HelpTip`、`SectionJumpMenu`、`SkeletonBlock`），沒有才新做；同一個問題在多處出現時一次改完，並抽成共用的，不要只修使用者截圖的那一處。
+2. **修 bug 先找根本原因**：回報時說明原因，而不只是症狀怎麼消失（例如「更新按鈕沒反應」的原因是已有資料時 `load()` 不會進入 loading，不是樣式太淡）。
+3. **交付前跑檢查**：`verify`，以及它要求的 `ui-check`（改到畫面或互動時）；改到後端時另外照 `../Tbackend` 的規範。檢查清單的每一類都要交代：檢查了、不適用、或這裡無法驗證。
+4. **誠實回報**：沒驗證到的（需要真機、實際畫面、開盤時段、真實外部資料）明確列出，並告訴使用者怎麼確認；不要說「好了」。
+5. **規則會長大**：使用者回報的問題如果是新的一類，修完後把它補成對應清單的一條（附上這次的例子），讓下次不再犯。
 
 ## 程式結構
 
@@ -47,13 +56,8 @@
 - **權限**：路由用 `meta.auth`／`meta.role`／`meta.guest` 宣告，判斷集中在 `router.beforeEach`，元件不要自己擋。守衛會先 `await restore()`，不要繞過它。
 - **帶 token**：`api.ts` 的 `request()` 會自動加 Authorization；不走 `request()` 的呼叫（例如 `streamNarration`）要自己帶 `authHeaders()`。收到 401 一律當成登出。
 - 非同步請求要處理載入中、失敗兩種狀態；可能被重複觸發的請求要忽略過期的回應（參考 `loadNarration` 的 request id 作法）。
-- **載入中一律用 Skeleton**：新頁面、新分頁、新區塊只要會載入資料，載入中都要用 `SkeletonBlock` 畫出和載入後版面同形狀的骨架（卡片數、欄數、列數、按鈕列對得上），不要只放一兩條通用長條或只寫「載入中…」。要等資料才出現的元素（例如期間切換按鈕）也要先放同尺寸的佔位，避免版面跳動。範例見 `src/components/market/MarketHitRate.vue`。
-- **更新按鈕要防呆**：股票相關頁面的「更新」「重新查詢」「開始篩選」「送測試通知」這類會打 API 的按鈕，載入中要停用，按完後還要冷卻一段時間（用 `src/lib/useCooldown.ts`，按鈕上顯示剩餘秒數），避免使用者一直按。`useCooldown(秒數, key)` 一定要給 key，冷卻會記在 localStorage，重新整理頁面也接著倒數。目前冷卻：大盤概況與更新報價 30 秒、選股 6 秒、測試通知 15 秒。
-- **長頁面要有回到頂端**：股票相關的頁面（股市追蹤、股市諮詢結果）放 `BackToTop`，往下捲超過一個畫面高就出現。
-- **移除、刪除一律先確認**：用 `src/lib/confirm.ts` 的 `await confirmDialog({ title, message, confirmText, danger: true })`（畫面是 `ConfirmDialog.vue`，掛在 `App.vue`），不要用 `window.confirm`，也不要自己做「再按一次確定」。只刪表單裡還沒儲存的一列不用確認。
-- **指標旁放說明**：股市指標名稱旁用 `src/components/HelpTip.vue`（圓圈「?」），說明文字集中在 `src/lib/marketGlossary.ts`；新增指標時一起補說明。
-- **彈窗開著時背景不能捲動**：彈窗元件呼叫 `src/lib/useScrollLock.ts` 的 `useScrollLock()`。
-- **按鈕字級**：按鈕統一 `text-[14px]`。`style.css` 的全域元素樣式一律放進 `@layer base`，否則會蓋掉 Tailwind 的 class。
+- **`immediate` 的 watch 放在它會用到的 ref 後面**：`watch(..., { immediate: true })` 在建立元件當下就執行，callback 呼叫的函式裡用到、但寫在後面才宣告的 `const` 會丟 `Cannot access … before initialization`（型別檢查抓不到，網址帶著 id 進頁面才會爆）。
+- **畫面慣例在 `ui-check`**：骨架、更新按鈕的冷卻、回到頂端、刪除確認、指標說明、彈窗捲動鎖定、按鈕字級等 UI 規則都寫在 `.claude/skills/ui-check/SKILL.md` 的「本專案的 UI 慣例」；寫畫面前先看，交付前照它自檢。
 
 ## 部署
 

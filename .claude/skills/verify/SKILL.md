@@ -33,6 +33,8 @@ description: 驗證前端改動。改完 src/ 的程式後、要回報「做完�
 
 4. 若改到型別或 API 呼叫，用 `api-type-sync` agent 對照 `../Tbackend` 的實際回傳。
 
+5. 若改到畫面或互動（`src/pages/`、`src/components/`），照 `ui-check` 逐類自檢，並在回報裡附上它要求的「已檢查／這裡無法驗證」。
+
 ## 不要做的事
 
 - 不要為了驗證就啟動 dev server；`npm run build` 能發現的問題就用它。

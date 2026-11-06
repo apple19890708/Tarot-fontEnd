@@ -87,6 +87,12 @@ body::after {
   min-height: 100vh;
 }
 
-select option {
-  color: #111827;
+/* 下拉選單的選項：網站是 color-scheme: dark，瀏覽器會把展開的清單畫成深底，
+   選項要配淺字（之前寫死深灰字，深底上完全看不見）。放在 base layer，元件上的 class 仍可覆蓋 */
+@layer base {
+  select option,
+  select optgroup {
+    background-color: #0f1526;
+    color: #e7e5e4;
+  }
 }

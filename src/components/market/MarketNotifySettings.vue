@@ -176,7 +176,8 @@ function dateText(value: string | null) {
   return value ? new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value)) : ''
 }
 
-const BUTTON = 'shrink-0 cursor-pointer border-2 px-3 py-1.5 text-[14px] transition disabled:opacity-60 font-pixel'
+const BUTTON =
+  'shrink-0 cursor-pointer touch-manipulation border-2 px-3 py-1.5 text-[14px] transition active:translate-x-[2px] active:translate-y-[2px] active:brightness-125 disabled:cursor-not-allowed disabled:opacity-60 disabled:translate-x-0 disabled:translate-y-0 font-pixel'
 const PRIMARY = 'border-amber-200/40 bg-amber-200/15 text-amber-50 hover:bg-amber-200/25'
 const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
 </script>

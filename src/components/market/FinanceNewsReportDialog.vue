@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { useScrollLock } from '../../lib/useScrollLock'
 import StockAiText from './StockAiText.vue'
@@ -31,6 +31,23 @@ function dateTime(iso: string) {
     hour12: false,
   }).format(new Date(iso))
 }
+
+// 點文中的引用上標：展開「引用的新聞」，捲到那一則並亮一下
+const citeList = ref<HTMLDetailsElement | null>(null)
+const highlighted = ref(0)
+let highlightTimer: ReturnType<typeof setTimeout> | null = null
+async function showCited(index: number) {
+  if (!citeList.value) return
+  citeList.value.open = true
+  await nextTick()
+  citeList.value.querySelector(`[data-ref="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  highlighted.value = index
+  if (highlightTimer) clearTimeout(highlightTimer)
+  highlightTimer = setTimeout(() => (highlighted.value = 0), 2000)
+}
+onBeforeUnmount(() => {
+  if (highlightTimer) clearTimeout(highlightTimer)
+})
 
 function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') emit('close')
@@ -82,17 +99,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           <p v-if="status === 'streaming' && !text" class="text-sm text-stone-400">AI 正在讀新聞，通常要 30 秒到 1 分鐘…</p>
           <p v-if="status === 'streaming'" class="mb-3 text-[11px] text-stone-500">關閉視窗不會停止分析，完成後可以從分頁上再打開。</p>
 
-          <StockAiText v-if="text" :text="text" />
+          <StockAiText v-if="text" :text="text" citations @cite="showCited" />
 
           <p v-if="status === 'stopped'" class="mt-4 text-xs text-amber-100/80">已停止，這份分析沒有完成，不會存進紀錄，但會算進今天的次數。</p>
           <p v-if="status === 'error' && error" class="mt-4 border-2 border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">{{ error }}</p>
           <p v-if="status === 'done' && saveFailed" class="mt-4 text-xs text-rose-200">這份分析沒有存進紀錄，重新整理後就看不到了。</p>
 
           <!-- AI 引用的 [n] 對應的新聞 -->
-          <details v-if="news.length && status !== 'streaming'" class="mt-6 border-t border-white/10 pt-4 text-xs">
+          <details v-if="news.length && status !== 'streaming'" ref="citeList" class="mt-6 border-t border-white/10 pt-4 text-xs">
             <summary class="cursor-pointer text-stone-300 hover:text-stone-100">引用的新聞（{{ news.length }}）</summary>
             <ol class="mt-2 space-y-1.5 pl-1">
-              <li v-for="(cited, index) in news" :key="index" class="flex gap-2 leading-5">
+              <li
+                v-for="(cited, index) in news"
+                :key="index"
+                :data-ref="index + 1"
+                class="flex gap-2 px-1 leading-5 transition-colors duration-500"
+                :class="highlighted === index + 1 ? 'bg-sky-300/15' : ''"
+              >
                 <span class="shrink-0 tabular-nums text-stone-500">[{{ index + 1 }}]</span>
                 <span class="min-w-0">
                   <a :href="cited.url" target="_blank" rel="noopener noreferrer" class="text-stone-200 underline-offset-2 hover:text-amber-100 hover:underline">{{ cited.title }}</a>

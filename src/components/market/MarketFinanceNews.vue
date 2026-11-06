@@ -1,22 +1,15 @@
 <script setup lang="ts">
 import { computed, onActivated, onBeforeUnmount, onMounted, ref } from 'vue'
-import { confirmDialog } from '../../lib/confirm'
 
-import {
-  deleteFinanceNewsAnalysis,
-  fetchFinanceNews,
-  fetchFinanceNewsAnalyses,
-  fetchFinanceNewsAnalysis,
-  streamFinanceNewsAnalysis,
-} from '../../lib/api'
+import { fetchFinanceNews, fetchFinanceNewsAnalysis, streamFinanceNewsAnalysis } from '../../lib/api'
 import { canUseAi } from '../../lib/auth'
 import { useCooldown } from '../../lib/useCooldown'
+import RefreshButton from '../RefreshButton.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import FinanceNewsDialog from './FinanceNewsDialog.vue'
 import FinanceNewsReportDialog from './FinanceNewsReportDialog.vue'
 import type {
   FinanceNewsAnalysisDetail,
-  FinanceNewsAnalysisSummary,
   FinanceNewsItem,
   FinanceNewsScopeRegion,
   FinanceNewsView,
@@ -40,7 +33,8 @@ async function load() {
     view.value = result
     quota.value = result.quota
     // 沒有正在顯示的分析時，先帶出最近一份
-    if (aiStatus.value === 'idle' && !shown.value && result.latest) shown.value = result.latest
+    // 這裡只顯示今天的分析；以前的在「我的紀錄 › 財經新聞分析」
+    if (aiStatus.value === 'idle' && !shown.value && result.latest && isTodayInTaipei(result.latest.createdAt)) shown.value = result.latest
     status.value = 'ready'
   } catch (err) {
     if (id !== requestId) return
@@ -51,7 +45,17 @@ async function load() {
 
 // 手動更新：按完 30 秒內不能再按（後端 15 分鐘才會重抓來源）
 const cooldown = useCooldown(30, 'finance-news-refresh')
-const refresh = () => cooldown.run(load)
+// 已經有資料時 load() 不會進入 loading（畫面不換成骨架），按鈕要自己知道「更新中」
+const refreshing = ref(false)
+const refresh = () =>
+  cooldown.run(async () => {
+    refreshing.value = true
+    try {
+      await load()
+    } finally {
+      refreshing.value = false
+    }
+  })
 
 onMounted(load)
 // 放在 KeepAlive 裡：切回這個分頁時更新
@@ -242,9 +246,6 @@ async function runAi() {
       } catch {
         shown.value = { ...result.analysis, text: aiText.value, news: [] }
       }
-      // 歷史清單要重新讀：展開著就馬上讀，收著就等下次展開
-      history.value = null
-      if (historyOpen.value) void loadHistory()
     }
     aiStatus.value = 'done'
   } catch (err) {
@@ -276,66 +277,11 @@ async function refreshQuota() {
   }
 }
 
-// ---- 過去的分析 ----
-const history = ref<FinanceNewsAnalysisSummary[] | null>(null)
-const historyOpen = ref(false)
-const historyStatus = ref<'idle' | 'loading' | 'error'>('idle')
-const pickingId = ref('')
-const historyError = ref('')
-
-async function toggleHistory() {
-  historyOpen.value = !historyOpen.value
-  if (historyOpen.value && !history.value) await loadHistory()
-}
-
-async function loadHistory() {
-  historyStatus.value = 'loading'
-  historyError.value = ''
-  try {
-    history.value = (await fetchFinanceNewsAnalyses()).analyses
-    historyStatus.value = 'idle'
-  } catch (err) {
-    historyError.value = err instanceof Error ? err.message : '讀不到過去的分析。'
-    historyStatus.value = 'error'
-  }
-}
-
-let pickId = 0
-async function pick(id: string) {
-  if (aiStatus.value === 'streaming') return
-  const ticket = (pickId += 1)
-  pickingId.value = id
-  historyError.value = ''
-  try {
-    const detail = (await fetchFinanceNewsAnalysis(id)).analysis
-    if (ticket !== pickId) return
-    shown.value = detail
-    aiStatus.value = 'idle'
-    reportOpen.value = true
-    aiText.value = ''
-    aiError.value = ''
-  } catch (err) {
-    if (ticket !== pickId) return
-    historyError.value = err instanceof Error ? err.message : '讀不到這份分析。'
-  } finally {
-    if (ticket === pickId) pickingId.value = ''
-  }
-}
-
-async function remove(id: string) {
-  const ok = await confirmDialog({ title: '刪除分析', message: '確定刪除這份 AI 影響分析？刪除後無法復原。', confirmText: '刪除', danger: true })
-  if (!ok) return
-  historyError.value = ''
-  try {
-    await deleteFinanceNewsAnalysis(id)
-    history.value = history.value?.filter((item) => item.id !== id) ?? null
-    if (shown.value?.id === id) {
-      shown.value = null
-      reportOpen.value = false
-    }
-  } catch (err) {
-    historyError.value = err instanceof Error ? err.message : '刪除失敗。'
-  }
+// 台北時間的「今天」（股市頁只留今天的分析）
+const taipeiDate = (value: string | number) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
+function isTodayInTaipei(iso: string) {
+  return taipeiDate(iso) === taipeiDate(Date.now())
 }
 </script>
 
@@ -349,14 +295,7 @@ async function remove(id: string) {
           國內外最近 3 天的財經新聞（CNBC、MarketWatch、鉅亨網、Yahoo 股市），點新聞看重點摘要、提及個股與可能影響族群，裡面有原文連結。主題標籤是關鍵字比對，只用來篩選。
         </p>
       </div>
-      <button
-        type="button"
-        class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[14px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
-        :disabled="status === 'loading' || cooldown.active.value"
-        @click="refresh"
-      >
-        {{ status === 'loading' ? '更新中…' : cooldown.active.value ? `更新（${cooldown.remaining.value}）` : '更新' }}
-      </button>
+      <RefreshButton label="更新" :loading="status === 'loading' || refreshing" :failed="!!error" :cooldown="cooldown" @click="refresh" />
     </div>
 
     <!-- 載入中：區域切換、主題標籤、AI 區塊、新聞列表 -->
@@ -379,14 +318,7 @@ async function remove(id: string) {
 
     <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
       <span>{{ error }}</span>
-      <button
-        type="button"
-        class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[14px] disabled:opacity-60 font-pixel"
-        :disabled="cooldown.active.value"
-        @click="refresh"
-      >
-        {{ cooldown.active.value ? `重試（${cooldown.remaining.value}）` : '重試' }}
-      </button>
+      <RefreshButton label="重試" loading-label="重試中…" tone="danger" :loading="refreshing" :failed="!!error" :cooldown="cooldown" @click="refresh" />
     </div>
 
     <template v-else-if="view">
@@ -469,7 +401,7 @@ async function remove(id: string) {
         <p v-if="canUseAi && usedUp && aiStatus !== 'streaming'" class="mt-3 text-xs text-amber-100/80">今天的新聞 AI 分析已用完，明天再試。</p>
         <p v-if="canUseAi && scopeCount === 0" class="mt-3 text-xs text-stone-400">這個範圍沒有新聞，換個區域或主題再分析。</p>
         <!-- 還沒開始產生就失敗（沒有權限、冷卻中、今天用完）時，原因顯示在這裡 -->
-        <p v-if="aiError && !aiText" class="mt-3 border-2 border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">{{ aiError }}</p>
+        <p v-if="aiError" class="mt-3 border-2 border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">{{ aiError }}</p>
 
         <!-- 報告在彈窗裡看，這裡只放一列摘要 -->
         <div
@@ -480,7 +412,7 @@ async function remove(id: string) {
             <template v-if="aiStatus === 'streaming'">分析中…{{ aiText ? `已收到 ${aiText.length} 字` : 'AI 正在讀新聞' }}</template>
             <template v-else-if="aiStatus === 'stopped'">已停止的分析（未完成，沒有存進紀錄）</template>
             <template v-else-if="aiStatus === 'error' && aiText">中途失敗的分析（未完成）</template>
-            <template v-else-if="shown">最近一份：{{ dateTime(shown.createdAt) }} · {{ scopeLabel(shown) }} · {{ shown.newsCount }} 則新聞</template>
+            <template v-else-if="shown">今天最新：{{ dateTime(shown.createdAt) }} · {{ scopeLabel(shown) }} · {{ shown.newsCount }} 則新聞</template>
             <template v-else>剛完成的分析（沒有存進紀錄）</template>
           </span>
           <button
@@ -492,37 +424,15 @@ async function remove(id: string) {
           </button>
         </div>
 
-        <!-- 過去的分析 -->
-        <div class="mt-4 border-t border-white/10 pt-3 text-xs">
-          <button type="button" class="cursor-pointer text-stone-300 hover:text-stone-100" :aria-expanded="historyOpen" @click="toggleHistory">
-            {{ historyOpen ? '▾' : '▸' }} 我過去的分析
-          </button>
-          <div v-if="historyOpen" class="mt-2 space-y-1.5">
-            <template v-if="historyStatus === 'loading'">
-              <SkeletonBlock v-for="n in 3" :key="n" class="h-8 w-full rounded-none" />
-            </template>
-            <p v-else-if="history && !history.length" class="text-stone-500">還沒有分析紀錄。按上面的「分析影響」產生第一份。</p>
-            <ul v-else-if="history" class="space-y-1.5">
-              <li
-                v-for="item in history"
-                :key="item.id"
-                class="flex items-center justify-between gap-2 border px-2.5 py-1.5"
-                :class="shown?.id === item.id ? 'border-amber-200/40 bg-amber-200/10' : 'border-white/10'"
-              >
-                <button
-                  type="button"
-                  class="min-w-0 flex-1 cursor-pointer truncate text-left text-stone-200 hover:text-amber-100 disabled:opacity-60"
-                  :disabled="aiStatus === 'streaming' || pickingId === item.id"
-                  @click="pick(item.id)"
-                >
-                  {{ dateTime(item.createdAt) }} · {{ scopeLabel(item) }} · {{ item.newsCount }} 則{{ pickingId === item.id ? ' · 讀取中…' : '' }}
-                </button>
-                <button type="button" class="shrink-0 cursor-pointer text-stone-500 hover:text-rose-200" @click="remove(item.id)">刪除</button>
-              </li>
-            </ul>
-            <p v-if="historyError" class="text-rose-200">{{ historyError }}</p>
-          </div>
-        </div>
+        <!-- 以前的分析放在「我的紀錄」，這裡只留今天最新的一份 -->
+        <p class="mt-4 border-t border-white/10 pt-3 text-xs text-stone-400">
+          <template v-if="!shown && aiStatus === 'idle'">今天還沒有分析。</template>
+          以前的分析在
+          <router-link
+            :to="{ name: 'history', query: { tab: 'news' } }"
+            class="text-amber-100 underline underline-offset-2 hover:text-amber-50"
+          >我的紀錄 › 財經新聞分析</router-link>。
+        </p>
 
         <p class="mt-3 text-[11px] text-stone-500">AI 只根據上面的新聞標題與摘要撰寫，族群與個股是依產業關聯推估，僅供參考，不是投資建議。</p>
       </section>

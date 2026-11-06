@@ -8,6 +8,7 @@ import MarketChips from './market/MarketChips.vue'
 import MarketPriceChart from './market/MarketPriceChart.vue'
 import MarketResearch from './market/MarketResearch.vue'
 import { useCooldown } from '../lib/useCooldown'
+import RefreshButton from './RefreshButton.vue'
 import SkeletonBlock from './SkeletonBlock.vue'
 import type { MarketItem, MarketSignal, MarketSnapshot, MarketStatus } from '../types'
 
@@ -120,15 +121,15 @@ function indicatorRows(item: MarketItem) {
           {{ isSaved ? '當時查詢於' : '查詢時間' }} {{ asOfText }}
         </p>
       </div>
-      <button
+      <RefreshButton
         v-if="!hideRefresh"
-        class="cursor-pointer border-2 border-white/15 bg-white/5 px-3 py-1 text-[14px] text-stone-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
-        type="button"
-        :disabled="status === 'loading' || cooldown.active.value"
+        :label="isSaved ? '查詢最新報價' : '更新報價'"
+        loading-label="查詢中…"
+        :loading="status === 'loading'"
+        :failed="status === 'error'"
+        :cooldown="cooldown"
         @click="refresh"
-      >
-        {{ status === 'loading' ? '查詢中…' : (isSaved ? '查詢最新報價' : '更新報價') + (cooldown.active.value ? `（${cooldown.remaining.value}）` : '') }}
-      </button>
+      />
     </div>
 
     <div v-if="status === 'loading' && !snapshot" class="space-y-3" aria-live="polite">

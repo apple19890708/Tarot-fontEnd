@@ -231,7 +231,7 @@ const CHECK = 'h-3.5 w-3.5 accent-amber-300'
       <div class="flex flex-wrap gap-2">
         <button
           type="submit"
-          class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-4 py-2 text-[14px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
+          class="cursor-pointer touch-manipulation border-2 border-amber-200/40 bg-amber-200/15 px-4 py-2 text-[14px] text-amber-50 shadow-[3px_3px_0_rgba(0,0,0,0.55)] transition hover:bg-amber-200/25 active:translate-x-[3px] active:translate-y-[3px] active:bg-amber-200/30 active:shadow-none disabled:translate-x-[3px] disabled:translate-y-[3px] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none font-pixel"
           :disabled="busy"
         >
           {{ status === 'loading' ? '篩選中…' : cooldown.active.value ? `開始篩選（${cooldown.remaining.value}）` : '開始篩選' }}

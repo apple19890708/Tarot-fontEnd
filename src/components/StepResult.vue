@@ -13,7 +13,7 @@ import ReadingAnalysisPanel from './ReadingAnalysisPanel.vue'
 import SkeletonBlock from './SkeletonBlock.vue'
 import SpreadLayout from './SpreadLayout.vue'
 import { cardImageUrl } from '../lib/cardStyle'
-import { prefersReducedMotion } from '../lib/motion'
+import { prefersReducedMotion, smoothScrollTo } from '../lib/motion'
 import { provideSectionNav, type SectionNavItem } from '../lib/sectionNav'
 import type { Element, MarketSnapshot, MarketStatus, NarrationStatus, ReadingResponse, SaveStatus, Spread } from '../types'
 
@@ -77,7 +77,7 @@ function scrollToNarrationTop() {
   const el = narrationEl.value
   if (!el) return
   const top = el.getBoundingClientRect().top + window.scrollY - 16
-  window.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+  smoothScrollTo(top)
 }
 
 // 讀到一半收合時，區塊開頭可能已經捲出畫面上方；收起來後把畫面帶回開頭，不會停在不相干的地方
@@ -94,7 +94,7 @@ function regenerateNarration() {
   const el = narrationEl.value
   if (el) {
     const top = el.getBoundingClientRect().top + window.scrollY - 16
-    window.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+    smoothScrollTo(top)
   }
   emit('requestNarration')
 }
@@ -166,7 +166,7 @@ async function scrollToSection(el: HTMLElement) {
   }
   // 頂部導覽列不是固定的，只留一點呼吸空間
   const top = el.getBoundingClientRect().top + window.scrollY - 16
-  window.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+  smoothScrollTo(top)
 }
 
 function collectSections(): SectionNavItem[] {

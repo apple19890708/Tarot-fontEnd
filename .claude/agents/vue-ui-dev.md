@@ -26,3 +26,4 @@ tools: Read, Edit, Write, Glob, Grep, Bash
 ## 收尾
 
 一律用 `npm run build`（vue-tsc 型別檢查＋打包）驗證，不要啟動 dev server。
+交付前照 `.claude/skills/ui-check/SKILL.md` 逐類自檢，回報附上「已檢查／這裡無法驗證」。

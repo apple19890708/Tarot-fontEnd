@@ -5,9 +5,12 @@ import { confirmDialog } from '../../lib/confirm'
 
 import { deleteStockAnalysis, fetchStockAnalyses, fetchStockAnalysisRecord, UnauthorizedError } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
-import { prefersReducedMotion } from '../../lib/motion'
+import { smoothScrollTo } from '../../lib/motion'
 import { provideSectionNav, type SectionNavItem } from '../../lib/sectionNav'
 import BackToTop from '../BackToTop.vue'
+import RecordIndex, { type RecordIndexItem } from '../RecordIndex.vue'
+import RecordListShell from '../RecordListShell.vue'
+import SelectField from '../SelectField.vue'
 import MarketPanel from '../MarketPanel.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import StockAiText from './StockAiText.vue'
@@ -28,33 +31,60 @@ const detail = ref<StockAnalysisRecord | null>(null)
 const detailLoading = ref(false)
 const detailError = ref('')
 
-// 依股票篩選（空字串＝全部）
-const stockFilter = ref('')
-const keyOf = (item: StockAnalysisSummary) => item.target.symbol || `${item.target.exchange}_${item.target.code}`
 const idOf = (item: StockAnalysisSummary) =>
   item.target.market === 'tw' && item.target.kind === 'stock' ? item.target.code : item.target.symbol || item.target.code
 
+// 清單（和塔羅紀錄同一套 RecordIndex）：搜尋股票名稱或代號，篩選市場
+const FILTERS = [
+  { value: 'all', label: '全部' },
+  { value: 'tw', label: '台股' },
+  { value: 'us', label: '美股' },
+] as const
+const keyword = ref('')
+const marketFilter = ref<string>('all')
+const indexOpen = ref(false)
+
+// 依股票篩選（下拉選單，空字串＝全部）：選項跟著市場篩選，每檔後面帶筆數
+const stockFilter = ref('')
+const stockKey = (item: StockAnalysisSummary) => `${item.target.market}:${item.target.symbol || item.target.code}`
+const inMarket = computed(() => list.value.filter((item) => marketFilter.value === 'all' || item.target.market === marketFilter.value))
 const stockOptions = computed(() => {
-  const seen = new Map<string, string>()
-  for (const item of list.value) if (!seen.has(keyOf(item))) seen.set(keyOf(item), `${item.target.name} ${idOf(item) ?? ''}`.trim())
-  return [...seen].map(([value, label]) => ({ value, label }))
+  const options = new Map<string, { value: string; label: string; count: number }>()
+  for (const item of inMarket.value) {
+    const key = stockKey(item)
+    const option = options.get(key)
+    if (option) option.count += 1
+    else options.set(key, { value: key, label: `${item.target.name} ${idOf(item) ?? ''}`.trim(), count: 1 })
+  }
+  return [...options.values()]
+})
+// 下拉的選項：第一個是全部
+const stockSelectOptions = computed(() => [
+  { value: '', label: `全部股票（${inMarket.value.length} 筆）` },
+  ...stockOptions.value.map((o) => ({ value: o.value, label: `${o.label}（${o.count} 筆）` })),
+])
+// 換市場後選的股票不在選項裡了，就回到全部
+watch(stockOptions, (options) => {
+  if (stockFilter.value && !options.some((o) => o.value === stockFilter.value)) stockFilter.value = ''
 })
 
-// 依月份分組，新的在前（後端已排好）
-const groups = computed(() => {
-  const result: { key: string; label: string; items: StockAnalysisSummary[] }[] = []
-  for (const item of list.value) {
-    if (stockFilter.value && keyOf(item) !== stockFilter.value) continue
-    const date = new Date(item.createdAt)
-    const key = `${date.getFullYear()}-${date.getMonth()}`
-    let group = result.find((g) => g.key === key)
-    if (!group) {
-      group = { key, label: `${date.getFullYear()} 年 ${date.getMonth() + 1} 月`, items: [] }
-      result.push(group)
-    }
-    group.items.push(item)
-  }
-  return result
+const indexItems = computed<RecordIndexItem[]>(() => {
+  const term = keyword.value.trim().toLowerCase()
+  return inMarket.value
+    .filter((item) => !stockFilter.value || stockKey(item) === stockFilter.value)
+    .filter((item) => !term || `${item.target.name} ${idOf(item) ?? ''} ${item.target.symbol ?? ''}`.toLowerCase().includes(term))
+    .map((item) => {
+      const pct = item.quote.changePct
+      return {
+        id: item.id,
+        title: `${item.target.name} ${idOf(item) ?? ''}`.trim(),
+        createdAt: item.createdAt,
+        meta: [
+          { text: formatNumber(item.quote.price) },
+          { text: formatSigned(pct, '%'), tone: pct ? (pct > 0 ? 'up' : 'down') : undefined },
+        ],
+      }
+    })
 })
 
 let listRequestId = 0
@@ -75,6 +105,10 @@ async function loadList() {
     listStatus.value = 'error'
   }
 }
+
+// 刪除的狀態要在 loadDetail 之前宣告：下面的 watch 是 immediate，網址帶著 id 時建立元件當下就會呼叫 loadDetail
+const deletingId = ref('')
+const deleteError = ref('')
 
 let detailRequestId = 0
 async function loadDetail(id: string) {
@@ -109,14 +143,13 @@ watch(
 )
 
 function select(id: string) {
+  indexOpen.value = false
   if (id === selectedId.value) return
   router.replace({ query: { ...route.query, tab: 'stock', id } })
-  window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+  smoothScrollTo(0)
 }
 
 // ---- 刪除：用共用的確認彈窗確認 ----
-const deletingId = ref('')
-const deleteError = ref('')
 async function confirmDelete(id: string) {
   const ok = await confirmDialog({ title: '刪除股票分析', message: '確定要刪除這筆 AI 分析紀錄嗎？刪除後無法復原。', confirmText: '刪除', danger: true })
   if (!ok) return
@@ -154,7 +187,7 @@ async function scrollToEl(el: HTMLElement) {
     await nextTick()
   }
   const top = el.getBoundingClientRect().top + window.scrollY - 16
-  window.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+  smoothScrollTo(top)
 }
 
 function collectSections(): SectionNavItem[] {
@@ -208,67 +241,51 @@ onMounted(loadList)
     </button>
   </div>
 
-  <div v-else class="flex min-w-0 flex-col items-start gap-6 lg:flex-row lg:gap-0">
-    <!-- 左欄：清單（手機在上面，桌機黏在左邊） -->
-    <aside
-      class="w-full bg-[#161d33] p-4 lg:sticky lg:top-5 lg:max-h-[calc(100vh-2.5rem)] lg:w-72 lg:shrink-0 lg:overflow-y-auto lg:border-4 lg:border-r-0 lg:border-[#3b2618] lg:shadow-[6px_6px_0_rgba(0,0,0,0.45)]"
-      aria-label="股票分析清單"
-    >
-      <p class="mb-3 font-pixel text-[12px] tracking-[0.2em] text-amber-200">分析清單</p>
-
+  <div v-else class="flex min-w-0 items-start gap-6 lg:gap-0">
+    <!-- 左欄：共用外框（桌機可收合、手機滿版抽屜），清單和塔羅紀錄同一套 -->
+    <RecordListShell v-model:open="indexOpen" label="分析清單" :count="list.length" collapse-key="stock_history_index_collapsed">
+      <!-- 骨架照著真正的列排：標題一行、底下一行資訊 -->
       <div v-if="listStatus === 'loading'" class="space-y-2">
-        <div v-for="n in 3" :key="n" class="border-2 border-white/10 bg-white/5 px-3 py-2.5">
-          <SkeletonBlock class="h-4 w-3/5" />
-          <SkeletonBlock class="mt-2 h-3 w-28" />
+        <div v-for="n in 4" :key="n" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+          <SkeletonBlock class="h-4 w-4/5 rounded-full" />
+          <SkeletonBlock class="mt-2.5 h-3 w-32 rounded-full" />
         </div>
       </div>
-
-      <template v-else-if="list.length">
-        <select
-          v-if="stockOptions.length > 1"
-          v-model="stockFilter"
-          class="mb-3 w-full cursor-pointer border-2 border-[#f1e7cf]/20 bg-[#0f1526] px-2 py-1.5 text-xs text-stone-200 outline-none focus:border-amber-200/50"
-          aria-label="依股票篩選"
-        >
-          <option value="">全部股票（{{ list.length }} 筆）</option>
-          <option v-for="option in stockOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-        </select>
-
-        <div class="max-h-[45vh] space-y-4 overflow-y-auto pr-1 [scrollbar-color:#3b2618_transparent] [scrollbar-width:thin] lg:max-h-none">
-          <div v-for="group in groups" :key="group.key">
-            <p class="mb-2 border-b-2 border-dashed border-[#f1e7cf]/15 pb-1 font-pixel text-[12px] tracking-[0.2em] text-amber-200/90">{{ group.label }}</p>
-            <ul class="space-y-1.5">
-              <li v-for="item in group.items" :key="item.id">
-                <button
-                  type="button"
-                  class="w-full cursor-pointer border-2 border-l-[6px] px-3 py-2 text-left transition"
-                  :class="item.id === selectedId
-                    ? 'border-[#3b2618] border-l-[#a8322a] bg-[#f1e7cf] text-[#2a1a10]'
-                    : 'border-transparent border-l-[#3d5a80] bg-white/5 text-stone-200 hover:bg-white/10'"
-                  :aria-current="item.id === selectedId ? 'true' : undefined"
-                  @click="select(item.id)"
-                >
-                  <span class="flex items-baseline justify-between gap-2">
-                    <span class="truncate text-sm font-medium">{{ item.target.name }}<span class="ml-1 text-xs opacity-60">{{ idOf(item) }}</span></span>
-                    <span class="shrink-0 text-xs tabular-nums">{{ formatNumber(item.quote.price) }}</span>
-                  </span>
-                  <span class="mt-0.5 flex items-baseline justify-between gap-2 text-[11px]">
-                    <span class="opacity-60">{{ formatDate(item.createdAt) }}</span>
-                    <span class="tabular-nums" :class="item.id === selectedId ? '' : trendClass(item.quote.changePct)">{{ formatSigned(item.quote.changePct, '%') }}</span>
-                  </span>
-                </button>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </template>
-
-      <p v-else class="px-1 text-sm text-stone-400">還沒有股票分析</p>
-    </aside>
+      <p v-else-if="!list.length" class="px-1 text-sm text-stone-400">還沒有股票分析</p>
+      <RecordIndex
+        v-else
+        v-model:keyword="keyword"
+        v-model:filter="marketFilter"
+        :items="indexItems"
+        :total="list.length"
+        :selected-id="selectedId"
+        placeholder="搜尋股票名稱或代號"
+        :filter-options="FILTERS"
+        list-label="股票分析紀錄"
+        :extra-condition="stockFilter !== ''"
+        @select="select"
+        @clear="stockFilter = ''"
+      >
+        <!-- 依股票：只有兩檔以上才需要；和搜尋框同款的和紙樣式 -->
+        <template v-if="stockOptions.length > 1" #controls>
+          <SelectField v-model="stockFilter" :options="stockSelectOptions" label="依股票篩選" variant="washi" hide-label />
+        </template>
+      </RecordIndex>
+    </RecordListShell>
 
     <!-- 右欄：和塔羅紀錄一樣的和紙菜單 -->
     <section class="w-full min-w-0 flex-1 border-4 border-[#3b2618] bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px] [image-rendering:pixelated] p-3 shadow-[6px_6px_0_rgba(0,0,0,0.45)] sm:p-5">
       <div class="space-y-4 border-2 border-[#3b2618] bg-[#0f1526] p-3 [image-rendering:auto] sm:p-5">
+        <!-- 手機：清單是滿版抽屜，從這裡打開 -->
+        <button
+          v-if="listStatus === 'ready' && list.length"
+          type="button"
+          class="w-full cursor-pointer rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-stone-200 transition hover:bg-white/10 active:bg-white/15 lg:hidden"
+          @click="indexOpen = true"
+        >
+          開啟分析清單（共 {{ list.length }} 筆）
+        </button>
+
         <div v-if="listStatus === 'ready' && !list.length" class="border-2 border-dashed border-white/15 bg-black/10 px-5 py-14 text-center">
           <p class="text-base text-stone-200">還沒有股票分析紀錄</p>
           <p class="mt-2 text-sm leading-6 text-stone-400">

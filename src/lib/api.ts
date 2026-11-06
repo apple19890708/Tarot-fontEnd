@@ -58,6 +58,57 @@ export function authHeaders(): Record<string, string> {
 // token 過期或被撤銷時後端回 401：清掉本機狀態，不要停在半登入的畫面
 export class UnauthorizedError extends Error {}
 
+// AI 串流（NDJSON）太久沒收到任何資料：連線多半已經斷了（伺服器重啟、Render 重新部署、手機切到背景、網路切換）
+export class StreamStalledError extends Error {}
+
+// 新版後端串流途中每 15 秒送一次 {"type":"ping"}：收過 ping 之後 45 秒沒資料就當成斷線。
+// 舊版後端沒有心跳，AI 推理時可能一兩分鐘沒有文字，放寬到 150 秒，避免誤判
+const STREAM_IDLE_MS = 45_000
+const STREAM_IDLE_LEGACY_MS = 150_000
+
+// 逐行讀 NDJSON 事件（不含 ping）；連線結束、太久沒資料都丟錯誤，呼叫端在收到 done 時 return 結束
+async function* ndjsonEvents<T>(body: ReadableStream<Uint8Array>, label: string): AsyncGenerator<T> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let sawPing = false
+  try {
+    for (;;) {
+      const idleMs = sawPing ? STREAM_IDLE_MS : STREAM_IDLE_LEGACY_MS
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const stalled = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new StreamStalledError(`${label}的連線中斷了（超過 ${idleMs / 1000} 秒沒有收到資料），請再試一次。`)),
+          idleMs,
+        )
+      })
+      let chunk: ReadableStreamReadResult<Uint8Array>
+      try {
+        chunk = await Promise.race([reader.read(), stalled])
+      } finally {
+        clearTimeout(timer)
+      }
+      const { done, value } = chunk
+      buffer += decoder.decode(value, { stream: !done })
+      const lines = buffer.split('\n')
+      buffer = done ? '' : (lines.pop() ?? '')
+      for (const line of lines) {
+        if (!line.trim()) continue
+        const event = JSON.parse(line) as { type: string }
+        if (event.type === 'ping') {
+          sawPing = true
+          continue
+        }
+        yield event as T
+      }
+      if (done) throw new Error(`${label}連線意外中斷，請再試一次。`)
+    }
+  } finally {
+    // 正常結束、丟錯誤或呼叫端提早 return 都把連線關掉（卡住時也不會一直佔著）
+    reader.cancel().catch(() => {})
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
@@ -333,38 +384,20 @@ async function streamAnalysis<A>(
     throw new Error(payload?.message || 'AI 分析暫時無法使用')
   }
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  for (;;) {
-    const { done, value } = await reader.read()
-    buffer += decoder.decode(value, { stream: !done })
-
-    const lines = buffer.split('\n')
-    buffer = done ? '' : (lines.pop() ?? '')
-
-    for (const line of lines) {
-      if (!line.trim()) {
-        continue
-      }
-      const event = JSON.parse(line) as
-        | { type: 'delta'; text: string }
-        | { type: 'done'; model: string; analysis: A | null }
-        | { type: 'error'; message: string }
-      if (event.type === 'delta') {
-        options.onDelta(event.text)
-      } else if (event.type === 'done') {
-        return { model: event.model, analysis: event.analysis }
-      } else {
-        throw new Error(event.message)
-      }
-    }
-
-    if (done) {
-      throw new Error('AI 分析連線意外中斷')
+  type AnalysisEvent =
+    | { type: 'delta'; text: string }
+    | { type: 'done'; model: string; analysis: A | null }
+    | { type: 'error'; message: string }
+  for await (const event of ndjsonEvents<AnalysisEvent>(response.body, 'AI 分析')) {
+    if (event.type === 'delta') {
+      options.onDelta(event.text)
+    } else if (event.type === 'done') {
+      return { model: event.model, analysis: event.analysis }
+    } else if (event.type === 'error') {
+      throw new Error(event.message)
     }
   }
+  throw new Error('AI 分析連線意外中斷，請再試一次。')
 }
 
 // ===== 財經新聞（v17 規格 G）=====
@@ -552,36 +585,17 @@ export async function streamNarration(
     throw new Error(payload?.message || 'AI 解讀暫時無法使用')
   }
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  for (;;) {
-    const { done, value } = await reader.read()
-    buffer += decoder.decode(value, { stream: !done })
-
-    const lines = buffer.split('\n')
-    buffer = done ? '' : (lines.pop() ?? '')
-
-    for (const line of lines) {
-      if (!line.trim()) {
-        continue
-      }
-      const event = JSON.parse(line) as NarrationStreamEvent
-      if (event.type === 'delta') {
-        options.onDelta(event.text)
-      } else if (event.type === 'market') {
-        options.onMarket?.(event.snapshot)
-      } else if (event.type === 'done') {
-        // 舊版後端沒有 saved，當成不知道（null），畫面就不顯示存檔結果
-        return { model: event.model, saved: event.saved ?? null }
-      } else {
-        throw new Error(event.message)
-      }
-    }
-
-    if (done) {
-      throw new Error('AI 解讀連線意外中斷')
+  for await (const event of ndjsonEvents<NarrationStreamEvent>(response.body, 'AI 解讀')) {
+    if (event.type === 'delta') {
+      options.onDelta(event.text)
+    } else if (event.type === 'market') {
+      options.onMarket?.(event.snapshot)
+    } else if (event.type === 'done') {
+      // 舊版後端沒有 saved，當成不知道（null），畫面就不顯示存檔結果
+      return { model: event.model, saved: event.saved ?? null }
+    } else if (event.type === 'error') {
+      throw new Error(event.message)
     }
   }
+  throw new Error('AI 解讀連線意外中斷，請再試一次。')
 }
