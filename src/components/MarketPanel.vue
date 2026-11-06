@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import HelpTip from './HelpTip.vue'
+import { signalGlossaryKeys } from '../lib/marketGlossary'
 
 import MarketAdvice from './market/MarketAdvice.vue'
 import MarketChips from './market/MarketChips.vue'
@@ -24,7 +26,7 @@ const props = defineProps<{
 const emit = defineEmits<{ refresh: [] }>()
 
 // 「更新報價」按完 30 秒內不能再按（載入狀態由父元件控制，這裡只管冷卻）
-const cooldown = useCooldown(30)
+const cooldown = useCooldown(30, 'market-panel-refresh')
 function refresh() {
   if (props.status === 'loading' || cooldown.active.value) return
   emit('refresh')
@@ -108,7 +110,8 @@ function indicatorRows(item: MarketItem) {
 </script>
 
 <template>
-  <section class="space-y-4 border-2 border-white/10 bg-slate-950/45 p-4 sm:p-5" aria-label="行情與技術指標">
+  <section class="space-y-4 border-2 border-white/10 bg-slate-950/45 p-4 sm:p-5" aria-label="行情與技術指標" data-panel-section="行情與技術指標">
+    <!-- data-panel-section：彈窗與紀錄頁「跳到段落」的目標（StockAnalysisDialog、StockAnalysisHistory）。註解放在裡面，根元素才只有一個 -->
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div class="min-w-0">
         <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Market Data</p>
@@ -119,7 +122,7 @@ function indicatorRows(item: MarketItem) {
       </div>
       <button
         v-if="!hideRefresh"
-        class="cursor-pointer border-2 border-white/15 bg-white/5 px-3 py-1 text-[12px] text-stone-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+        class="cursor-pointer border-2 border-white/15 bg-white/5 px-3 py-1 text-[14px] text-stone-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         type="button"
         :disabled="status === 'loading' || cooldown.active.value"
         @click="refresh"
@@ -183,12 +186,14 @@ function indicatorRows(item: MarketItem) {
             <span class="opacity-70">{{ signal.label }}</span>
             <span class="ml-1.5 font-medium">{{ signal.value }}</span>
           </span>
+          <!-- 這排標籤的名詞說明 -->
+          <HelpTip class="self-center" :terms="signalGlossaryKeys(item.analysis.signals)" />
         </div>
 
         <!-- 支撐與壓力 -->
         <div v-if="item.analysis" class="grid gap-3 sm:grid-cols-2">
           <div class="border-2 border-rose-300/15 bg-rose-300/5 p-3">
-            <p class="text-xs font-medium text-rose-200/80">上方壓力</p>
+            <p class="flex items-center gap-1.5 text-xs font-medium text-rose-200/80">上方壓力 <HelpTip term="supportResistance" /></p>
             <ul v-if="item.analysis.resistances.length" class="mt-2 space-y-1 text-sm">
               <li v-for="level in item.analysis.resistances" :key="level.price" class="flex justify-between gap-3">
                 <span class="tabular-nums text-stone-100">{{ num(level.price) }}</span>
@@ -198,7 +203,7 @@ function indicatorRows(item: MarketItem) {
             <p v-else class="mt-2 text-xs text-stone-400">現價在近 60 日的參考價位之上</p>
           </div>
           <div class="border-2 border-emerald-300/15 bg-emerald-300/5 p-3">
-            <p class="text-xs font-medium text-emerald-200/80">下方支撐</p>
+            <p class="flex items-center gap-1.5 text-xs font-medium text-emerald-200/80">下方支撐 <HelpTip term="supportResistance" /></p>
             <ul v-if="item.analysis.supports.length" class="mt-2 space-y-1 text-sm">
               <li v-for="level in item.analysis.supports" :key="level.price" class="flex justify-between gap-3">
                 <span class="tabular-nums text-stone-100">{{ num(level.price) }}</span>
@@ -218,14 +223,14 @@ function indicatorRows(item: MarketItem) {
         <p v-else class="border-t border-white/10 pt-3 text-xs text-stone-400">歷史資料不足，沒有技術指標。</p>
 
         <!-- 籌碼面與估值（台股） -->
-        <div v-if="item.chips || item.valuation" class="border-t border-white/10 pt-4">
+        <div v-if="item.chips || item.valuation" class="border-t border-white/10 pt-4" data-panel-section="籌碼與估值">
           <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Chips &amp; Valuation</p>
           <h3 class="mt-1 text-base font-semibold text-stone-50">籌碼與估值</h3>
           <MarketChips class="mt-4" :chips="item.chips" :valuation="item.valuation" />
         </div>
 
         <!-- 歷史回測、策略比較、機器學習 -->
-        <div v-if="item.research" class="border-t border-white/10 pt-4">
+        <div v-if="item.research" class="border-t border-white/10 pt-4" data-panel-section="歷史回測與模型">
           <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Backtest &amp; Model</p>
           <h3 class="mt-1 text-base font-semibold text-stone-50">歷史回測與模型</h3>
           <MarketResearch class="mt-4" :research="item.research" />
@@ -233,7 +238,7 @@ function indicatorRows(item: MarketItem) {
         <p v-else-if="item.indicators" class="text-xs text-stone-400">歷史資料不足一年，沒有回測與模型預測。</p>
 
         <!-- 操作建議：整理上面全部資料的結論，放在最後 -->
-        <div v-if="item.advice" class="border-t-2 border-amber-200/20 pt-4">
+        <div v-if="item.advice" class="border-t-2 border-amber-200/20 pt-4" data-panel-section="操作建議">
           <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Trading Plan</p>
           <h3 class="mt-1 text-base font-semibold text-stone-50">操作建議</h3>
           <MarketAdvice class="mt-4" :advice="item.advice" :item="item" />

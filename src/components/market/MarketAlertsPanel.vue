@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { confirmDialog } from '../../lib/confirm'
 
 import {
   addMarketAlert,
@@ -171,6 +172,8 @@ async function submitAlert() {
 
 const deleting = ref('')
 async function deleteAlert(id: string) {
+  const ok = await confirmDialog({ title: '刪除提醒', message: '確定要刪除這個提醒嗎？', confirmText: '刪除', danger: true })
+  if (!ok) return
   deleting.value = id
   try {
     await removeMarketAlert(id)
@@ -248,7 +251,7 @@ onMounted(async () => {
             type="button"
             role="radio"
             :aria-checked="form.market === market"
-            class="cursor-pointer border-2 px-3 py-2 text-[12px] transition font-pixel"
+            class="cursor-pointer border-2 px-3 py-2 text-[14px] transition font-pixel"
             :class="form.market === market ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/10 text-stone-400 hover:bg-white/10'"
             @click="
               () => {
@@ -276,7 +279,7 @@ onMounted(async () => {
           type="button"
           role="radio"
           :aria-checked="form.kind === option.value"
-          class="cursor-pointer border px-2.5 py-1 text-[12px] transition"
+          class="cursor-pointer border px-2.5 py-1 text-[14px] transition"
           :class="form.kind === option.value ? 'border-amber-200/50 bg-amber-200/15 text-amber-50' : 'border-white/10 text-stone-400 hover:bg-white/10'"
           @click="selectKind(option.value)"
         >
@@ -292,7 +295,7 @@ onMounted(async () => {
             type="button"
             role="radio"
             :aria-checked="form.direction === option.value"
-            class="cursor-pointer border-2 px-3 py-2 text-[12px] transition font-pixel"
+            class="cursor-pointer border-2 px-3 py-2 text-[14px] transition font-pixel"
             :class="
               form.direction === option.value
                 ? option.tone === 'up'
@@ -321,7 +324,7 @@ onMounted(async () => {
             type="button"
             role="radio"
             :aria-checked="form.period === period"
-            class="cursor-pointer border-2 px-3 py-2 text-[12px] transition font-pixel"
+            class="cursor-pointer border-2 px-3 py-2 text-[14px] transition font-pixel"
             :class="form.period === period ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/10 text-stone-400 hover:bg-white/10'"
             @click="form.period = period"
           >
@@ -350,7 +353,7 @@ onMounted(async () => {
         />
         <button
           type="submit"
-          class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-4 py-2 text-[12px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
+          class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-4 py-2 text-[14px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
           :disabled="saving"
         >
           {{ saving ? '新增中…' : '新增提醒' }}
@@ -371,7 +374,7 @@ onMounted(async () => {
     </ul>
     <div v-else-if="alertsStatus === 'error'" class="flex flex-wrap items-center gap-3 text-sm text-rose-200">
       <span>{{ alertsError }}</span>
-      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[12px] font-pixel" @click="loadAlerts">重試</button>
+      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[14px] font-pixel" @click="loadAlerts">重試</button>
     </div>
 
     <template v-else>
@@ -388,7 +391,7 @@ onMounted(async () => {
           </span>
           <button
             type="button"
-            class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[11px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+            class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[14px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
             :disabled="deleting === alert.id"
             @click="deleteAlert(alert.id)"
           >
@@ -412,7 +415,7 @@ onMounted(async () => {
             <div class="flex gap-2">
               <button
                 type="button"
-                class="cursor-pointer border-2 border-amber-200/30 px-2 py-0.5 text-[11px] text-amber-100 transition hover:bg-amber-200/10 disabled:opacity-60 font-pixel"
+                class="cursor-pointer border-2 border-amber-200/30 px-2 py-0.5 text-[14px] text-amber-100 transition hover:bg-amber-200/10 disabled:opacity-60 font-pixel"
                 :disabled="reactivating === alert.id"
                 @click="reactivate(alert.id)"
               >
@@ -420,7 +423,7 @@ onMounted(async () => {
               </button>
               <button
                 type="button"
-                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[11px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[14px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
                 :disabled="deleting === alert.id"
                 @click="deleteAlert(alert.id)"
               >

@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { confirmDialog } from '../../lib/confirm'
 
 import { deleteStockAnalysis, fetchStockAnalyses, fetchStockAnalysisRecord, UnauthorizedError } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { prefersReducedMotion } from '../../lib/motion'
+import { provideSectionNav, type SectionNavItem } from '../../lib/sectionNav'
+import BackToTop from '../BackToTop.vue'
 import MarketPanel from '../MarketPanel.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import StockAiText from './StockAiText.vue'
@@ -79,7 +82,6 @@ async function loadDetail(id: string) {
   detail.value = null
   detailError.value = ''
   deleteError.value = ''
-  pendingDeleteId.value = ''
   detailLoading.value = true
   try {
     const result = await fetchStockAnalysisRecord(id)
@@ -112,21 +114,17 @@ function select(id: string) {
   window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
 }
 
-// ---- 刪除：二段式，第一次點變成「確定刪除？」----
-const pendingDeleteId = ref('')
+// ---- 刪除：用共用的確認彈窗確認 ----
 const deletingId = ref('')
 const deleteError = ref('')
 async function confirmDelete(id: string) {
-  if (pendingDeleteId.value !== id) {
-    pendingDeleteId.value = id
-    return
-  }
+  const ok = await confirmDialog({ title: '刪除股票分析', message: '確定要刪除這筆 AI 分析紀錄嗎？刪除後無法復原。', confirmText: '刪除', danger: true })
+  if (!ok) return
   deletingId.value = id
   deleteError.value = ''
   try {
     await deleteStockAnalysis(id)
     list.value = list.value.filter((item) => item.id !== id)
-    pendingDeleteId.value = ''
     const next = list.value[0]
     const query = { ...route.query, tab: 'stock' }
     if (next) router.replace({ query: { ...query, id: next.id } })
@@ -144,6 +142,51 @@ async function confirmDelete(id: string) {
 // MarketPanel 吃股市諮詢的快照格式；紀錄裡存的就是那一份（多了 events）
 const savedSnapshot = computed(() => detail.value?.snapshot ?? null)
 
+// ---- 浮動選單的「跳到段落」：打開一筆分析時登記，沒有選任何一筆時取消 ----
+const aiEl = ref<HTMLElement | null>(null)
+const holdingEl = ref<HTMLElement | null>(null)
+const basisEl = ref<HTMLDetailsElement | null>(null)
+
+async function scrollToEl(el: HTMLElement) {
+  // 分析依據裡的段落：收合著就先展開
+  if (basisEl.value && basisEl.value !== el && basisEl.value.contains(el) && !basisEl.value.open) {
+    basisEl.value.open = true
+    await nextTick()
+  }
+  const top = el.getBoundingClientRect().top + window.scrollY - 16
+  window.scrollTo({ top, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+}
+
+function collectSections(): SectionNavItem[] {
+  const items: SectionNavItem[] = []
+  const add = (el: HTMLElement | null | undefined, label: string, level: 1 | 2) => {
+    if (el && label) items.push({ label, level, go: () => void scrollToEl(el) })
+  }
+  add(aiEl.value, 'AI 分析', 1)
+  // AI 全文裡的 ## 小標（現況、技術面…）
+  for (const heading of aiEl.value?.querySelectorAll<HTMLElement>('h2') ?? []) add(heading, heading.textContent?.trim() ?? '', 2)
+  add(holdingEl.value, '當時的持股', 1)
+  if (basisEl.value) {
+    add(basisEl.value, '分析依據', 1)
+    // MarketPanel 標了 data-panel-section 的區塊（行情與技術指標、籌碼與估值、歷史回測與模型、操作建議）
+    basisEl.value
+      .querySelectorAll<HTMLElement>('[data-panel-section]')
+      .forEach((el) => add(el, el.dataset.panelSection ?? '', 2))
+  }
+  return items
+}
+
+let releaseSectionNav: (() => void) | null = null
+watch(
+  detail,
+  (current) => {
+    releaseSectionNav?.()
+    releaseSectionNav = current ? provideSectionNav({ items: collectSections, cardStyle: false }) : null
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => releaseSectionNav?.())
+
 function formatDate(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-TW', { hour12: false })
@@ -160,7 +203,7 @@ onMounted(loadList)
 <template>
   <div v-if="listStatus === 'error'" class="flex flex-wrap items-center justify-between gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
     <span>{{ listError }}</span>
-    <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-4 py-1 font-pixel text-[12px] text-rose-50 transition hover:bg-rose-300/15" @click="loadList">
+    <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-4 py-1 font-pixel text-[14px] text-rose-50 transition hover:bg-rose-300/15" @click="loadList">
       重試
     </button>
   </div>
@@ -233,7 +276,7 @@ onMounted(loadList)
           </p>
           <router-link
             :to="{ name: 'market' }"
-            class="mt-6 inline-block cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-6 py-2 font-pixel text-[12px] text-amber-50 transition hover:bg-amber-200/25"
+            class="mt-6 inline-block cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-6 py-2 font-pixel text-[14px] text-amber-50 transition hover:bg-amber-200/25"
           >
             前往股市追蹤
           </router-link>
@@ -252,12 +295,11 @@ onMounted(loadList)
             <p class="text-sm text-stone-400">{{ formatDate(detail.createdAt) }}・股票分析</p>
             <button
               type="button"
-              class="cursor-pointer border-2 px-3 py-1 font-pixel text-[12px] transition disabled:cursor-not-allowed disabled:opacity-50"
-              :class="pendingDeleteId === detail.id ? 'border-rose-300/50 bg-rose-300/15 text-rose-50' : 'border-white/15 text-rose-200/80 hover:bg-rose-300/10'"
+              class="cursor-pointer border-2 border-white/15 px-3 py-1 font-pixel text-[14px] text-rose-200/80 transition hover:bg-rose-300/10 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="deletingId === detail.id"
               @click="confirmDelete(detail.id)"
             >
-              {{ deletingId === detail.id ? '刪除中…' : pendingDeleteId === detail.id ? '確定刪除？' : '刪除' }}
+              {{ deletingId === detail.id ? '刪除中…' : '刪除' }}
             </button>
           </div>
           <p v-if="deleteError" class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">{{ deleteError }}</p>
@@ -274,16 +316,18 @@ onMounted(loadList)
             </p>
           </div>
 
-          <StockAiText :text="detail.text" />
+          <div ref="aiEl" class="scroll-mt-4">
+            <StockAiText :text="detail.text" />
+          </div>
           <p class="text-[11px] text-stone-500">AI 只根據當時的資料撰寫，僅供參考，不是投資建議。</p>
 
-          <section v-if="detail.holding" class="border-2 border-white/10 bg-white/5 p-4">
+          <section v-if="detail.holding" ref="holdingEl" class="border-2 border-white/10 bg-white/5 p-4">
             <p class="mb-3 font-pixel text-[12px] text-stone-200">當時的持股</p>
             <StockHoldingSummary :holding="detail.holding" />
           </section>
 
           <!-- 分析依據：當時交給 AI 的資料，預設收合 -->
-          <details v-if="savedSnapshot" class="group border-2 border-white/10">
+          <details v-if="savedSnapshot" ref="basisEl" class="group border-2 border-white/10">
             <summary class="flex cursor-pointer list-none items-center gap-2 px-4 py-3 font-pixel text-[12px] text-stone-200 hover:bg-white/5 [&::-webkit-details-marker]:hidden">
               <span class="transition group-open:rotate-90">›</span>分析依據（當時的行情與指標）
             </summary>
@@ -298,5 +342,8 @@ onMounted(loadList)
         </p>
       </div>
     </section>
+
+    <!-- 往下捲超過一個畫面高就出現 -->
+    <BackToTop />
   </div>
 </template>

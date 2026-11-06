@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { confirmDialog } from '../../lib/confirm'
 
 import { addPushDevice, fetchNotifyStatus, linkDiscord, removePushDevice, sendTestNotify, unlinkDiscord } from '../../lib/api'
 import { currentSubscription, deviceLabel, notificationPermission, pushSupport, subscribePush, unsubscribePush } from '../../lib/push'
@@ -84,6 +85,14 @@ async function disablePush() {
 }
 
 async function removeDevice(id: string) {
+  const device = status.value?.push.devices.find((d) => d.id === id)
+  const ok = await confirmDialog({
+    title: '移除推播裝置',
+    message: `確定要移除${device?.label ? `「${device.label}」` : '這台裝置'}嗎？這台裝置之後不會再收到到價通知。`,
+    confirmText: '移除',
+    danger: true,
+  })
+  if (!ok) return
   reset()
   busy.value = 'remove'
   try {
@@ -96,7 +105,7 @@ async function removeDevice(id: string) {
 }
 
 // 送測試通知：按完 15 秒內不能再按
-const testCooldown = useCooldown(15)
+const testCooldown = useCooldown(15, 'notify-test')
 function test() {
   if (busy.value !== '') return
   void testCooldown.run(doTest)
@@ -150,7 +159,8 @@ async function link() {
 }
 
 async function unlink() {
-  if (!window.confirm('確定要解除 Discord 綁定嗎？')) return
+  const ok = await confirmDialog({ title: '解除 Discord 綁定', message: '確定要解除 Discord 綁定嗎？之後到價提醒不會再送到 Discord。', confirmText: '解除', danger: true })
+  if (!ok) return
   reset()
   busy.value = 'unlink'
   try {
@@ -166,7 +176,7 @@ function dateText(value: string | null) {
   return value ? new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value)) : ''
 }
 
-const BUTTON = 'shrink-0 cursor-pointer border-2 px-3 py-1.5 text-[12px] transition disabled:opacity-60 font-pixel'
+const BUTTON = 'shrink-0 cursor-pointer border-2 px-3 py-1.5 text-[14px] transition disabled:opacity-60 font-pixel'
 const PRIMARY = 'border-amber-200/40 bg-amber-200/15 text-amber-50 hover:bg-amber-200/25'
 const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
 </script>
@@ -235,7 +245,7 @@ const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
           <li v-for="device in otherDevices" :key="device.id" class="flex flex-wrap items-center gap-2">
             <span class="text-stone-300">{{ device.label || '未命名裝置' }}</span>
             <span class="text-stone-500">{{ dateText(device.createdAt) }}</span>
-            <button type="button" class="cursor-pointer border border-white/15 px-1.5 text-[11px] text-stone-400 transition hover:bg-white/10" :disabled="busy !== ''" @click="removeDevice(device.id)">
+            <button type="button" class="cursor-pointer border border-white/15 px-1.5 text-[14px] text-stone-400 transition hover:bg-white/10" :disabled="busy !== ''" @click="removeDevice(device.id)">
               移除
             </button>
           </li>
@@ -269,7 +279,7 @@ const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
                 autocomplete="off"
                 spellcheck="false"
                 aria-label="Discord Webhook 網址"
-                class="min-w-0 flex-[1_1_16rem] border-2 border-white/10 bg-white/5 px-3 py-2 font-mono text-xs text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
+                class="min-w-0 flex-[1_1_16rem] border-2 border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
                 placeholder="https://discord.com/api/webhooks/…"
               />
               <button type="submit" :class="[BUTTON, PRIMARY, 'py-2']" :disabled="busy !== ''">

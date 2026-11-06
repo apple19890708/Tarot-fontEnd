@@ -20,6 +20,7 @@ tools: Read, Edit, Write, Glob, Grep, Bash
 - 非同步請求要同時處理**載入中**與**失敗**兩種狀態；可能被重複觸發的請求要用 request id 忽略過期回應（參考 `HomeView.vue` 的 `loadNarration`）。
 - 載入中一律用 `SkeletonBlock` 畫出和載入後版面同形狀的骨架（卡片、欄、列、按鈕列都對得上），等資料才出現的元素也先放同尺寸佔位；不要只放通用長條或「載入中…」文字。範例：`src/components/market/MarketHitRate.vue`。
 - 股票相關頁面會打 API 的「更新」類按鈕：載入中停用＋按完冷卻（`src/lib/useCooldown.ts`，顯示剩餘秒數）；長頁面放 `BackToTop`。
+- 移除、刪除一律先用 `confirmDialog`（`src/lib/confirm.ts`）確認，不用 `window.confirm`；彈窗元件呼叫 `useScrollLock()`；按鈕字級統一 `text-[14px]`。
 - 收到 401 一律當成登出；收到 403（AI 解析）要把後端給的原因顯示出來，不要只說「失敗」。
 
 ## 收尾

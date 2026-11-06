@@ -2,9 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import ConfirmDialog from './components/ConfirmDialog.vue'
 import FloatingMenu from './components/FloatingMenu.vue'
 import PixelWorld from './components/PixelWorld.vue'
 import { canUseStock, currentUser, isAdmin, isLoggedIn, logout } from './lib/auth'
+import { confirmState } from './lib/confirm'
+import { sectionNav } from './lib/sectionNav'
 import { alertDetail, alertTitle, dismissTriggered, startAlertWatcher, stopAlertWatcher, triggeredAlerts } from './lib/marketAlerts'
 import { healthLabel, refreshHealth } from './lib/health'
 import { prefersReducedMotion } from './lib/motion'
@@ -13,6 +16,13 @@ import { sceneBus } from './lib/sceneBus'
 
 const router = useRouter()
 const route = useRoute()
+// 右上角的水晶球選單（牌面風格、跳到段落）只在看得到牌的地方出現：占卜結果（第 3 步）與我的紀錄的塔羅分頁；
+// 我的紀錄的股票分析打開一筆時也出現，但只有「跳到段落」
+const showFloatingMenu = computed(
+	() =>
+		(route.name === 'home' && sceneBus.step === 3) ||
+		(route.name === 'history' && (route.query.tab !== 'stock' || Boolean(sectionNav.value))),
+)
 
 onMounted(refreshHealth)
 
@@ -178,11 +188,11 @@ function signOut() {
 								{{ currentUser?.displayName }}
 								<span v-if="isAdmin" class="ml-1 border-2 border-amber-200/40 bg-amber-200/10 px-1.5 py-0.5 font-pixel text-[12px] text-amber-100">admin</span>
 							</span>
-							<button class="cursor-pointer text-left font-pixel text-[12px] text-stone-200/80 transition hover:text-rose-200 sm:text-center" @click="signOut">登出</button>
+							<button class="cursor-pointer text-left font-pixel text-[14px] text-stone-200/80 transition hover:text-rose-200 sm:text-center" @click="signOut">登出</button>
 						</template>
 						<template v-else>
 							<router-link to="/login" class="font-pixel text-[12px] transition" :class="navClass('login')">登入</router-link>
-							<router-link to="/register" class="border-2 border-amber-200/40 bg-amber-200/10 px-3 py-1 text-center font-pixel text-[12px] text-amber-100 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px]">註冊</router-link>
+							<router-link to="/register" class="border-2 border-amber-200/40 bg-amber-200/10 px-3 py-1 text-center font-pixel text-[14px] text-amber-100 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px]">註冊</router-link>
 						</template>
 					</nav>
 				</Transition>
@@ -193,7 +203,7 @@ function signOut() {
 			右上的浮動選單（像素水晶球）：切換牌面風格；在結果頁還能跳到各段落。
 			原本這裡是單純的牌面開關，收進選單裡
 		-->
-		<FloatingMenu />
+		<FloatingMenu v-if="showFloatingMenu" />
 
 		<!-- 過場中先隱形（版面照占位，淡入時不會跳動），播完再用 0.3 秒淡入 -->
 		<main
@@ -222,6 +232,9 @@ function signOut() {
 				</router-link>
 			</div>
 		</div>
+
+		<!-- 全站共用的確認彈窗（lib/confirm.ts 的 confirmDialog）：有待確認的事才掛上 -->
+		<ConfirmDialog v-if="confirmState" />
 	</div>
 </template>
 

@@ -4,7 +4,11 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { fetchStockAnalysis, streamStockAnalysis } from '../../lib/api'
 import { canUseAi } from '../../lib/auth'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
+import { useScrollLock } from '../../lib/useScrollLock'
+import { prefersReducedMotion } from '../../lib/motion'
+import type { SectionNavItem } from '../../lib/sectionNav'
 import MarketPanel from '../MarketPanel.vue'
+import SectionJumpMenu from '../SectionJumpMenu.vue'
 import MarketNewsList from './MarketNewsList.vue'
 import StockAiText from './StockAiText.vue'
 import StockHoldingSummary from './StockHoldingSummary.vue'
@@ -14,6 +18,8 @@ import type { MarketSnapshot, MarketStatus, StockAnalysisQuota, StockAnalysisVie
 // 有 AI 權限的人可以再要求 AI 深度分析。AI 只在按下按鈕時執行，放行與次數限制在後端
 const props = defineProps<{ watchId: string; name: string }>()
 const emit = defineEmits<{ close: [] }>()
+// 彈窗開著時背後頁面不能捲動
+useScrollLock()
 
 // ---- 分析資料（不呼叫 AI）----
 const view = ref<StockAnalysisView | null>(null)
@@ -146,13 +152,48 @@ const aiTimeText = computed(() =>
     : '',
 )
 
+// 上次的分析是不是今天（台北日期）產生的：不是的話收成一列「歷史紀錄」，點了才展開，今天的才直接展開
+const taipeiDate = (value: string | number) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
+const isOldAnalysis = computed(
+  () => aiStatus.value === 'idle' && Boolean(aiText.value) && Boolean(aiTime.value) && taipeiDate(aiTime.value) !== taipeiDate(nowMs.value),
+)
+// 舊分析是幾天前：昨天、2 天前…
+const oldAnalysisAge = computed(() => {
+  if (!isOldAnalysis.value) return ''
+  const days = Math.round((Date.parse(taipeiDate(nowMs.value)) - Date.parse(taipeiDate(aiTime.value))) / 86400000)
+  return days === 1 ? '昨天' : `${days} 天前`
+})
+const oldAnalysisOpen = ref(false)
+
 const runLabel = computed(() => {
   if (aiStatus.value === 'streaming') return '分析中…'
   if (retryIn.value > 0) return `${retryText.value} 後可再分析`
+  if (isOldAnalysis.value) return '分析今天的行情'
   return aiText.value ? '重新分析' : 'AI 深度分析'
 })
 
 // ---- 開關 ----
+// ---- 跳到段落（標題列的水晶球）：彈窗有自己的捲動區，用 scrollIntoView 捲彈窗裡面 ----
+const bodyEl = ref<HTMLElement | null>(null)
+const holdingEl = ref<HTMLElement | null>(null)
+const eventsEl = ref<HTMLElement | null>(null)
+const aiEl = ref<HTMLElement | null>(null)
+
+function sections(): SectionNavItem[] {
+  const items: SectionNavItem[] = []
+  const add = (el: HTMLElement | null | undefined, label: string, level: 1 | 2 = 1) => {
+    if (el && label)
+      items.push({ label, level, go: () => el.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'auto' : 'smooth' }) })
+  }
+  // MarketPanel 的區塊（行情與技術指標、籌碼與估值、歷史回測與模型、操作建議）
+  bodyEl.value?.querySelectorAll<HTMLElement>('[data-panel-section]').forEach((el) => add(el, el.dataset.panelSection ?? ''))
+  add(holdingEl.value, '我的持股')
+  add(eventsEl.value, '近期事件')
+  add(aiEl.value, 'AI 深度分析')
+  return items
+}
+
 function close() {
   emit('close')
 }
@@ -176,6 +217,7 @@ watch(
     aiText.value = ''
     aiTime.value = ''
     aiRecordId.value = ''
+    oldAnalysisOpen.value = false
     view.value = null
     void load()
   },
@@ -207,20 +249,24 @@ onBeforeUnmount(() => {
           </div>
           <button
             type="button"
-            class="-mr-1 shrink-0 cursor-pointer border-2 border-white/10 px-3 py-1.5 font-pixel text-[12px] text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px]"
+            class="-mr-1 shrink-0 cursor-pointer border-2 border-white/10 px-3 py-1.5 font-pixel text-[14px] text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px]"
             @click="close"
           >
             關閉
           </button>
         </div>
 
-        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
+        <!-- 捲動區外面包一層定位：水晶球浮在內容右上角，捲動時不跟著跑（和全站右上角那顆一樣） -->
+        <div class="relative flex min-h-0 flex-1 flex-col">
+        <SectionJumpMenu class="absolute right-3 top-3 z-10 sm:right-5" floating :items="sections" />
+        <div ref="bodyEl" class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
           <!-- 行情、走勢、籌碼、回測、操作建議：和股市諮詢結果頁同一個元件 -->
-          <MarketPanel :snapshot="snapshot" :status="status" :error="error" @refresh="load" />
+          <!-- 第一列（標題與更新報價）右邊留空間，不要被浮在右上角的水晶球蓋住 -->
+          <MarketPanel class="[&>div:first-child]:pr-12" :snapshot="snapshot" :status="status" :error="error" @refresh="load" />
 
           <template v-if="view">
             <!-- 我的持股 -->
-            <section v-if="view.holding" class="border-2 border-white/10 bg-white/5 p-4">
+            <section v-if="view.holding" ref="holdingEl" class="border-2 border-white/10 bg-white/5 p-4">
               <p class="mb-3 font-pixel text-[12px] text-stone-200">我的持股</p>
               <StockHoldingSummary :holding="view.holding" />
             </section>
@@ -228,6 +274,7 @@ onBeforeUnmount(() => {
             <!-- 近期事件與重大訊息（台股個股才有） -->
             <section
               v-if="view.events?.exDividend || view.events?.revenue || view.news.length"
+              ref="eventsEl"
               class="space-y-2 border-2 border-white/10 bg-white/5 p-4 text-xs leading-5"
             >
               <p class="font-pixel text-[12px] text-stone-200">近期事件</p>
@@ -250,7 +297,7 @@ onBeforeUnmount(() => {
           </template>
 
           <!-- AI 深度分析 -->
-          <section class="border-2 border-amber-200/25 bg-amber-200/5 p-4" aria-live="polite">
+          <section ref="aiEl" class="border-2 border-amber-200/25 bg-amber-200/5 p-4" aria-live="polite">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="min-w-0">
                 <p class="font-pixel text-[12px] text-amber-100">AI 深度分析</p>
@@ -258,21 +305,21 @@ onBeforeUnmount(() => {
                   <template v-if="!canUseAi">AI 分析需要管理者開通，請聯絡管理者。</template>
                   <template v-else-if="quota && quota.dailyLimit !== null">今天已用 {{ quota.usedToday }}／{{ quota.dailyLimit }} 次</template>
                   <template v-else-if="quota">今天已用 {{ quota.usedToday }} 次</template>
-                  <template v-if="canUseAi && aiTimeText && aiStatus !== 'streaming'"> · 這份分析產生於 {{ aiTimeText }}</template>
+                  <template v-if="canUseAi && aiTimeText && aiStatus !== 'streaming' && !isOldAnalysis"> · 這份分析產生於 {{ aiTimeText }}</template>
                 </p>
               </div>
               <div v-if="canUseAi" class="flex gap-2">
                 <button
                   v-if="aiStatus === 'streaming'"
                   type="button"
-                  class="cursor-pointer border-2 border-white/15 px-3 py-1 font-pixel text-[12px] text-stone-200 transition hover:bg-white/10"
+                  class="cursor-pointer border-2 border-white/15 px-3 py-1 font-pixel text-[14px] text-stone-200 transition hover:bg-white/10"
                   @click="stopAi"
                 >
                   停止
                 </button>
                 <button
                   type="button"
-                  class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/10 px-3 py-1 font-pixel text-[12px] text-amber-50 transition hover:bg-amber-200/20 disabled:cursor-not-allowed disabled:opacity-50 active:translate-x-[2px] active:translate-y-[2px]"
+                  class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/10 px-3 py-1 font-pixel text-[14px] text-amber-50 transition hover:bg-amber-200/20 disabled:cursor-not-allowed disabled:opacity-50 active:translate-x-[2px] active:translate-y-[2px]"
                   :disabled="!canRun"
                   @click="runAi"
                 >
@@ -283,10 +330,33 @@ onBeforeUnmount(() => {
 
             <p v-if="canUseAi && usedUp && aiStatus !== 'streaming'" class="mt-3 text-xs text-amber-100/80">今天的 AI 分析已用完，明天再試。</p>
             <p v-if="aiError" class="mt-3 border-2 border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">{{ aiError }}</p>
-            <p v-if="aiStatus === 'stopped'" class="mt-3 text-xs text-amber-100/80">已停止，這份分析沒有完成，不會存進紀錄。</p>
+            <p v-if="aiStatus === 'stopped'" class="mt-3 text-xs text-amber-100/80">已停止，這份分析沒有完成，不會存進紀錄，但會算進今天的次數。</p>
             <p v-if="aiStatus === 'streaming' && !aiText" class="mt-3 text-xs text-stone-400">AI 正在讀資料，通常要 30 秒到 1 分鐘…</p>
 
-            <StockAiText v-if="aiText" class="mt-4" :text="aiText" />
+            <!-- 之前產生的分析：收成一列歷史紀錄，點了才展開（行情已經變了，不要一打開就當成現在的判斷） -->
+            <div v-if="isOldAnalysis" class="mt-4 border border-white/10 bg-black/20">
+              <button
+                type="button"
+                class="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs text-stone-300 hover:bg-white/5"
+                :aria-expanded="oldAnalysisOpen"
+                @click="oldAnalysisOpen = !oldAnalysisOpen"
+              >
+                <span class="transition" :class="oldAnalysisOpen ? 'rotate-90' : ''">›</span>
+                <span class="min-w-0 flex-1">上次分析：{{ aiTimeText }}（{{ oldAnalysisAge }}）</span>
+                <span class="shrink-0 text-stone-500">{{ oldAnalysisOpen ? '收合' : '查看' }}</span>
+              </button>
+              <div v-if="oldAnalysisOpen" class="border-t border-white/10 px-3 pb-3">
+                <p class="mt-3 text-[11px] text-amber-100/70">這是 {{ aiTimeText }} 當時的行情寫的，現在的價格與指標可能已經不同。</p>
+                <StockAiText class="mt-3" :text="aiText" />
+              </div>
+            </div>
+            <StockAiText v-else-if="aiText" class="mt-4" :text="aiText" />
+            <p v-if="isOldAnalysis" class="mt-3 text-[11px] text-stone-500">
+              所有分析都在
+              <router-link :to="{ name: 'history', query: { tab: 'stock' } }" class="text-amber-200 underline underline-offset-2 hover:text-amber-100" @click="close">
+                我的紀錄 › 股票分析
+              </router-link>
+            </p>
 
             <p v-if="aiStatus === 'done' && aiRecordId" class="mt-4 text-xs text-stone-400">
               已存到
@@ -295,8 +365,9 @@ onBeforeUnmount(() => {
               </router-link>
             </p>
             <p v-if="aiStatus === 'done' && aiSaveFailed" class="mt-4 text-xs text-rose-200">這份分析沒有存進紀錄，關掉彈窗就看不到了。</p>
-            <p v-if="!canUseAi || aiText" class="mt-3 text-[11px] text-stone-500">AI 只根據上面的資料撰寫，僅供參考，不是投資建議。</p>
+            <p v-if="!canUseAi || (aiText && !isOldAnalysis)" class="mt-3 text-[11px] text-stone-500">AI 只根據上面的資料撰寫，僅供參考，不是投資建議。</p>
           </section>
+        </div>
         </div>
       </div>
     </div>

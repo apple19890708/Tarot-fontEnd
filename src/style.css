@@ -70,11 +70,15 @@ body::after {
   background: rgba(251, 113, 133, 0.12);
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
+/* 必須放在 base layer：沒放進 layer 的規則優先權高於 Tailwind 的 utilities，
+   會把按鈕、輸入框上寫的 text-[14px]、font-pixel 這些 class 全部蓋掉 */
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
 }
 
 #app {

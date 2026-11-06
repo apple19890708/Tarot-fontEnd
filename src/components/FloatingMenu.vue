@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { cardStyle, setCardStyle, type CardStyle } from '../lib/cardStyle'
+import CrystalBallIcon from './CrystalBallIcon.vue'
 import { sectionNav, type SectionNavItem } from '../lib/sectionNav'
 
 // 浮在畫面右上的選單：像素水晶球按鈕，打開後可以換牌面風格；
@@ -80,32 +81,7 @@ onBeforeUnmount(() => {
       title="選單"
       @click="open = !open"
     >
-      <!--
-        12×12 的像素水晶球：球身用 currentColor（打開時變琥珀色），左上一塊高光、
-        木頭底座；打開時旁邊冒出兩顆星星。crispEdges 讓邊緣不被柔化
-      -->
-      <svg viewBox="0 0 12 12" class="h-7 w-7" shape-rendering="crispEdges" aria-hidden="true">
-        <!-- 球身 -->
-        <rect x="4" y="0" width="4" height="1" fill="currentColor" />
-        <rect x="3" y="1" width="6" height="1" fill="currentColor" />
-        <rect x="2" y="2" width="8" height="4" fill="currentColor" />
-        <rect x="3" y="6" width="6" height="1" fill="currentColor" />
-        <rect x="4" y="7" width="4" height="1" fill="currentColor" />
-        <!-- 高光 -->
-        <rect x="3" y="2" width="2" height="1" fill="#fff" opacity="0.85" />
-        <rect x="3" y="3" width="1" height="1" fill="#fff" opacity="0.85" />
-        <!-- 球裡的小閃光 -->
-        <rect x="7" y="4" width="1" height="1" fill="#fff" opacity="0.6" />
-        <!-- 底座 -->
-        <rect x="3" y="8" width="6" height="1" fill="#b7793f" />
-        <rect x="2" y="9" width="8" height="2" fill="#8a5528" />
-        <rect x="2" y="9" width="8" height="1" fill="#c98a4b" />
-        <!-- 打開時的星星 -->
-        <g v-if="open" fill="#fde68a">
-          <rect x="11" y="0" width="1" height="1" />
-          <rect x="0" y="3" width="1" height="1" />
-        </g>
-      </svg>
+      <CrystalBallIcon class="h-7 w-7" :sparkle="open" />
     </button>
 
     <Transition
@@ -121,8 +97,8 @@ onBeforeUnmount(() => {
         id="floating-menu"
         class="absolute right-0 top-full mt-2 max-h-[calc(100dvh-8rem)] w-60 overflow-y-auto border-2 border-[#3b2618] bg-[#0f1526] p-3 shadow-[4px_4px_0_rgba(0,0,0,0.5)]"
       >
-        <!-- 牌面風格：所有畫面的牌面一起換，選擇記在這台瀏覽器 -->
-        <section>
+        <!-- 牌面風格：所有畫面的牌面一起換，選擇記在這台瀏覽器；沒有牌的頁面（股票分析紀錄）不顯示 -->
+        <section v-if="sectionNav?.cardStyle !== false">
           <p class="text-xs text-amber-100/70">牌面風格</p>
           <div class="mt-2 grid grid-cols-2 gap-2">
             <button
@@ -144,7 +120,11 @@ onBeforeUnmount(() => {
         </section>
 
         <!-- 只有結果頁會登記段落，其他頁面這區不出現 -->
-        <nav v-if="items.length > 0" aria-label="跳到段落" class="mt-3 border-t-2 border-white/10 pt-3">
+        <nav
+          v-if="items.length > 0"
+          aria-label="跳到段落"
+          :class="sectionNav?.cardStyle !== false ? 'mt-3 border-t-2 border-white/10 pt-3' : ''"
+        >
           <p class="text-xs text-amber-100/70">跳到段落</p>
           <ul class="mt-2 space-y-0.5">
             <li v-for="(item, index) in items" :key="`${index}-${item.label}`">

@@ -4,6 +4,11 @@ import type {
   AuthUser,
   CardSummary,
   CustomPosition,
+  FinanceNewsAnalysisDetail,
+  FinanceNewsDigest,
+  FinanceNewsAnalysisSummary,
+  FinanceNewsScopeRegion,
+  FinanceNewsView,
   HealthResponse,
   ManualCardPick,
   MarketAlert,
@@ -32,7 +37,6 @@ import type {
   ReadingResponse,
   Spread,
   StockAnalysisRecord,
-  StockAnalysisStreamEvent,
   StockAnalysisSummary,
   StockAnalysisView,
 } from '../types'
@@ -298,14 +302,25 @@ export function deleteStockAnalysis(id: string) {
 
 // 以串流接收個股 AI 分析（會計費）。完整產生後後端會存成一筆紀錄，done 帶回它的摘要。
 // signal 中斷時後端會跟著停止 AI 生成，這裡會丟出 AbortError
-export async function streamStockAnalysis(
+export function streamStockAnalysis(
   watchId: string,
   options: { signal: AbortSignal; onDelta: (text: string) => void },
 ): Promise<{ model: string; analysis: StockAnalysisSummary | null }> {
-  const response = await fetch(`${API_BASE_URL}/api/market/watchlist/${watchId}/analysis/ai`, {
+  return streamAnalysis<StockAnalysisSummary>(`/api/market/watchlist/${watchId}/analysis/ai`, undefined, options)
+}
+
+// 股市 AI 分析共用的 NDJSON 串流：delta 逐段回呼、done 回傳結果、error 丟出錯誤
+// A：done 帶回的紀錄摘要型別（存檔失敗時為 null）
+async function streamAnalysis<A>(
+  path: string,
+  body: unknown,
+  options: { signal: AbortSignal; onDelta: (text: string) => void },
+): Promise<{ model: string; analysis: A | null }> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
     // 這支不走 request()，Authorization 要自己帶
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: body === undefined ? undefined : JSON.stringify(body),
     signal: options.signal,
   })
 
@@ -333,7 +348,10 @@ export async function streamStockAnalysis(
       if (!line.trim()) {
         continue
       }
-      const event = JSON.parse(line) as StockAnalysisStreamEvent
+      const event = JSON.parse(line) as
+        | { type: 'delta'; text: string }
+        | { type: 'done'; model: string; analysis: A | null }
+        | { type: 'error'; message: string }
       if (event.type === 'delta') {
         options.onDelta(event.text)
       } else if (event.type === 'done') {
@@ -347,6 +365,37 @@ export async function streamStockAnalysis(
       throw new Error('AI 分析連線意外中斷')
     }
   }
+}
+
+// ===== 財經新聞（v17 規格 G）=====
+// 最近 3 天的國內外新聞、主題、來源狀態、AI 額度與最近一份分析（不呼叫 AI）
+export function fetchFinanceNews() {
+  return request<FinanceNewsView>('/api/market/finance-news')
+}
+
+// AI 影響分析（會計費）：範圍是畫面目前的區域與主題，新聞由後端自己挑
+export function streamFinanceNewsAnalysis(
+  scope: { region: FinanceNewsScopeRegion; theme: string | null },
+  options: { signal: AbortSignal; onDelta: (text: string) => void },
+) {
+  return streamAnalysis<FinanceNewsAnalysisSummary>('/api/market/finance-news/analysis', scope, options)
+}
+
+// 新聞重點彈窗：節錄重點、提及個股、語氣、可能影響族群（不呼叫 AI；第一次打開時後端才讀原文）
+export function fetchFinanceNewsDigest(id: string) {
+  return request<{ digest: FinanceNewsDigest }>(`/api/market/finance-news/${id}/digest`)
+}
+
+export function fetchFinanceNewsAnalyses() {
+  return request<{ analyses: FinanceNewsAnalysisSummary[] }>('/api/market/finance-news/analyses')
+}
+
+export function fetchFinanceNewsAnalysis(id: string) {
+  return request<{ analysis: FinanceNewsAnalysisDetail }>(`/api/market/finance-news/analyses/${id}`)
+}
+
+export function deleteFinanceNewsAnalysis(id: string) {
+  return request<{ deleted: boolean }>(`/api/market/finance-news/analyses/${id}`, { method: 'DELETE' })
 }
 
 // 交易成本設定

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import HelpTip from '../HelpTip.vue'
 
 import { addMarketAlert } from '../../lib/marketAlerts'
 import { formatNumber } from '../../lib/marketChart'
@@ -78,23 +79,26 @@ const groups = computed(() => {
   <div class="space-y-4">
     <!-- 結論 -->
     <div class="flex flex-wrap items-center gap-3">
-      <span class="border-2 px-3 py-1 text-base font-semibold" :class="STANCE_STYLES[advice.stance]">
-        {{ advice.stanceLabel }}
+      <span class="flex items-center gap-1.5">
+        <span class="border-2 px-3 py-1 text-base font-semibold" :class="STANCE_STYLES[advice.stance]">
+          {{ advice.stanceLabel }}
+        </span>
+        <HelpTip term="stance" />
       </span>
-      <span class="text-sm text-stone-300">信心 {{ advice.confidenceLabel }}</span>
-      <span class="text-xs text-stone-500">適用 {{ advice.horizon }}</span>
+      <span class="flex items-center gap-1.5 text-sm text-stone-300">信心 {{ advice.confidenceLabel }} <HelpTip term="confidence" /></span>
+      <span class="flex items-center gap-1.5 text-xs text-stone-500">適用 {{ advice.horizon }} <HelpTip term="horizon" /></span>
     </div>
     <p class="text-sm leading-7 text-stone-200/90">{{ advice.summary }}</p>
 
     <!-- 關鍵價位 -->
     <div class="grid gap-3 sm:grid-cols-3">
       <div class="border-2 border-emerald-300/20 bg-emerald-300/5 p-3">
-        <p class="text-xs text-emerald-200/80">{{ advice.levels.stopLossLabel }}</p>
+        <p class="flex items-center gap-1.5 text-xs text-emerald-200/80">{{ advice.levels.stopLossLabel }} <HelpTip term="stopLoss" /></p>
         <p class="mt-1 text-lg font-semibold tabular-nums text-stone-50">{{ formatNumber(advice.levels.stopLoss.price) }}</p>
         <p class="text-[11px] leading-4 text-stone-400">{{ advice.levels.stopLoss.label }}</p>
         <button
           v-if="item"
-          class="mt-2 cursor-pointer border-2 border-emerald-300/30 px-2 py-0.5 text-[11px] text-emerald-100 transition hover:bg-emerald-300/10 disabled:cursor-default disabled:opacity-60 font-pixel"
+          class="mt-2 cursor-pointer border-2 border-emerald-300/30 px-2 py-0.5 text-[14px] text-emerald-100 transition hover:bg-emerald-300/10 disabled:cursor-default disabled:opacity-60 font-pixel"
           type="button"
           :disabled="['saving', 'saved'].includes(alertState[`below-${advice.levels.stopLoss.price}`] ?? '')"
           @click="setAlert('below', advice.levels.stopLoss.price, `${advice.levels.stopLossLabel}：${advice.levels.stopLoss.label}`)"
@@ -106,14 +110,14 @@ const groups = computed(() => {
         </p>
       </div>
       <div class="border-2 border-rose-300/20 bg-rose-300/5 p-3">
-        <p class="text-xs text-rose-200/80">{{ advice.levels.targetsLabel }}</p>
+        <p class="flex items-center gap-1.5 text-xs text-rose-200/80">{{ advice.levels.targetsLabel }} <HelpTip term="targets" /></p>
         <template v-if="advice.levels.targets.length">
           <div v-for="target in advice.levels.targets" :key="target.price" class="mt-1">
             <span class="text-lg font-semibold tabular-nums text-stone-50">{{ formatNumber(target.price) }}</span>
             <span class="ml-2 text-[11px] text-stone-400">{{ target.label }}</span>
             <button
               v-if="item"
-              class="ml-2 cursor-pointer border-2 border-rose-300/30 px-2 py-0.5 text-[11px] text-rose-100 transition hover:bg-rose-300/10 disabled:cursor-default disabled:opacity-60 font-pixel"
+              class="ml-2 cursor-pointer border-2 border-rose-300/30 px-2 py-0.5 text-[14px] text-rose-100 transition hover:bg-rose-300/10 disabled:cursor-default disabled:opacity-60 font-pixel"
               type="button"
               :disabled="['saving', 'saved'].includes(alertState[`above-${target.price}`] ?? '')"
               @click="setAlert('above', target.price, `${advice.levels.targetsLabel}：${target.label}`)"
@@ -126,10 +130,11 @@ const groups = computed(() => {
         <p v-else class="mt-1 text-sm text-stone-400">—</p>
       </div>
       <div class="border-2 border-white/10 bg-white/5 p-3">
-        <p class="text-xs text-stone-400">建議部位</p>
+        <p class="flex items-center gap-1.5 text-xs text-stone-400">建議部位 <HelpTip term="position" /></p>
         <p class="mt-1 text-sm font-medium leading-6 text-stone-100">{{ advice.positionSize }}</p>
         <p v-if="advice.levels.riskReward !== null" class="mt-1 text-[11px] text-stone-400">
           風險報酬比 <span class="tabular-nums" :class="advice.levels.riskReward >= 1.5 ? 'text-rose-200' : 'text-stone-300'">{{ advice.levels.riskReward }}</span>
+          <HelpTip class="ml-1" term="riskReward" />
         </p>
       </div>
     </div>
@@ -148,7 +153,7 @@ const groups = computed(() => {
 
     <!-- 判斷依據 -->
     <div class="space-y-2">
-      <p class="text-xs font-medium text-stone-300">判斷依據</p>
+      <p class="flex items-center gap-1.5 text-xs font-medium text-stone-300">判斷依據 <HelpTip term="evidence" /></p>
       <div v-for="[group, items] in groups" :key="group" class="space-y-1">
         <p class="text-[11px] tracking-wide text-stone-500">{{ group }}</p>
         <ul class="space-y-1 text-xs">

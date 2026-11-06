@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { confirmDialog } from '../../lib/confirm'
+import HelpTip from '../HelpTip.vue'
+import { signalGlossaryKeys } from '../../lib/marketGlossary'
 
-import { createWatch, deleteWatch, fetchMarketNews, fetchWatchlist, moveWatchToGroup, reorderWatchlist, saveMarketSettings } from '../../lib/api'
+import { createWatch, createWatchGroup, deleteWatch, fetchMarketNews, fetchWatchlist, moveWatchToGroup, reorderWatchlist, saveMarketSettings } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { useCooldown } from '../../lib/useCooldown'
 import SkeletonBlock from '../SkeletonBlock.vue'
@@ -67,7 +70,7 @@ async function load({ silent = false } = {}) {
 }
 
 // 手動「更新報價」：按完 30 秒內不能再按（自動更新每分鐘一次，不受影響）
-const refreshCooldown = useCooldown(30)
+const refreshCooldown = useCooldown(30, 'watchlist-refresh')
 const manualRefresh = () => refreshCooldown.run(() => load({ silent: true }))
 
 // 分頁開著、瀏覽器分頁在前景時每分鐘更新一次報價
@@ -178,18 +181,45 @@ async function submit() {
     formError.value = parsed.error
     return
   }
+  // 加到哪個清單：選「新清單」就先建立
+  let group: string | null = addTarget.value === NEW_GROUP ? null : addTarget.value || null
+  if (addTarget.value === NEW_GROUP) {
+    const name = newGroupName.value.trim()
+    if (!name) {
+      formError.value = '請輸入新清單的名稱。'
+      return
+    }
+    if (name.length > 20) {
+      formError.value = '清單名稱最多 20 個字。'
+      return
+    }
+    if (groups.value.some((g) => g.name === name)) {
+      formError.value = `已經有「${name}」這個清單了，直接選它就好。`
+      return
+    }
+  }
   adding.value = true
   try {
+    if (addTarget.value === NEW_GROUP) {
+      const created = await createWatchGroup(newGroupName.value.trim())
+      groups.value = [...groups.value, created.group]
+      group = created.group.id
+      // 清單已經建好：之後就算加股票失敗，重試也不會再建一次
+      addTarget.value = created.group.id
+      newGroupName.value = ''
+    }
     const { item } = await createWatch({
       market: form.value.market,
       query,
       target: picked.value ?? undefined,
       trades: parsed.trade ? [parsed.trade] : [],
-      group: addGroup.value,
+      group,
     })
     items.value = [...items.value, item]
     form.value = { ...form.value, query: '', quantity: '', cost: '' }
     picked.value = null
+    // 正在看別的清單時切到剛加入的那個清單，免得看起來像沒加成功
+    if (groupFilter.value !== 'all' && groupFilter.value !== (group ?? 'none')) groupFilter.value = group ?? 'none'
     // 剛加的股票不在目前的篩選裡時切回全部，免得看起來像沒加成功
     if (marketFilter.value !== 'all' && marketFilter.value !== item.target.market) marketFilter.value = 'all'
   } catch (err) {
@@ -265,7 +295,13 @@ function toggleExpanded(id: string) {
 const removing = ref('')
 async function remove(item: MarketWatchItem) {
   const extra = item.trades.length || item.dividends.length ? '（買賣與股利紀錄也會一起刪除）' : ''
-  if (!window.confirm(`確定要移除 ${item.target.name} 嗎？${extra}`)) return
+  const ok = await confirmDialog({
+    title: '移除追蹤',
+    message: `確定要移除 ${item.target.name} 嗎？${extra}`,
+    confirmText: '移除',
+    danger: true,
+  })
+  if (!ok) return
   removing.value = item.id
   try {
     await deleteWatch(item.id)
@@ -338,9 +374,20 @@ function onDetailToggle(id: string, event: Event) {
 const groups = ref<MarketWatchGroup[]>([])
 // all：全部；none：未分類；其他是清單 id
 const groupFilter = ref<string>('all')
+// 「管理清單」面板開著沒
+const managingGroups = ref(false)
 // 新增股票時放進哪個清單：正在看某個清單就放那裡，否則未分類
 const addGroup = computed(() => (groupFilter.value === 'all' || groupFilter.value === 'none' ? null : groupFilter.value))
 const groupName = (id: string | null | undefined) => groups.value.find((g) => g.id === id)?.name ?? '未分類'
+
+// 新增表單的「加到清單」：預設是目前所在的清單分頁；''＝未分類，NEW_GROUP＝當場建立新清單
+const NEW_GROUP = '__new__'
+const MAX_GROUPS = 10
+const addTarget = ref('')
+const newGroupName = ref('')
+watch(addGroup, (id) => {
+  if (addTarget.value !== NEW_GROUP) addTarget.value = id ?? ''
+}, { immediate: true })
 const groupCount = (id: string) =>
   items.value.filter((item) => (id === 'all' ? true : id === 'none' ? !item.group : item.group === id)).length
 
@@ -350,10 +397,34 @@ function onGroupsChanged(next: MarketWatchGroup[]) {
 function onGroupRemoved(id: string) {
   items.value = items.value.map((item) => (item.group === id ? { ...item, group: null } : item))
   if (groupFilter.value === id) groupFilter.value = 'all'
+  if (addTarget.value === id) addTarget.value = ''
 }
 
 const moving = ref('')
+// 「移到清單」下拉選單（<details data-dropdown>）：選了就關；點選單外面、按 Esc 也關
+function closeDropdowns(except: Element | null = null) {
+  for (const el of document.querySelectorAll('details[data-dropdown][open]')) {
+    if (el !== except) el.removeAttribute('open')
+  }
+}
+function onDocumentClick(event: MouseEvent) {
+  const inside = event.target instanceof Element ? event.target.closest('details[data-dropdown]') : null
+  closeDropdowns(inside)
+}
+function onDocumentKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') closeDropdowns()
+}
+onMounted(() => {
+  document.addEventListener('click', onDocumentClick)
+  document.addEventListener('keydown', onDocumentKeydown)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocumentClick)
+  document.removeEventListener('keydown', onDocumentKeydown)
+})
+
 async function moveToGroup(item: MarketWatchItem, group: string | null) {
+  closeDropdowns()
   moving.value = item.id
   try {
     await moveWatchToGroup(item.id, group)
@@ -423,10 +494,14 @@ const SORT_OPTIONS = [
   { value: 'position', label: '52 週位置' },
 ] as const
 
+// 市場的計數只算目前選的清單（市場是清單底下的篩選）
+const inGroup = computed(() =>
+  items.value.filter((item) => groupFilter.value === 'all' || (groupFilter.value === 'none' ? !item.group : item.group === groupFilter.value)),
+)
 const counts = computed(() => ({
-  all: items.value.length,
-  tw: items.value.filter((i) => i.target.market === 'tw').length,
-  us: items.value.filter((i) => i.target.market === 'us').length,
+  all: inGroup.value.length,
+  tw: inGroup.value.filter((i) => i.target.market === 'tw').length,
+  us: inGroup.value.filter((i) => i.target.market === 'us').length,
 }))
 
 const visibleItems = computed(() => {
@@ -494,7 +569,7 @@ const INPUT_CLASS =
       </div>
       <button
         type="button"
-        class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[12px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+        class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[14px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
         :disabled="refreshing || status === 'loading' || refreshCooldown.active.value"
         @click="manualRefresh"
       >
@@ -512,7 +587,7 @@ const INPUT_CLASS =
             type="button"
             role="radio"
             :aria-checked="form.market === market"
-            class="cursor-pointer border-2 px-3 py-2 text-[12px] transition font-pixel"
+            class="cursor-pointer border-2 px-3 py-2 text-[14px] transition font-pixel"
             :class="form.market === market ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/10 text-stone-400 hover:bg-white/10'"
             @click="form.market = market"
           >
@@ -538,13 +613,30 @@ const INPUT_CLASS =
         <input v-model="form.cost" inputmode="decimal" :class="INPUT_CLASS" class="flex-[1_1_8rem]" placeholder="第一筆成本價（選填）" />
         <button
           type="submit"
-          class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-4 py-2 text-[12px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
+          class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-4 py-2 text-[14px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
           :disabled="adding"
         >
           {{ adding ? '加入中…' : '加入追蹤' }}
         </button>
       </div>
-      <p v-if="groups.length" class="text-[11px] text-stone-500">會加入「{{ groupName(addGroup) }}」（先點上面的清單標籤可以改）</p>
+      <!-- 加到哪個清單：可以選既有清單，或當場建立新清單 -->
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="shrink-0 text-[12px] text-stone-400" for="watch-add-group">加到清單</label>
+        <select id="watch-add-group" v-model="addTarget" :class="INPUT_CLASS" class="flex-[1_1_9rem]">
+          <option value="">未分類</option>
+          <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option>
+          <option v-if="groups.length < MAX_GROUPS" :value="NEW_GROUP">＋ 新清單…</option>
+        </select>
+        <input
+          v-if="addTarget === NEW_GROUP"
+          v-model="newGroupName"
+          maxlength="20"
+          :class="INPUT_CLASS"
+          class="flex-[2_1_12rem]"
+          placeholder="新清單名稱（例如 長期存股）"
+          aria-label="新清單名稱"
+        />
+      </div>
       <p v-if="formError" class="text-sm text-rose-200">{{ formError }}</p>
     </form>
 
@@ -570,7 +662,7 @@ const INPUT_CLASS =
           </label>
           <button
             type="button"
-            class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-2 text-[12px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
+            class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-2 text-[14px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
             :disabled="feeSaving"
             @click="saveFees"
           >
@@ -598,25 +690,31 @@ const INPUT_CLASS =
           </div>
         </div>
       </div>
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex gap-2">
-          <SkeletonBlock v-for="n in 3" :key="n" class="h-[1.875rem] w-20 rounded-none" />
-        </div>
+      <!-- 第一層清單分頁（底線）、第二層市場與排序 -->
+      <div class="flex items-end gap-2 border-b-2 border-white/10 pb-1.5">
+        <SkeletonBlock class="h-3 w-6 rounded-none" />
+        <SkeletonBlock v-for="n in 3" :key="n" class="h-6 w-16 rounded-none" />
+        <SkeletonBlock class="ml-auto h-5 w-16 rounded-none" />
+      </div>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <SkeletonBlock class="h-5 w-44 rounded-none" />
         <SkeletonBlock class="h-5 w-64 rounded-none" />
       </div>
       <ul class="space-y-3">
         <li v-for="n in 4" :key="n" class="flex items-center gap-3 border-2 border-white/10 px-3 py-3">
+          <!-- 欄寬和收合的一行相同：名稱、現價、漲跌、標籤、損益 -->
           <SkeletonBlock class="h-4 flex-1 rounded-none" />
-          <SkeletonBlock class="h-4 w-14 rounded-none" />
-          <SkeletonBlock class="h-4 w-12 rounded-none" />
-          <SkeletonBlock class="hidden h-4 w-20 rounded-none sm:block" />
+          <SkeletonBlock class="h-4 w-20 shrink-0 rounded-none" />
+          <SkeletonBlock class="h-4 w-16 shrink-0 rounded-none" />
+          <SkeletonBlock class="h-4 w-9 shrink-0 rounded-none md:w-52" />
+          <SkeletonBlock class="hidden h-4 w-24 shrink-0 rounded-none sm:block" />
         </li>
       </ul>
     </div>
 
     <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
       <span>{{ error }}</span>
-      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[12px] font-pixel" @click="load()">重試</button>
+      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[14px] font-pixel" @click="load()">重試</button>
     </div>
 
     <template v-else>
@@ -666,7 +764,7 @@ const INPUT_CLASS =
             </div>
             <div v-else-if="newsStatus === 'error'" class="flex flex-wrap items-center gap-3 text-xs text-rose-200">
               <span>重大訊息暫時讀不到。</span>
-              <button type="button" class="cursor-pointer border border-rose-200/30 px-2 py-0.5 text-[11px]" @click="loadNews">重試</button>
+              <button type="button" class="cursor-pointer border border-rose-200/30 px-2 py-0.5 text-[14px]" @click="loadNews">重試</button>
             </div>
             <p v-else-if="!news.length" class="text-xs text-stone-400">追蹤的公司最近 30 天沒有重大訊息。</p>
             <MarketNewsList v-else :news="news" show-company />
@@ -680,44 +778,61 @@ const INPUT_CLASS =
           <MarketEventsCalendar class="mt-3" :items="items" :revenue-deadline="revenueDeadline" />
         </details>
 
-        <!-- ── 自選清單 ── -->
-        <div class="space-y-2">
-          <div class="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]" role="tablist" aria-label="自選清單">
+        <!-- ── 第一層：自選清單（分頁）。右邊是管理清單 ── -->
+        <div>
+          <div class="flex items-end gap-2 border-b-2 border-white/10">
+            <span class="shrink-0 pb-2 text-[11px] text-stone-500">清單</span>
+            <div class="-mb-[2px] flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:thin]" role="tablist" aria-label="自選清單">
+              <button
+                v-for="option in [{ id: 'all', name: '全部' }, ...groups, { id: 'none', name: '未分類' }]"
+                :key="option.id"
+                type="button"
+                role="tab"
+                :aria-selected="groupFilter === option.id"
+                class="shrink-0 cursor-pointer whitespace-nowrap border-b-2 px-3 py-1.5 text-[14px] transition"
+                :class="groupFilter === option.id ? 'border-amber-200 bg-amber-200/10 text-amber-50' : 'border-transparent text-stone-400 hover:bg-white/5 hover:text-stone-200'"
+                @click="groupFilter = option.id"
+              >
+                {{ option.name }}<span class="text-[11px] text-stone-500">（{{ groupCount(option.id) }}）</span>
+              </button>
+            </div>
             <button
-              v-for="option in [{ id: 'all', name: '全部' }, ...groups, { id: 'none', name: '未分類' }]"
-              :key="option.id"
               type="button"
-              role="tab"
-              :aria-selected="groupFilter === option.id"
-              class="shrink-0 cursor-pointer whitespace-nowrap border px-2.5 py-1 text-[12px] transition"
-              :class="groupFilter === option.id ? 'border-amber-200/50 bg-amber-200/15 text-amber-50' : 'border-white/10 text-stone-300 hover:bg-white/10'"
-              @click="groupFilter = option.id"
+              class="mb-1 shrink-0 cursor-pointer border px-2 py-0.5 text-[14px] transition"
+              :class="managingGroups ? 'border-amber-200/40 text-amber-100' : 'border-white/10 text-stone-400 hover:bg-white/10'"
+              :aria-expanded="managingGroups"
+              @click="managingGroups = !managingGroups"
             >
-              {{ option.name }}（{{ groupCount(option.id) }}）
+              管理清單
             </button>
           </div>
-          <details class="text-xs">
-            <summary class="cursor-pointer text-stone-400 marker:text-stone-300 hover:text-stone-200">管理清單</summary>
-            <MarketGroupManager class="mt-2" :groups="groups" @changed="onGroupsChanged" @removed="onGroupRemoved" />
-          </details>
+          <MarketGroupManager
+            v-if="managingGroups"
+            class="mt-2 border-2 border-white/10 bg-white/[0.03] p-3 text-xs"
+            :groups="groups"
+            @changed="onGroupsChanged"
+            @removed="onGroupRemoved"
+          />
         </div>
 
-        <!-- ── 篩選與排序 ── -->
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div class="flex gap-2">
+        <!-- ── 第二層：這個清單裡的篩選與排序 ── -->
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px]">
+          <div class="flex flex-wrap items-center gap-1">
+            <span class="mr-1 text-stone-500">市場</span>
             <button
               v-for="option in (['all', 'tw', 'us'] as const)"
               :key="option"
               type="button"
-              class="cursor-pointer border-2 px-3 py-1 text-[12px] transition font-pixel"
-              :class="marketFilter === option ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/15 text-stone-300 hover:bg-white/10'"
+              class="cursor-pointer border px-2 py-0.5 transition"
+              :class="marketFilter === option ? 'border-amber-200/40 text-amber-100' : 'border-white/10 text-stone-400 hover:bg-white/10'"
+              :aria-pressed="marketFilter === option"
               @click="marketFilter = option"
             >
               {{ option === 'all' ? '全部' : MARKET_LABELS[option] }}（{{ counts[option] }}）
             </button>
           </div>
-          <div class="flex flex-wrap gap-1 text-[11px]">
-            <span class="self-center text-stone-500">排序</span>
+          <div class="flex flex-wrap items-center gap-1">
+            <span class="mr-1 text-stone-500">排序</span>
             <button
               v-for="option in SORT_OPTIONS"
               :key="option.value"
@@ -754,7 +869,13 @@ const INPUT_CLASS =
             v-for="(item, index) in visibleItems"
             :key="item.id"
             class="border-2 bg-white/[0.03]"
-            :class="dragId === item.id ? 'border-sky-300/50 opacity-60' : 'border-white/10'"
+            :class="
+              dragId === item.id
+                ? 'border-sky-300/50 opacity-60'
+                : expandedIds.has(item.id) && !sortMode
+                  ? 'border-amber-200/60'
+                  : 'border-white/10'
+            "
             :draggable="sortMode"
             @dragstart="dragId = item.id"
             @dragend="dragId = ''"
@@ -768,8 +889,8 @@ const INPUT_CLASS =
                 {{ item.summary?.name || item.target.name }}
                 <span class="text-xs tabular-nums text-stone-500">{{ idOf(item.target) }}</span>
               </span>
-              <button type="button" class="cursor-pointer border border-white/15 px-2 py-0.5 text-xs text-stone-300 hover:bg-white/10 disabled:opacity-30" :disabled="index === 0" :aria-label="`把${item.target.name}往上移`" @click="moveBy(item.id, -1)">↑</button>
-              <button type="button" class="cursor-pointer border border-white/15 px-2 py-0.5 text-xs text-stone-300 hover:bg-white/10 disabled:opacity-30" :disabled="index === visibleItems.length - 1" :aria-label="`把${item.target.name}往下移`" @click="moveBy(item.id, 1)">↓</button>
+              <button type="button" class="cursor-pointer border border-white/15 px-2 py-0.5 text-[14px] text-stone-300 hover:bg-white/10 disabled:opacity-30" :disabled="index === 0" :aria-label="`把${item.target.name}往上移`" @click="moveBy(item.id, -1)">↑</button>
+              <button type="button" class="cursor-pointer border border-white/15 px-2 py-0.5 text-[14px] text-stone-300 hover:bg-white/10 disabled:opacity-30" :disabled="index === visibleItems.length - 1" :aria-label="`把${item.target.name}往下移`" @click="moveBy(item.id, 1)">↓</button>
             </div>
 
             <!-- 收合時：一行（名稱、現價、今日漲跌、持股損益） -->
@@ -787,31 +908,34 @@ const INPUT_CLASS =
                 <span v-if="marketFilter === 'all'" class="ml-1.5 text-[10px] text-stone-500">{{ MARKET_LABELS[item.target.market] }}</span>
                 <span v-if="groupFilter === 'all' && item.group" class="ml-1.5 text-[10px] text-sky-200/70">{{ groupName(item.group) }}</span>
               </span>
+              <!-- 名稱以外每一欄都固定寬度（現價、漲跌、標籤、損益），沒有標籤或沒有持股時留空，數字上下才對得齊 -->
               <template v-if="item.summary">
-                <span class="shrink-0 tabular-nums text-stone-100">{{ formatNumber(item.summary.quote.price) }}</span>
+                <span class="w-20 shrink-0 text-right tabular-nums text-stone-100">{{ formatNumber(item.summary.quote.price) }}</span>
                 <span class="w-16 shrink-0 text-right text-xs tabular-nums" :class="trendClass(item.summary.quote.change)">
                   {{ formatSigned(item.summary.quote.changePct, '%') }}
                 </span>
               </template>
-              <span v-else class="shrink-0 text-xs text-stone-500">無報價</span>
-              <span v-if="hasRecentNews(item)" class="shrink-0 border border-sky-300/40 px-1.5 text-[10px] text-sky-100">重訊</span>
-              <span v-if="exSoon(item)" class="hidden shrink-0 border border-amber-200/40 px-1.5 text-[10px] text-amber-100 md:inline">
-                除{{ exSoon(item)!.type }} {{ shortDate(exSoon(item)!.date) }}
+              <span v-else class="w-36 shrink-0 text-right text-xs text-stone-500">無報價</span>
+              <!-- 標籤欄：手機只放「重訊」，平板以上再放除權息與籌碼 -->
+              <span class="flex w-9 shrink-0 items-center justify-end gap-1 overflow-hidden md:w-52">
+                <span v-if="hasRecentNews(item)" class="shrink-0 border border-sky-300/40 px-1.5 text-[10px] text-sky-100">重訊</span>
+                <span v-if="exSoon(item)" class="hidden shrink-0 border border-amber-200/40 px-1.5 text-[10px] text-amber-100 md:inline">
+                  除{{ exSoon(item)!.type }} {{ shortDate(exSoon(item)!.date) }}
+                </span>
+                <span
+                  v-if="item.summary?.chipsTag"
+                  class="hidden shrink-0 border px-1.5 text-[10px] md:inline"
+                  :class="TONE_STYLES[item.summary.chipsTag.tone]"
+                >
+                  {{ item.summary.chipsTag.text }}
+                </span>
               </span>
               <span
-                v-if="item.summary?.chipsTag"
-                class="hidden shrink-0 border px-1.5 text-[10px] md:inline"
-                :class="TONE_STYLES[item.summary.chipsTag.tone]"
-              >
-                {{ item.summary.chipsTag.text }}
-              </span>
-              <span
-                v-if="holdingPnl(item) !== null"
                 class="hidden w-24 shrink-0 text-right text-xs tabular-nums sm:inline"
-                :class="trendClass(holdingPnl(item))"
-                title="未實現損益"
+                :class="holdingPnl(item) !== null ? trendClass(holdingPnl(item)) : ''"
+                :title="holdingPnl(item) !== null ? '未實現損益' : undefined"
               >
-                {{ formatSigned(Math.round(holdingPnl(item)!)) }}
+                {{ holdingPnl(item) !== null ? formatSigned(Math.round(holdingPnl(item)!)) : '' }}
               </span>
             </button>
 
@@ -883,9 +1007,12 @@ const INPUT_CLASS =
                 >
                   {{ signal.label }} {{ signal.value }}
                 </span>
+                <!-- 這排標籤的名詞說明 -->
+                <HelpTip class="self-center" :terms="signalGlossaryKeys(item.summary.signals)" />
               </div>
 
               <p v-if="item.summary.supports.length || item.summary.resistances.length" class="mt-2 text-[11px] leading-5 text-stone-400">
+                <HelpTip class="mr-1.5" term="supportResistance" />
                 <template v-if="item.summary.supports[0]">
                   支撐 <span class="tabular-nums text-emerald-200">{{ formatNumber(item.summary.supports[0].price) }}</span>（{{ item.summary.supports[0].label }}）
                 </template>
@@ -940,14 +1067,14 @@ const INPUT_CLASS =
               <button
                 v-if="item.target.kind === 'stock' && editingId !== item.id"
                 type="button"
-                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[11px] text-stone-300 transition hover:bg-white/10 font-pixel"
+                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[14px] text-stone-300 transition hover:bg-white/10 font-pixel"
                 @click="editingId = item.id"
               >
                 {{ item.trades.length || item.dividends.length ? '編輯持股' : '記錄持股' }}
               </button>
               <button
                 type="button"
-                class="cursor-pointer border-2 border-sky-200/40 bg-sky-200/10 px-2 py-0.5 text-[11px] text-sky-50 transition hover:bg-sky-200/20 font-pixel"
+                class="cursor-pointer border-2 border-sky-200/40 bg-sky-200/10 px-2 py-0.5 text-[14px] text-sky-50 transition hover:bg-sky-200/20 font-pixel"
                 title="完整的行情、籌碼、回測與操作建議，也可以要求 AI 深度分析"
                 @click="openAnalysis(item)"
               >
@@ -955,7 +1082,7 @@ const INPUT_CLASS =
               </button>
               <button
                 type="button"
-                class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/10 px-2 py-0.5 text-[11px] text-amber-50 transition hover:bg-amber-200/20 font-pixel"
+                class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/10 px-2 py-0.5 text-[14px] text-amber-50 transition hover:bg-amber-200/20 font-pixel"
                 title="帶入這檔股票，用「股市諮詢」與「投資決策」牌陣占卜"
                 @click="quickReading(item)"
               >
@@ -963,13 +1090,14 @@ const INPUT_CLASS =
               </button>
               <button
                 type="button"
-                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[11px] text-stone-300 transition hover:bg-white/10 font-pixel"
+                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[14px] text-stone-300 transition hover:bg-white/10 font-pixel"
                 @click="emit('alert', item.target, item.summary?.quote.price ?? null)"
               >
                 設價位提醒
               </button>
-              <details v-if="groups.length" class="relative">
-                <summary class="cursor-pointer list-none border-2 border-white/15 px-2 py-0.5 text-[11px] text-stone-300 transition hover:bg-white/10 font-pixel [&::-webkit-details-marker]:hidden">
+              <details v-if="groups.length" class="relative" data-dropdown>
+                <!-- 外觀和旁邊的按鈕一致 -->
+                <summary class="cursor-pointer list-none border-2 border-white/15 px-2 py-0.5 text-[14px] text-stone-300 transition hover:bg-white/10 font-pixel [&::-webkit-details-marker]:hidden">
                   移到清單（{{ groupName(item.group) }}）
                 </summary>
                 <div class="absolute left-0 top-full z-20 mt-1 flex min-w-[9rem] flex-col border-2 border-white/15 bg-[#0f1526] py-1 shadow-xl shadow-black/40">
@@ -977,7 +1105,7 @@ const INPUT_CLASS =
                     v-for="option in [...groups, { id: null, name: '未分類', order: 0 }]"
                     :key="option.id ?? 'none'"
                     type="button"
-                    class="cursor-pointer px-3 py-1.5 text-left text-xs transition hover:bg-white/10 disabled:opacity-40"
+                    class="cursor-pointer px-3 py-1.5 text-left text-[14px] transition hover:bg-white/10 disabled:opacity-40"
                     :class="(item.group ?? null) === option.id ? 'text-amber-100' : 'text-stone-300'"
                     :disabled="moving === item.id || (item.group ?? null) === option.id"
                     @click="moveToGroup(item, option.id)"
@@ -988,7 +1116,7 @@ const INPUT_CLASS =
               </details>
               <button
                 type="button"
-                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[11px] text-stone-400 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[14px] text-stone-400 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
                 :disabled="removing === item.id"
                 @click="remove(item)"
               >

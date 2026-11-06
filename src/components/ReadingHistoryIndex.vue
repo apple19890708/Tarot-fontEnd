@@ -173,7 +173,7 @@ const TAB_MARKS = ['border-l-[#a8322a]', 'border-l-[#3d5a80]', 'border-l-[#5f7a3
           v-for="option in filterOptions"
           :key="option.value"
           type="button"
-          class="cursor-pointer border-2 px-3 py-1 font-pixel text-[12px] transition active:translate-x-[2px] active:translate-y-[2px]"
+          class="cursor-pointer border-2 px-3 py-1 font-pixel text-[14px] transition active:translate-x-[2px] active:translate-y-[2px]"
           :class="
             narrationFilter === option.value
               ? 'border-[#3b2618] bg-[#a8322a] text-[#f1e7cf]'
@@ -196,7 +196,7 @@ const TAB_MARKS = ['border-l-[#a8322a]', 'border-l-[#3d5a80]', 'border-l-[#5f7a3
       <p>沒有符合條件的紀錄</p>
       <button
         type="button"
-        class="mt-3 cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-4 py-1.5 font-pixel text-[12px] text-[#2a1a14] transition hover:bg-[#f1e7cf] active:translate-x-[2px] active:translate-y-[2px]"
+        class="mt-3 cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-4 py-1.5 font-pixel text-[14px] text-[#2a1a14] transition hover:bg-[#f1e7cf] active:translate-x-[2px] active:translate-y-[2px]"
         @click="clearConditions"
       >
         清除條件

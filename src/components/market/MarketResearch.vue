@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import HelpTip from '../HelpTip.vue'
 
 import MarketBacktestChart from './MarketBacktestChart.vue'
 import MarketPredictionChart from './MarketPredictionChart.vue'
@@ -42,7 +43,7 @@ const baseline10 = computed(() => props.research.backtest?.baseline.find((b) => 
     <!-- ── 訊號回測 ── -->
     <section v-if="research.backtest" class="space-y-3">
       <div>
-        <h4 class="text-sm font-semibold text-stone-50">訊號回測</h4>
+        <h4 class="flex items-center gap-1.5 text-sm font-semibold text-stone-50">訊號回測 <HelpTip term="backtest" /></h4>
         <p class="mt-1 text-xs leading-5 text-stone-400">
           目前亮著的訊號，在這檔標的過去 5 年「首次出現」之後的表現。和第一列「任意一天買進」的基準比，高出越多才代表這個訊號有用。
           「前後不一致」代表前期與後期的表現方向相反，可能只是剛好適合過去。
@@ -99,7 +100,7 @@ const baseline10 = computed(() => props.research.backtest?.baseline.find((b) => 
     <!-- ── 策略回測 ── -->
     <section v-if="research.strategies" class="space-y-3">
       <div>
-        <h4 class="text-sm font-semibold text-stone-50">策略回測</h4>
+        <h4 class="flex items-center gap-1.5 text-sm font-semibold text-stone-50">策略回測 <HelpTip term="strategies" /></h4>
         <p class="mt-1 text-xs leading-5 text-stone-400">
           {{ research.strategies.from }} 到 {{ research.strategies.to }}（約 {{ research.strategies.years }} 年），起點都是 100，每次來回扣
           {{ research.strategies.roundTripCost }}% 交易成本。虛線是買進持有，技術策略要贏過它才有操作的意義。
@@ -167,7 +168,7 @@ const baseline10 = computed(() => props.research.backtest?.baseline.find((b) => 
     <!-- ── 機器學習 ── -->
     <section v-if="research.prediction" class="space-y-3">
       <div class="flex flex-wrap items-center gap-2">
-        <h4 class="text-sm font-semibold text-stone-50">機器學習預測</h4>
+        <h4 class="flex items-center gap-1.5 text-sm font-semibold text-stone-50">機器學習預測 <HelpTip term="prediction" /></h4>
         <span
           class="border-2 px-2 py-0.5 text-[11px]"
           :class="

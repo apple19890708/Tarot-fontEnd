@@ -102,7 +102,7 @@ const error = ref('')
 let requestId = 0
 
 // 後端每人每分鐘最多 10 次，前端每次篩選後冷卻 6 秒，常用組合與重試也一樣
-const cooldown = useCooldown(6)
+const cooldown = useCooldown(6, 'market-screen')
 const busy = computed(() => status.value === 'loading' || cooldown.active.value)
 function run() {
   if (busy.value) return
@@ -179,7 +179,7 @@ const CHECK = 'h-3.5 w-3.5 accent-amber-300'
         v-for="preset in PRESETS"
         :key="preset.label"
         type="button"
-        class="cursor-pointer border border-amber-200/30 px-2.5 py-1 text-[12px] text-amber-100 transition hover:bg-amber-200/10 disabled:cursor-not-allowed disabled:opacity-50"
+        class="cursor-pointer border border-amber-200/30 px-2.5 py-1 text-[14px] text-amber-100 transition hover:bg-amber-200/10 disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="busy"
         @click="applyPreset(preset)"
       >
@@ -220,7 +220,7 @@ const CHECK = 'h-3.5 w-3.5 accent-amber-300'
             v-for="option in SORTS"
             :key="option.value"
             type="button"
-            class="cursor-pointer border px-2 py-0.5 text-[11px] transition"
+            class="cursor-pointer border px-2 py-0.5 text-[14px] transition"
             :class="sort === option.value ? 'border-amber-200/40 text-amber-100' : 'border-white/10 text-stone-400 hover:bg-white/10'"
             @click="sort = option.value"
           >
@@ -231,12 +231,12 @@ const CHECK = 'h-3.5 w-3.5 accent-amber-300'
       <div class="flex flex-wrap gap-2">
         <button
           type="submit"
-          class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-4 py-2 text-[12px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
+          class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-4 py-2 text-[14px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
           :disabled="busy"
         >
           {{ status === 'loading' ? '篩選中…' : cooldown.active.value ? `開始篩選（${cooldown.remaining.value}）` : '開始篩選' }}
         </button>
-        <button type="button" class="cursor-pointer border-2 border-white/15 px-3 py-2 text-[12px] text-stone-400 transition hover:bg-white/10 font-pixel" @click="reset">清除條件</button>
+        <button type="button" class="cursor-pointer border-2 border-white/15 px-3 py-2 text-[14px] text-stone-400 transition hover:bg-white/10 font-pixel" @click="reset">清除條件</button>
       </div>
     </form>
 
@@ -252,7 +252,7 @@ const CHECK = 'h-3.5 w-3.5 accent-amber-300'
 
     <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
       <span>{{ error }}</span>
-      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[12px] disabled:opacity-60 font-pixel" :disabled="busy" @click="run">
+      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[14px] disabled:opacity-60 font-pixel" :disabled="busy" @click="run">
         {{ cooldown.active.value ? `重試（${cooldown.remaining.value}）` : '重試' }}
       </button>
     </div>
@@ -302,7 +302,7 @@ const CHECK = 'h-3.5 w-3.5 accent-amber-300'
                 <button
                   v-else
                   type="button"
-                  class="cursor-pointer whitespace-nowrap border border-white/15 px-2 py-0.5 text-[11px] text-stone-300 transition hover:bg-white/10 disabled:opacity-50"
+                  class="cursor-pointer whitespace-nowrap border border-white/15 px-2 py-0.5 text-[14px] text-stone-300 transition hover:bg-white/10 disabled:opacity-50"
                   :disabled="addState[row.code] === 'saving'"
                   :title="addState[row.code] && addState[row.code] !== 'saving' ? addState[row.code] : undefined"
                   @click="addToWatchlist(row)"

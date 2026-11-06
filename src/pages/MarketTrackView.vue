@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import BackToTop from '../components/BackToTop.vue'
 import MarketAlertsPanel from '../components/market/MarketAlertsPanel.vue'
+import MarketFinanceNews from '../components/market/MarketFinanceNews.vue'
 import MarketHitRate from '../components/market/MarketHitRate.vue'
 import MarketOverview from '../components/market/MarketOverview.vue'
 import MarketScreener from '../components/market/MarketScreener.vue'
@@ -11,11 +12,12 @@ import MarketWatchlist from '../components/market/MarketWatchlist.vue'
 import { marketAlerts } from '../lib/marketAlerts'
 import type { MarketAlertTarget } from '../types'
 
-// 股市追蹤：自訂股票追蹤、大盤概況、選股、參考命中（建議自動對答案）、價位提醒等分頁。
+// 股市追蹤：自訂股票追蹤、大盤概況、財經新聞、選股、參考命中（建議自動對答案）、價位提醒等分頁。
 // 限 admin 與開通金融股市的會員（路由 meta.stock）。目前的分頁放在網址 ?tab=，重新整理或分享時會停在同一頁
 const TABS = [
   { key: 'watch', label: '自訂股票追蹤' },
   { key: 'overview', label: '大盤概況' },
+  { key: 'news', label: '財經新聞' },
   { key: 'screen', label: '選股' },
   { key: 'hits', label: '參考命中' },
   { key: 'alerts', label: '價位提醒' },
@@ -61,7 +63,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
     <header class="border-2 border-white/10 bg-[#0f1526] p-6">
       <p class="text-xs uppercase tracking-[0.35em] text-amber-100/70">Market Tracking</p>
       <h1 class="mt-2 text-2xl font-semibold text-stone-50">股市追蹤</h1>
-      <p class="mt-1 text-sm leading-6 text-stone-300/75">追蹤自己關注的股票與持股、檢查股市諮詢建議的命中率，並設定到價提醒。</p>
+      <p class="mt-1 text-sm leading-6 text-stone-300/75">追蹤自己關注的股票與持股、看國內外財經新聞、檢查股市諮詢建議的命中率，並設定到價提醒。</p>
     </header>
 
     <!-- 分頁列：自己一條不透明底色；分頁變多、超出寬度時橫向捲動，不會擠成兩行 -->
@@ -80,7 +82,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
           :aria-selected="activeTab === tab.key"
           :aria-controls="`market-panel-${tab.key}`"
           :tabindex="activeTab === tab.key ? 0 : -1"
-          class="shrink-0 cursor-pointer whitespace-nowrap border-b-2 px-5 py-3 text-[13px] transition font-pixel"
+          class="shrink-0 cursor-pointer whitespace-nowrap border-b-2 px-5 py-3 text-[14px] transition font-pixel"
           :class="
             activeTab === tab.key
               ? 'border-amber-200 bg-amber-200/10 text-amber-50'
@@ -100,6 +102,7 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
       <KeepAlive>
         <MarketWatchlist v-if="activeTab === 'watch'" @alert="openAlertFor" />
         <MarketOverview v-else-if="activeTab === 'overview'" />
+        <MarketFinanceNews v-else-if="activeTab === 'news'" />
         <MarketScreener v-else-if="activeTab === 'screen'" />
         <MarketHitRate v-else-if="activeTab === 'hits'" />
         <MarketAlertsPanel v-else :prefill="alertPrefill" />

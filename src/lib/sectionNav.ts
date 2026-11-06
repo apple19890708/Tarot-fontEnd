@@ -10,7 +10,8 @@ export type SectionNavItem = {
   go: () => void
 }
 
-type Provider = { items: () => SectionNavItem[] }
+// cardStyle: false：這一頁沒有牌，浮動選單只顯示「跳到段落」（股票分析紀錄）
+type Provider = { items: () => SectionNavItem[]; cardStyle?: boolean }
 
 export const sectionNav = shallowRef<Provider | null>(null)
 

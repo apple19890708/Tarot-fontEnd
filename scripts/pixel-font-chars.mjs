@@ -31,8 +31,9 @@ const RANKS = '王牌 二 三 四 五 六 七 八 九 十 侍者 騎士 皇后 �
 let text = `${MAJORS} ${SUITS} ${RANKS} 正位 逆位 —`
 const files = walk(join(root, 'src')).filter((file) => {
   const content = readFileSync(file, 'utf8')
-  // 路由檔的 meta.title 是導覽列的連結文字（App.vue 用 font-pixel 顯示）
-  return content.includes('font-pixel') || file.endsWith(join('router', 'index.ts'))
+  // 路由檔的 meta.title 是導覽列的連結文字（App.vue 用 font-pixel 顯示）；
+  // 呼叫 confirmDialog 的檔案：確認彈窗的標題與按鈕用像素字
+  return content.includes('font-pixel') || content.includes('confirmDialog(') || file.endsWith(join('router', 'index.ts'))
 })
 for (const file of files) text += readFileSync(file, 'utf8')
 console.error(`掃描 ${files.length} 個檔案`)

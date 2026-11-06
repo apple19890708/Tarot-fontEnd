@@ -49,7 +49,7 @@ onMounted(load)
 
     <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 text-xs text-rose-200">
       <span>{{ error }}</span>
-      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[12px] font-pixel" @click="load">重試</button>
+      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[14px] font-pixel" @click="load">重試</button>
     </div>
 
     <template v-else-if="detail">

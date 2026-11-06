@@ -157,7 +157,7 @@ onMounted(() => load(1))
                 v-else
                 type="button"
                 :disabled="updatingId === `${user.id}:${field}`"
-                class="cursor-pointer border-2 border-[#3b2618] px-2.5 py-1 text-xs shadow-[2px_2px_0_rgba(0,0,0,0.3)] transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
+                class="cursor-pointer border-2 border-[#3b2618] px-2.5 py-1 text-[14px] shadow-[2px_2px_0_rgba(0,0,0,0.3)] transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
                 :class="
                   user[field]
                     ? 'bg-[#a8322a] text-[#f1e7cf] hover:bg-[#bf3d33]'
@@ -176,7 +176,7 @@ onMounted(() => load(1))
 
     <div v-if="pageCount > 1" class="mt-4 flex items-center justify-center gap-3 text-sm">
       <button
-        class="cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-3 py-1 font-pixel text-[12px] shadow-[2px_2px_0_rgba(0,0,0,0.3)] transition hover:bg-[#f6eedb] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-40"
+        class="cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-3 py-1 font-pixel text-[14px] shadow-[2px_2px_0_rgba(0,0,0,0.3)] transition hover:bg-[#f6eedb] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-40"
         :disabled="page <= 1 || loading"
         @click="load(page - 1)"
       >
@@ -184,7 +184,7 @@ onMounted(() => load(1))
       </button>
       <span class="tabular-nums text-[#2a1a14]/70">{{ page }} / {{ pageCount }}</span>
       <button
-        class="cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-3 py-1 font-pixel text-[12px] shadow-[2px_2px_0_rgba(0,0,0,0.3)] transition hover:bg-[#f6eedb] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-40"
+        class="cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-3 py-1 font-pixel text-[14px] shadow-[2px_2px_0_rgba(0,0,0,0.3)] transition hover:bg-[#f6eedb] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-40"
         :disabled="page >= pageCount || loading"
         @click="load(page + 1)"
       >

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { confirmDialog } from '../lib/confirm'
 
 import ReadingHistoryIndex from '../components/ReadingHistoryIndex.vue'
 import SkeletonBlock from '../components/SkeletonBlock.vue'
@@ -54,8 +55,7 @@ const detail = ref<ReadingDetail | null>(null)
 const isDetailLoading = ref(false)
 const detailError = ref('')
 
-// 刪除採二段式：第一次點變成「確定刪除」，再點才真的送出
-const pendingDeleteId = ref('')
+// 刪除前用共用的確認彈窗確認
 const deletingId = ref('')
 const deleteError = ref('')
 
@@ -191,7 +191,6 @@ async function loadDetail(id: string) {
   detail.value = null
   detailError.value = ''
   deleteError.value = ''
-  pendingDeleteId.value = ''
   isDetailLoading.value = true
   narrationText.value = ''
   narrationError.value = ''
@@ -290,17 +289,14 @@ watch(detail, (current) => {
 })
 
 async function confirmDelete(id: string) {
-  if (pendingDeleteId.value !== id) {
-    pendingDeleteId.value = id
-    return
-  }
+  const ok = await confirmDialog({ title: '刪除紀錄', message: '確定要刪除這筆占卜紀錄嗎？刪除後無法復原。', confirmText: '刪除', danger: true })
+  if (!ok) return
 
   deletingId.value = id
   deleteError.value = ''
 
   try {
     await deleteReading(id)
-    pendingDeleteId.value = ''
 
     // 刪掉後改看相鄰的下一筆，沒有就看上一筆
     const index = readings.value.findIndex((item) => item.id === id)
@@ -438,7 +434,7 @@ onBeforeUnmount(() => {
           type="button"
           role="tab"
           :aria-selected="tab === option.value"
-          class="cursor-pointer border-2 px-4 py-1.5 font-pixel text-[12px] transition active:translate-x-[2px] active:translate-y-[2px]"
+          class="cursor-pointer border-2 px-4 py-1.5 font-pixel text-[14px] transition active:translate-x-[2px] active:translate-y-[2px]"
           :class="tab === option.value
             ? 'border-amber-200/50 bg-amber-200/15 text-amber-50'
             : 'border-white/15 text-stone-300 hover:bg-white/10'"
@@ -497,7 +493,7 @@ onBeforeUnmount(() => {
         <div v-if="showRail" key="rail" class="flex flex-col items-center">
           <button
             type="button"
-            class="cursor-pointer border-2 border-[#f1e7cf]/30 px-1.5 py-0.5 font-pixel text-[12px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200"
+            class="cursor-pointer border-2 border-[#f1e7cf]/30 px-1.5 py-0.5 font-pixel text-[14px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200"
             title="展開紀錄清單"
             aria-label="展開紀錄清單"
             @click="toggleIndex"
@@ -513,14 +509,14 @@ onBeforeUnmount(() => {
             <p class="font-pixel text-[12px] tracking-[0.2em] text-amber-200">紀錄清單</p>
             <button
               type="button"
-              class="hidden cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-[12px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px] lg:block"
+              class="hidden cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-[14px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px] lg:block"
               @click="toggleIndex"
             >
               « 收合
             </button>
             <button
               type="button"
-              class="cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-[12px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 lg:hidden"
+              class="cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-[14px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 lg:hidden"
               @click="isMobileIndexOpen = false"
             >
               關閉
@@ -643,17 +639,12 @@ onBeforeUnmount(() => {
                 張
               </p>
               <button
-                class="cursor-pointer rounded-full border px-4 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-50"
-                :class="
-                  pendingDeleteId === detail.id
-                    ? 'border-rose-300/50 bg-rose-300/15 text-rose-50'
-                    : 'border-white/15 text-rose-200/80 hover:bg-rose-300/10'
-                "
+                class="cursor-pointer rounded-full border border-white/15 px-4 py-1.5 text-sm text-rose-200/80 transition hover:bg-rose-300/10 disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
                 :disabled="deletingId === detail.id"
                 @click="confirmDelete(detail.id)"
               >
-                {{ deletingId === detail.id ? '刪除中…' : pendingDeleteId === detail.id ? '確定刪除？' : '刪除' }}
+                {{ deletingId === detail.id ? '刪除中…' : '刪除' }}
               </button>
             </div>
 

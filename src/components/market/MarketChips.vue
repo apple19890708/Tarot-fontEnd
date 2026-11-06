@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Bar } from 'vue-chartjs'
+import HelpTip from '../HelpTip.vue'
 
 import { axis, CHART_COLORS, formatNumber, legendOptions, shortDate } from '../../lib/marketChart'
 import type { MarketChips, MarketValuation } from '../../types'
@@ -67,8 +68,9 @@ const valuationRows = computed(() => {
   <div class="space-y-4">
     <section v-if="chips" class="space-y-3">
       <div>
-        <h4 class="text-sm font-semibold text-stone-50">
+        <h4 class="flex items-center gap-1.5 text-sm font-semibold text-stone-50">
           {{ chips.scope === 'market' ? '三大法人（全市場）' : '三大法人與融資' }}
+          <HelpTip term="chips" />
         </h4>
         <p class="mt-1 text-xs leading-5 text-stone-400">
           單位：{{ chips.unit }}，正值買超、負值賣超。
@@ -99,7 +101,7 @@ const valuationRows = computed(() => {
     </section>
 
     <section v-if="valuation" class="space-y-2">
-      <h4 class="text-sm font-semibold text-stone-50">估值</h4>
+      <h4 class="flex items-center gap-1.5 text-sm font-semibold text-stone-50">估值 <HelpTip term="valuation" /></h4>
       <div class="grid gap-2 sm:grid-cols-3">
         <div v-for="row in valuationRows" :key="row.label" class="border-2 border-white/10 bg-white/5 p-3">
           <p class="text-xs text-stone-400">{{ row.label }}</p>

@@ -510,7 +510,7 @@ const cardGroups = computed(() => {
     />
     <div class="flex items-center justify-between gap-3">
       <button
-        class="cursor-pointer text-[12px] text-stone-400 transition hover:text-stone-100 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+        class="cursor-pointer text-[14px] text-stone-400 transition hover:text-stone-100 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         type="button"
         @click="emit('back')"
       >
@@ -526,7 +526,7 @@ const cardGroups = computed(() => {
       <button
         v-for="tab in MODES"
         :key="tab.key"
-        class="cursor-pointer whitespace-nowrap px-1 py-2 text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-35 sm:px-3 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+        class="cursor-pointer whitespace-nowrap px-1 py-2 text-[14px] font-medium transition disabled:cursor-not-allowed disabled:opacity-35 sm:px-3 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         :class="mode === tab.key ? 'bg-amber-200/90 text-slate-950' : 'text-stone-300/80 hover:text-stone-100'"
         type="button"
         :disabled="!tab.enabled"
@@ -584,7 +584,7 @@ const cardGroups = computed(() => {
 
       <!-- 按下後按鈕留在原地改顯示進度，版面高度不變 -->
       <button
-        class="w-full cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-3 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+        class="w-full cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-3 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         type="button"
         :disabled="isLoading || autoPhase !== 'idle'"
         aria-live="polite"
@@ -603,7 +603,7 @@ const cardGroups = computed(() => {
         </p>
         <div class="flex gap-2">
           <button
-            class="cursor-pointer whitespace-nowrap border-2 border-white/15 px-2.5 py-1 text-[12px] text-stone-200 transition hover:bg-white/10 disabled:opacity-40 sm:px-3 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer whitespace-nowrap border-2 border-white/15 px-2.5 py-1 text-[14px] text-stone-200 transition hover:bg-white/10 disabled:opacity-40 sm:px-3 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             :disabled="picked.length === 0"
             @click="onUndoPick"
@@ -611,7 +611,7 @@ const cardGroups = computed(() => {
             收回最後一張
           </button>
           <button
-            class="cursor-pointer whitespace-nowrap border-2 border-white/15 px-2.5 py-1 text-[12px] text-stone-200 transition hover:bg-white/10 sm:px-3 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer whitespace-nowrap border-2 border-white/15 px-2.5 py-1 text-[14px] text-stone-200 transition hover:bg-white/10 sm:px-3 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('reshuffle')"
           >
@@ -636,7 +636,7 @@ const cardGroups = computed(() => {
       <div v-if="fanPhase === 'shuffling'" class="flex justify-center pt-2">
         <button
           type="button"
-          class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-6 py-2 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+          class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-6 py-2 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
           @click="fanRef?.cut()"
         >
           切牌
@@ -661,7 +661,7 @@ const cardGroups = computed(() => {
       <!-- 和位置格一樣，切完牌才出現 -->
       <button
         v-if="showSlots"
-        class="w-full cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-3 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+        class="w-full cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-3 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         type="button"
         :disabled="isLoading || !pickedEnough"
         @click="emit('submit')"
@@ -785,14 +785,14 @@ const cardGroups = computed(() => {
 
             <template v-if="inputCards[index]">
               <button
-                class="cursor-pointer border-2 border-white/15 px-2 py-1 text-[12px] text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+                class="cursor-pointer border-2 border-white/15 px-2 py-1 text-[14px] text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
                 type="button"
                 @click="emit('toggleInputOrientation', index)"
               >
                 {{ inputCards[index]!.orientation === 'upright' ? '正位' : '逆位' }}
               </button>
               <button
-                class="cursor-pointer px-2 py-1 text-[12px] text-rose-200/80 transition hover:bg-rose-300/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+                class="cursor-pointer px-2 py-1 text-[14px] text-rose-200/80 transition hover:bg-rose-300/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
                 type="button"
                 title="移除"
                 @click="emit('removeInputCard', index)"
@@ -805,7 +805,7 @@ const cardGroups = computed(() => {
       </div>
 
       <button
-        class="w-full cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-3 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+        class="w-full cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-3 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         type="button"
         :disabled="isLoading || !inputEnough"
         @click="emit('submit')"
@@ -849,7 +849,7 @@ const cardGroups = computed(() => {
               </div>
               <button
                 type="button"
-                class="-mr-1 shrink-0 cursor-pointer border-2 border-white/10 px-3 py-1.5 text-[12px] text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+                class="-mr-1 shrink-0 cursor-pointer border-2 border-white/10 px-3 py-1.5 text-[14px] text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
                 @click="closePicker"
               >
                 關閉
@@ -890,7 +890,7 @@ const cardGroups = computed(() => {
                   <button
                     v-for="card in row.cards"
                     :key="card.id"
-                    class="cursor-pointer truncate border-2 px-2 py-2 text-center text-[12px] transition disabled:cursor-not-allowed disabled:opacity-40 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+                    class="cursor-pointer truncate border-2 px-2 py-2 text-center text-[14px] transition disabled:cursor-not-allowed disabled:opacity-40 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
                     :class="inputCards[pickerIndex ?? 0]?.id === card.id
                       ? 'border-amber-200/40 bg-amber-200/20 text-amber-50'
                       : 'border-white/10 bg-white/5 text-stone-200 hover:bg-white/10'"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { confirmDialog } from '../lib/confirm'
 
 const router = useRouter()
 
@@ -32,7 +33,9 @@ function addRoute() {
   path.value = ''
 }
 
-function removeRoute(rname: string) {
+async function removeRoute(rname: string) {
+  const ok = await confirmDialog({ title: '移除路由', message: `確定要移除路由「${rname}」嗎？`, confirmText: '移除', danger: true })
+  if (!ok) return
   try {
     router.removeRoute(rname)
   } catch (e) {

@@ -224,7 +224,7 @@ function formatSuit(suit: string | null) {
           <!-- 占卜結果預設不留存，按這個才會存進「我的紀錄」 -->
           <button
             v-if="saveStatus"
-            class="cursor-pointer border-2 px-3 py-1 text-[12px] transition disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 px-3 py-1 text-[14px] transition disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             :class="
               saveStatus === 'saved'
                 ? 'border-amber-200/40 bg-amber-200/15 text-amber-50'
@@ -237,14 +237,14 @@ function formatSuit(suit: string | null) {
             {{ saveLabel }}
           </button>
           <button
-            class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[12px] text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[14px] text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('redraw')"
           >
             重抽
           </button>
           <button
-            class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[12px] text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[14px] text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('restart')"
           >
@@ -416,7 +416,7 @@ function formatSuit(suit: string | null) {
         </p>
         <button
           v-if="canUseAi"
-          class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+          class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
           type="button"
           @click="emit('requestNarration')"
         >
@@ -426,7 +426,7 @@ function formatSuit(suit: string | null) {
         <!-- 未登入：按鈕照樣顯示，點了會帶去登入頁 -->
         <template v-else-if="!isLoggedIn">
           <button
-            class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('requestNarration')"
           >
@@ -487,7 +487,7 @@ function formatSuit(suit: string | null) {
             {{ narrationStatus === 'loading' ? '正在整理這次的解讀…' : 'AI 正在撰寫…' }}
           </span>
           <button
-            class="cursor-pointer border-2 border-white/15 bg-white/5 px-4 py-1.5 text-[12px] text-stone-100 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-white/15 bg-white/5 px-4 py-1.5 text-[14px] text-stone-100 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('stopNarration')"
           >
@@ -509,7 +509,7 @@ function formatSuit(suit: string | null) {
             {{ isRecorded ? '重新產生的解讀完成後，會取代紀錄裡的這一篇。' : '不滿意可以重新產生一篇。' }}
           </span>
           <button
-            class="cursor-pointer border-2 border-amber-200/30 bg-amber-200/10 px-4 py-1.5 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-amber-200/30 bg-amber-200/10 px-4 py-1.5 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="regenerateNarration"
           >
@@ -527,7 +527,7 @@ function formatSuit(suit: string | null) {
             <template v-else>{{ narrationError }}可以先參考下方規則分析的結果，或稍後再試一次。</template>
           </span>
           <button
-            class="cursor-pointer border-2 border-amber-200/30 bg-amber-200/10 px-4 py-1.5 text-[12px] font-medium text-amber-50 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-amber-200/30 bg-amber-200/10 px-4 py-1.5 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="regenerateNarration"
           >
@@ -543,7 +543,7 @@ function formatSuit(suit: string | null) {
     <div v-if="reading.analysis && !stockMode" ref="analysisWrapEl" data-nav="判斷依據">
       <button
         type="button"
-        class="flex w-full items-center justify-between border-2 border-white/10 bg-white/5 px-4 py-2 text-left text-[12px] text-stone-200/80 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+        class="flex w-full items-center justify-between border-2 border-white/10 bg-white/5 px-4 py-2 text-left text-[14px] text-stone-200/80 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         :aria-expanded="analysisOpen"
         aria-controls="analysis-details"
         @click="analysisOpen = !analysisOpen"

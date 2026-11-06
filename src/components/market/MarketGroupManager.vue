@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { confirmDialog } from '../../lib/confirm'
 
 import { createWatchGroup, deleteWatchGroup, renameWatchGroup, reorderWatchGroups } from '../../lib/api'
 import type { MarketWatchGroup } from '../../types'
@@ -66,8 +67,15 @@ function move(index: number, delta: number) {
   })
 }
 
-function remove(group: MarketWatchGroup) {
-  if (!window.confirm(`刪除清單「${group.name}」？裡面的股票會移到「未分類」，不會被刪掉。`)) return
+async function remove(group: MarketWatchGroup) {
+  const ok = await confirmDialog({
+    title: '刪除清單',
+    message: `刪除清單「${group.name}」？
+裡面的股票會移到「未分類」，不會被刪掉。`,
+    confirmText: '刪除',
+    danger: true,
+  })
+  if (!ok) return
   void run(async () => {
     const { groups } = await deleteWatchGroup(group.id)
     emit('changed', groups)
@@ -86,7 +94,7 @@ const SMALL = 'cursor-pointer border border-white/15 px-1.5 py-0.5 text-[11px] t
           <input
             v-model="editName"
             maxlength="20"
-            class="min-w-0 flex-[1_1_8rem] border-2 border-white/10 bg-white/5 px-2 py-1 text-xs text-stone-50 outline-none focus:border-amber-200/40"
+            class="min-w-0 flex-[1_1_8rem] border-2 border-white/10 bg-white/5 px-2 py-1 text-sm text-stone-50 outline-none focus:border-amber-200/40"
             :aria-label="`清單「${group.name}」的新名稱`"
             @keydown.enter.prevent="saveRename(group)"
             @keydown.esc="editingId = ''"
@@ -109,11 +117,11 @@ const SMALL = 'cursor-pointer border border-white/15 px-1.5 py-0.5 text-[11px] t
       <input
         v-model="newName"
         maxlength="20"
-        class="min-w-0 flex-[1_1_10rem] border-2 border-white/10 bg-white/5 px-2 py-1 text-xs text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
+        class="min-w-0 flex-[1_1_10rem] border-2 border-white/10 bg-white/5 px-2 py-1 text-sm text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
         placeholder="新清單名稱（例如 長期存股）"
         aria-label="新清單名稱"
       />
-      <button type="submit" class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-1 text-[12px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel" :disabled="busy || !newName.trim()">
+      <button type="submit" class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-1 text-[14px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel" :disabled="busy || !newName.trim()">
         新增清單
       </button>
     </form>

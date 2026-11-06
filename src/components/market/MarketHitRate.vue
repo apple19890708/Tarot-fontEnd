@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { confirmDialog } from '../../lib/confirm'
 
 import { clearMarketTrack, fetchMarketTrack } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
@@ -34,7 +35,13 @@ async function loadTrack() {
 
 const clearing = ref(false)
 async function clearTrack() {
-  if (!window.confirm('確定要清除全部的建議紀錄嗎？命中率會從頭開始統計。')) return
+  const ok = await confirmDialog({
+    title: '清除建議紀錄',
+    message: '確定要清除全部的建議紀錄嗎？命中率會從頭開始統計。',
+    confirmText: '清除',
+    danger: true,
+  })
+  if (!ok) return
   clearing.value = true
   try {
     await clearMarketTrack()
@@ -104,7 +111,7 @@ onMounted(() => {
           v-for="(h, index) in track?.horizons ?? []"
           :key="h.days"
           type="button"
-          class="cursor-pointer border-2 px-3 py-1 text-[12px] transition font-pixel"
+          class="cursor-pointer border-2 px-3 py-1 text-[14px] transition font-pixel"
           :class="index === horizonIndex ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/15 text-stone-300 hover:bg-white/10'"
           @click="horizonIndex = index"
         >
@@ -130,7 +137,7 @@ onMounted(() => {
 
     <div v-else-if="trackStatus === 'error'" class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
       <span>{{ trackError }}</span>
-      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[12px] font-pixel" @click="loadTrack">重試</button>
+      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[14px] font-pixel" @click="loadTrack">重試</button>
     </div>
 
     <template v-else-if="track">
@@ -228,7 +235,7 @@ onMounted(() => {
 
         <button
           type="button"
-          class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[12px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+          class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[14px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
           :disabled="clearing"
           @click="clearTrack"
         >

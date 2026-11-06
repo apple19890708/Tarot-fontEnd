@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { confirmDialog } from '../../lib/confirm'
 
 import { updateWatchHoldings } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
@@ -91,7 +92,13 @@ async function save(clear = false) {
   editError.value = ''
   let payload: { trades: MarketTrade[]; dividends: MarketDividend[] }
   if (clear) {
-    if (!window.confirm(`確定要清除 ${props.item.target.name} 的全部買賣與股利紀錄嗎？`)) return
+    const ok = await confirmDialog({
+      title: '清除持股紀錄',
+      message: `確定要清除 ${props.item.target.name} 的全部買賣與股利紀錄嗎？`,
+      confirmText: '清除',
+      danger: true,
+    })
+    if (!ok) return
     payload = { trades: [], dividends: [] }
   } else {
     const parsed = parseRows()
@@ -129,7 +136,13 @@ const recordError = ref('')
 async function recordDividend() {
   const pending = pendingDividend.value
   if (!pending) return
-  if (!window.confirm(`記入 ${formatNumber(pending.amount, 0)} 元的股利（除息日 ${pending.date}）？實際入帳金額以券商為準，之後可以在「編輯持股」修改。`)) return
+  const ok = await confirmDialog({
+    title: '記入股利',
+    message: `記入 ${formatNumber(pending.amount, 0)} 元的股利（除息日 ${pending.date}）？
+實際入帳金額以券商為準，之後可以在「編輯持股」修改。`,
+    confirmText: '記入',
+  })
+  if (!ok) return
   recording.value = true
   recordError.value = ''
   try {
@@ -175,7 +188,7 @@ const INPUT_CLASS =
             type="button"
             role="radio"
             :aria-checked="row.side === side"
-            class="cursor-pointer border-2 px-2.5 py-2 text-[12px] transition font-pixel"
+            class="cursor-pointer border-2 px-2.5 py-2 text-[14px] transition font-pixel"
             :class="
               row.side === side
                 ? side === 'buy'
@@ -193,7 +206,7 @@ const INPUT_CLASS =
         <input v-model="row.date" type="date" :class="INPUT_CLASS" class="flex-[1_1_8.5rem] [color-scheme:dark]" :aria-label="`第 ${index + 1} 筆的日期`" />
         <button
           type="button"
-          class="shrink-0 cursor-pointer border-2 border-white/15 px-2 py-2 text-[11px] text-stone-400 transition hover:bg-white/10 font-pixel"
+          class="shrink-0 cursor-pointer border-2 border-white/15 px-2 py-2 text-[14px] text-stone-400 transition hover:bg-white/10 font-pixel"
           :aria-label="`刪除第 ${index + 1} 筆`"
           @click="removeTrade(index)"
         >
@@ -204,7 +217,7 @@ const INPUT_CLASS =
         <div class="flex gap-2">
           <button
             type="button"
-            class="cursor-pointer border-2 border-dashed border-rose-300/30 px-3 py-1.5 text-[12px] text-rose-100 transition hover:bg-rose-300/10 disabled:opacity-50 font-pixel"
+            class="cursor-pointer border-2 border-dashed border-rose-300/30 px-3 py-1.5 text-[14px] text-rose-100 transition hover:bg-rose-300/10 disabled:opacity-50 font-pixel"
             :disabled="tradeRows.length >= MAX_TRADES"
             @click="addTrade('buy')"
           >
@@ -212,7 +225,7 @@ const INPUT_CLASS =
           </button>
           <button
             type="button"
-            class="cursor-pointer border-2 border-dashed border-emerald-300/30 px-3 py-1.5 text-[12px] text-emerald-100 transition hover:bg-emerald-300/10 disabled:opacity-50 font-pixel"
+            class="cursor-pointer border-2 border-dashed border-emerald-300/30 px-3 py-1.5 text-[14px] text-emerald-100 transition hover:bg-emerald-300/10 disabled:opacity-50 font-pixel"
             :disabled="tradeRows.length >= MAX_TRADES"
             @click="addTrade('sell')"
           >
@@ -233,7 +246,7 @@ const INPUT_CLASS =
         <input v-model="row.date" type="date" :class="INPUT_CLASS" class="flex-[1_1_8.5rem] [color-scheme:dark]" :aria-label="`第 ${index + 1} 筆股利日期`" />
         <button
           type="button"
-          class="shrink-0 cursor-pointer border-2 border-white/15 px-2 py-2 text-[11px] text-stone-400 transition hover:bg-white/10 font-pixel"
+          class="shrink-0 cursor-pointer border-2 border-white/15 px-2 py-2 text-[14px] text-stone-400 transition hover:bg-white/10 font-pixel"
           :aria-label="`刪除第 ${index + 1} 筆股利`"
           @click="removeDividend(index)"
         >
@@ -242,7 +255,7 @@ const INPUT_CLASS =
       </div>
       <button
         type="button"
-        class="cursor-pointer border-2 border-dashed border-amber-200/30 px-3 py-1.5 text-[12px] text-amber-100 transition hover:bg-amber-200/10 disabled:opacity-50 font-pixel"
+        class="cursor-pointer border-2 border-dashed border-amber-200/30 px-3 py-1.5 text-[14px] text-amber-100 transition hover:bg-amber-200/10 disabled:opacity-50 font-pixel"
         :disabled="dividendRows.length >= MAX_DIVIDENDS"
         @click="addDividend"
       >
@@ -253,7 +266,7 @@ const INPUT_CLASS =
     <div class="flex flex-wrap gap-2">
       <button
         type="button"
-        class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-2 text-[12px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
+        class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-2 text-[14px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
         :disabled="saving"
         @click="save()"
       >
@@ -262,7 +275,7 @@ const INPUT_CLASS =
       <button
         v-if="item.trades.length || item.dividends.length"
         type="button"
-        class="shrink-0 cursor-pointer border-2 border-white/15 px-3 py-2 text-[12px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+        class="shrink-0 cursor-pointer border-2 border-white/15 px-3 py-2 text-[14px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
         :disabled="saving"
         @click="save(true)"
       >
@@ -270,7 +283,7 @@ const INPUT_CLASS =
       </button>
       <button
         type="button"
-        class="shrink-0 cursor-pointer border-2 border-white/15 px-3 py-2 text-[12px] text-stone-400 transition hover:bg-white/10 font-pixel"
+        class="shrink-0 cursor-pointer border-2 border-white/15 px-3 py-2 text-[14px] text-stone-400 transition hover:bg-white/10 font-pixel"
         @click="editing = false"
       >
         取消

@@ -31,7 +31,7 @@ async function load() {
   }
 }
 // 手動更新：按完 30 秒內不能再按（後端也有 10 分鐘快取）
-const cooldown = useCooldown(30)
+const cooldown = useCooldown(30, 'market-overview-refresh')
 const refresh = () => cooldown.run(load)
 
 onMounted(load)
@@ -91,7 +91,7 @@ function timeText(value: string) {
       </div>
       <button
         type="button"
-        class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[12px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+        class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[14px] text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
         :disabled="status === 'loading' || cooldown.active.value"
         @click="refresh"
       >
@@ -120,7 +120,7 @@ function timeText(value: string) {
       <span>{{ error }}</span>
       <button
         type="button"
-        class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[12px] disabled:opacity-60 font-pixel"
+        class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[14px] disabled:opacity-60 font-pixel"
         :disabled="cooldown.active.value"
         @click="refresh"
       >
