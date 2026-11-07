@@ -83,7 +83,7 @@ async function remove(group: MarketWatchGroup) {
   })
 }
 
-const SMALL = 'cursor-pointer border border-white/15 px-1.5 py-0.5 text-caption text-stone-300 transition hover:bg-white/10 disabled:opacity-40'
+const SMALL = 'cursor-pointer border border-tint/15 px-1.5 py-0.5 text-caption text-ink-muted transition hover:bg-tint/10 disabled:opacity-40'
 </script>
 
 <template>
@@ -94,7 +94,7 @@ const SMALL = 'cursor-pointer border border-white/15 px-1.5 py-0.5 text-caption 
           <input
             v-model="editName"
             maxlength="20"
-            class="min-w-0 flex-[1_1_8rem] border-2 border-white/10 bg-white/5 px-2 py-1 text-body text-stone-50 outline-none focus:border-amber-200/40"
+            class="min-w-0 flex-[1_1_8rem] border-2 border-tint/10 bg-tint/5 px-2 py-1 text-body text-ink outline-none focus:border-accent-hue/40"
             :aria-label="`清單「${group.name}」的新名稱`"
             @keydown.enter.prevent="saveRename(group)"
             @keydown.esc="editingId = ''"
@@ -103,7 +103,7 @@ const SMALL = 'cursor-pointer border border-white/15 px-1.5 py-0.5 text-caption 
           <button type="button" :class="SMALL" @click="editingId = ''">取消</button>
         </template>
         <template v-else>
-          <span class="min-w-0 flex-1 truncate text-stone-100">{{ group.name }}</span>
+          <span class="min-w-0 flex-1 truncate text-ink">{{ group.name }}</span>
           <button type="button" :class="SMALL" :disabled="busy || index === 0" :aria-label="`把「${group.name}」往前移`" @click="move(index, -1)">↑</button>
           <button type="button" :class="SMALL" :disabled="busy || index === groups.length - 1" :aria-label="`把「${group.name}」往後移`" @click="move(index, 1)">↓</button>
           <button type="button" :class="SMALL" :disabled="busy" @click="startRename(group)">改名</button>
@@ -111,21 +111,21 @@ const SMALL = 'cursor-pointer border border-white/15 px-1.5 py-0.5 text-caption 
         </template>
       </li>
     </ul>
-    <p v-else class="text-stone-300">還沒有清單。新增後，加入股票時可以選放進哪個清單，展開卡片也可以「移到清單」。</p>
+    <p v-else class="text-ink-muted">還沒有清單。新增後，加入股票時可以選放進哪個清單，展開卡片也可以「移到清單」。</p>
 
     <form v-if="groups.length < MAX_GROUPS" class="flex flex-wrap gap-2" @submit.prevent="add">
       <input
         v-model="newName"
         maxlength="20"
-        class="min-w-0 flex-[1_1_10rem] border-2 border-white/10 bg-white/5 px-2 py-1 text-body text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
+        class="min-w-0 flex-[1_1_10rem] border-2 border-tint/10 bg-tint/5 px-2 py-1 text-body text-ink outline-none placeholder:text-ink-muted focus:border-accent-hue/40"
         placeholder="新清單名稱（例如 長期存股）"
         aria-label="新清單名稱"
       />
-      <button type="submit" class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-1 text-button text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel" :disabled="busy || !newName.trim()">
+      <button type="submit" class="cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-3 py-1 text-button text-accent transition hover:bg-accent-hue/25 disabled:opacity-60 font-pixel" :disabled="busy || !newName.trim()">
         新增清單
       </button>
     </form>
-    <p v-else class="text-stone-300">清單最多 {{ MAX_GROUPS }} 個。</p>
-    <p v-if="error" class="text-rose-200">{{ error }}</p>
+    <p v-else class="text-ink-muted">清單最多 {{ MAX_GROUPS }} 個。</p>
+    <p v-if="error" class="text-danger">{{ error }}</p>
   </div>
 </template>

@@ -1,4 +1,4 @@
-// 股市諮詢的圖表共用設定：註冊 chart.js 元件、深色主題的軸線與文字、各條線的顏色。
+// 股市諮詢的圖表共用設定：註冊 chart.js 元件、軸線與文字。顏色在 chartPalette.ts（黑夜／白天兩套）
 import {
   ArcElement,
   BarController,
@@ -30,27 +30,9 @@ ChartJS.register(
   Tooltip,
 )
 
-export const CHART_COLORS = {
-  text: 'rgba(214,211,209,0.75)',
-  grid: 'rgba(255,255,255,0.08)',
-  price: '#f5f5f4',
-  ma5: '#fcd34d',
-  ma20: '#fda4af',
-  ma60: '#93c5fd',
-  volume: 'rgba(255,255,255,0.12)',
-  // 台灣習慣：漲紅跌綠；壓力在上方用紅、支撐在下方用綠
-  up: '#fda4af',
-  down: '#6ee7b7',
-  baseline: 'rgba(214,211,209,0.45)',
-  horizons: ['#fcd34d', '#fda4af', '#93c5fd'],
-  strategies: {
-    buyHold: '#e7e5e4',
-    maCross: '#fcd34d',
-    kd: '#fda4af',
-    rsi: '#6ee7b7',
-    macd: '#7dd3fc',
-  } as Record<string, string>,
-}
+import { CHART_COLORS } from './chartPalette'
+
+export { CHART_COLORS }
 
 export function axis(extra: Record<string, unknown> = {}) {
   return {
@@ -61,9 +43,12 @@ export function axis(extra: Record<string, unknown> = {}) {
   }
 }
 
-export const legendOptions = {
-  position: 'bottom' as const,
-  labels: { color: CHART_COLORS.text, boxWidth: 12, boxHeight: 2, font: { size: 11 } },
+// 圖例：寫成函式，在 computed 裡呼叫才會跟著日夜模式換字色
+export function legendOptions() {
+  return {
+    position: 'bottom' as const,
+    labels: { color: CHART_COLORS.text, boxWidth: 12, boxHeight: 2, font: { size: 11 } },
+  }
 }
 
 // 日期標籤只顯示月／日

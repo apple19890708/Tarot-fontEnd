@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { deleteFinanceNewsAnalysis, fetchFinanceNewsAnalyses, fetchFinanceNewsAnalysis, UnauthorizedError } from '../../lib/api'
@@ -143,24 +143,8 @@ async function confirmDelete(id: string) {
   }
 }
 
-// ---- 文中的引用上標：展開「引用的新聞」，捲到那一則並亮一下 ----
+// 文末「引用的新聞」：跳到段落要用到
 const citeList = ref<HTMLDetailsElement | null>(null)
-const highlighted = ref(0)
-let highlightTimer: ReturnType<typeof setTimeout> | null = null
-async function showCited(index: number) {
-  if (!citeList.value) return
-  citeList.value.open = true
-  await nextTick()
-  // 捲整頁，讓那一則落在畫面中間
-  const row = citeList.value.querySelector<HTMLElement>(`[data-ref="${index}"]`)
-  if (row) {
-    const rect = row.getBoundingClientRect()
-    smoothScrollTo(rect.top + window.scrollY - window.innerHeight / 2 + rect.height / 2)
-  }
-  highlighted.value = index
-  if (highlightTimer) clearTimeout(highlightTimer)
-  highlightTimer = setTimeout(() => (highlighted.value = 0), 2000)
-}
 
 // ---- 浮動選單的「跳到段落」：打開一份分析時登記 AI 全文的 ## 小標 ----
 const aiEl = ref<HTMLElement | null>(null)
@@ -189,16 +173,15 @@ watch(
 )
 onBeforeUnmount(() => {
   releaseSectionNav?.()
-  if (highlightTimer) clearTimeout(highlightTimer)
 })
 
 onMounted(loadList)
 </script>
 
 <template>
-  <div v-if="listStatus === 'error'" class="flex flex-wrap items-center justify-between gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">
+  <div v-if="listStatus === 'error'" class="flex flex-wrap items-center justify-between gap-3 border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-body text-danger">
     <span>{{ listError }}</span>
-    <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-4 py-1 font-pixel text-button text-rose-50 transition hover:bg-rose-300/15 active:translate-x-[2px] active:translate-y-[2px]" @click="loadList">
+    <button type="button" class="cursor-pointer border-2 border-danger-hue/30 px-4 py-1 font-pixel text-button text-danger transition hover:bg-danger-hue/15 active:translate-x-[2px] active:translate-y-[2px]" @click="loadList">
       重試
     </button>
   </div>
@@ -208,12 +191,12 @@ onMounted(loadList)
     <RecordListShell v-model:open="indexOpen" label="分析清單" :count="list.length" collapse-key="news_history_index_collapsed">
       <!-- 骨架照著真正的列排：標題一行、底下一行資訊 -->
       <div v-if="listStatus === 'loading'" class="space-y-2">
-        <div v-for="n in 4" :key="n" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+        <div v-for="n in 4" :key="n" class="rounded-2xl border border-tint/10 bg-tint/5 px-4 py-3">
           <SkeletonBlock class="h-4 w-4/5 rounded-full" />
           <SkeletonBlock class="mt-2.5 h-3 w-32 rounded-full" />
         </div>
       </div>
-      <p v-else-if="!list.length" class="px-1 text-body text-stone-300">還沒有財經新聞分析</p>
+      <p v-else-if="!list.length" class="px-1 text-body text-ink-muted">還沒有財經新聞分析</p>
       <RecordIndex
         v-else
         v-model:keyword="keyword"
@@ -229,26 +212,26 @@ onMounted(loadList)
     </RecordListShell>
 
     <!-- 右欄：和其他紀錄一樣的和紙菜單 -->
-    <section class="w-full min-w-0 flex-1 border-4 border-[#3b2618] bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px] [image-rendering:pixelated] p-3 shadow-[6px_6px_0_rgba(0,0,0,0.45)] sm:p-5">
-      <div class="space-y-4 border-2 border-[#3b2618] bg-[#0f1526] p-3 [image-rendering:auto] sm:p-5">
+    <section class="w-full min-w-0 flex-1 border-4 border-frame bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px] [image-rendering:pixelated] p-3 shadow-[6px_6px_0_var(--c-shade)] sm:p-5">
+      <div class="space-y-4 border-2 border-frame bg-surface p-3 [image-rendering:auto] sm:p-5">
         <!-- 手機：清單是滿版抽屜，從這裡打開 -->
         <button
           v-if="listStatus === 'ready' && list.length"
           type="button"
-          class="w-full cursor-pointer rounded-full border border-white/15 bg-white/5 px-4 py-2 text-button text-stone-200 transition hover:bg-white/10 active:bg-white/15 lg:hidden"
+          class="w-full cursor-pointer rounded-full border border-tint/15 bg-tint/5 px-4 py-2 text-button text-ink-soft transition hover:bg-tint/10 active:bg-tint/15 lg:hidden"
           @click="indexOpen = true"
         >
           開啟分析清單（共 {{ list.length }} 筆）
         </button>
 
-        <div v-if="listStatus === 'ready' && !list.length" class="border-2 border-dashed border-white/15 bg-black/10 px-5 py-14 text-center">
-          <p class="text-subtitle text-stone-200">還沒有財經新聞分析紀錄</p>
-          <p class="mt-2 text-body text-stone-300">
+        <div v-if="listStatus === 'ready' && !list.length" class="border-2 border-dashed border-tint/15 bg-sink/10 px-5 py-14 text-center">
+          <p class="text-subtitle text-ink-soft">還沒有財經新聞分析紀錄</p>
+          <p class="mt-2 text-body text-ink-muted">
             在「股市追蹤」的「財經新聞」分頁按「分析影響」，完成的分析會出現在這裡。
           </p>
           <router-link
             :to="{ name: 'market' }"
-            class="mt-6 inline-block cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-6 py-2 font-pixel text-button text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px]"
+            class="mt-6 inline-block cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-6 py-2 font-pixel text-button text-accent transition hover:bg-accent-hue/25 active:translate-x-[2px] active:translate-y-[2px]"
           >
             前往股市追蹤
           </router-link>
@@ -264,56 +247,55 @@ onMounted(loadList)
           <SkeletonBlock v-for="n in 8" :key="n" class="h-3 w-full" />
         </div>
 
-        <p v-else-if="detailError" class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">{{ detailError }}</p>
+        <p v-else-if="detailError" class="border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-body text-danger">{{ detailError }}</p>
 
         <template v-else-if="detail">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <p class="text-body text-stone-300">{{ dateTime(detail.createdAt) }}・財經新聞分析</p>
+            <p class="text-body text-ink-muted">{{ dateTime(detail.createdAt) }}・財經新聞分析</p>
             <button
               type="button"
-              class="cursor-pointer border-2 border-white/15 px-3 py-1 font-pixel text-button text-rose-200/80 transition hover:bg-rose-300/10 active:translate-x-[2px] active:translate-y-[2px] disabled:cursor-not-allowed disabled:opacity-50"
+              class="cursor-pointer border-2 border-tint/15 px-3 py-1 font-pixel text-button text-up-ink transition hover:bg-up-hue/10 active:translate-x-[2px] active:translate-y-[2px] disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="deletingId === detail.id"
               @click="confirmDelete(detail.id)"
             >
               {{ deletingId === detail.id ? '刪除中…' : '刪除' }}
             </button>
           </div>
-          <p v-if="deleteError" class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">{{ deleteError }}</p>
+          <p v-if="deleteError" class="border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-body text-danger">{{ deleteError }}</p>
 
-          <div class="border-b border-white/10 pb-4">
-            <p class="text-caption uppercase tracking-[0.3em] text-stone-300">Impact Report</p>
-            <h2 class="mt-1.5 text-title font-semibold text-stone-50">AI 影響分析</h2>
-            <p class="mt-1 text-body text-stone-300">範圍：{{ scopeOf(detail) }} · {{ detail.newsCount }} 則新聞</p>
+          <div class="border-b border-tint/10 pb-4">
+            <p class="text-caption uppercase tracking-[0.3em] text-ink-muted">Impact Report</p>
+            <h2 class="mt-1.5 text-title font-semibold text-ink">AI 影響分析</h2>
+            <p class="mt-1 text-body text-ink-muted">範圍：{{ scopeOf(detail) }} · {{ detail.newsCount }} 則新聞</p>
           </div>
 
           <div ref="aiEl" class="scroll-mt-4">
-            <StockAiText :text="detail.text" citations @cite="showCited" />
+            <StockAiText :text="detail.text" citations />
           </div>
 
           <!-- AI 引用的 [n] 對應的新聞 -->
-          <details v-if="detail.news.length" ref="citeList" class="scroll-mt-4 border-t border-white/10 pt-4 text-body">
-            <summary class="cursor-pointer text-stone-300 hover:text-stone-100">引用的新聞（{{ detail.news.length }}）</summary>
+          <details v-if="detail.news.length" ref="citeList" class="scroll-mt-4 border-t border-tint/10 pt-4 text-body">
+            <summary class="cursor-pointer text-ink-muted hover:text-ink">引用的新聞（{{ detail.news.length }}）</summary>
             <ol class="mt-2 space-y-1.5 pl-1">
               <li
                 v-for="(cited, index) in detail.news"
                 :key="index"
                 :data-ref="index + 1"
                 class="flex gap-2 px-1 leading-5 transition-colors duration-500"
-                :class="highlighted === index + 1 ? 'bg-sky-300/15' : ''"
               >
-                <span class="shrink-0 tabular-nums text-stone-300">[{{ index + 1 }}]</span>
+                <span class="shrink-0 tabular-nums text-ink-muted">[{{ index + 1 }}]</span>
                 <span class="min-w-0">
-                  <a :href="cited.url" target="_blank" rel="noopener noreferrer" class="text-stone-200 underline-offset-2 hover:text-amber-100 hover:underline">{{ cited.title }}</a>
-                  <span class="ml-1 text-stone-300">{{ cited.sourceLabel }}<template v-if="cited.publishedAt"> · {{ dateTime(cited.publishedAt) }}</template></span>
+                  <a :href="cited.url" target="_blank" rel="noopener noreferrer" class="text-ink-soft underline-offset-2 hover:text-accent hover:underline">{{ cited.title }}</a>
+                  <span class="ml-1 text-ink-muted">{{ cited.sourceLabel }}<template v-if="cited.publishedAt"> · {{ dateTime(cited.publishedAt) }}</template></span>
                 </span>
               </li>
             </ol>
           </details>
 
-          <p class="text-caption text-stone-300">AI 只根據當時的新聞標題與摘要撰寫，族群與個股是依產業關聯推估，僅供參考，不是投資建議。</p>
+          <p class="text-caption text-ink-muted">AI 只根據當時的新聞標題與摘要撰寫，族群與個股是依產業關聯推估，僅供參考，不是投資建議。</p>
         </template>
 
-        <p v-else-if="listStatus === 'ready'" class="border-2 border-dashed border-white/15 bg-black/10 px-5 py-10 text-center text-body text-stone-300">
+        <p v-else-if="listStatus === 'ready'" class="border-2 border-dashed border-tint/15 bg-sink/10 px-5 py-10 text-center text-body text-ink-muted">
           從清單選一份分析來看
         </p>
       </div>

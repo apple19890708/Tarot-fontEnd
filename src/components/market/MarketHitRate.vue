@@ -57,9 +57,9 @@ const horizon = computed(() => track.value?.horizons[horizonIndex.value] ?? null
 
 const STANCE_LABELS: Record<MarketCallRecord['stance'], string> = { bullish: '偏多', bearish: '偏空', neutral: '觀望' }
 const STANCE_CLASS: Record<MarketCallRecord['stance'], string> = {
-  bullish: 'text-rose-300',
-  bearish: 'text-emerald-300',
-  neutral: 'text-stone-300',
+  bullish: 'text-up',
+  bearish: 'text-down',
+  neutral: 'text-ink-muted',
 }
 const CONFIDENCE_LABELS = { high: '高', medium: '中', low: '低' } as const
 
@@ -68,8 +68,8 @@ function pct(value: number | null | undefined) {
 }
 
 function trendClass(value: number | null | undefined) {
-  if (!value) return 'text-stone-300'
-  return value > 0 ? 'text-rose-300' : 'text-emerald-300'
+  if (!value) return 'text-ink-muted'
+  return value > 0 ? 'text-up' : 'text-down'
 }
 
 function outcomeText(call: MarketCallRecord) {
@@ -81,7 +81,7 @@ function outcomeText(call: MarketCallRecord) {
 function hitMark(call: MarketCallRecord) {
   const outcome = call.outcomes[horizonIndex.value]
   if (!outcome?.ready || outcome.hit === null) return null
-  return outcome.hit ? { text: '對', cls: 'text-amber-200' } : { text: '錯', cls: 'text-stone-300' }
+  return outcome.hit ? { text: '對', cls: 'text-warn' } : { text: '錯', cls: 'text-ink-muted' }
 }
 
 const PATH_LABELS = { target: '先到目標', stop: '先到停損', open: '都還沒到' } as const
@@ -92,12 +92,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="space-y-4 border-2 border-white/10 bg-[#0f1526] p-4 sm:p-6">
+  <section class="space-y-4 border-2 border-tint/10 bg-surface p-4 sm:p-6">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <p class="text-caption uppercase tracking-[0.2em] text-stone-300 sm:tracking-[0.3em]">Hit Rate</p>
-        <h2 class="mt-1 text-title font-semibold text-stone-50">參考命中</h2>
-        <p class="mt-1 max-w-2xl text-body text-stone-300">
+        <p class="text-caption uppercase tracking-[0.2em] text-ink-muted sm:tracking-[0.3em]">Hit Rate</p>
+        <h2 class="mt-1 text-title font-semibold text-ink">參考命中</h2>
+        <p class="mt-1 max-w-2xl text-body text-ink-muted">
           每次在股市諮詢查行情，當下的操作建議都會記下來（同一天同一檔只留最後一次），之後自動和實際走勢對答案。
           命中率是檢驗這套規則準不準的唯一方法；樣本少的時候先別太相信。
         </p>
@@ -112,7 +112,7 @@ onMounted(() => {
           :key="h.days"
           type="button"
           class="cursor-pointer border-2 px-3 py-1 text-button transition font-pixel"
-          :class="index === horizonIndex ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/15 text-stone-300 hover:bg-white/10'"
+          :class="index === horizonIndex ? 'border-accent-hue/40 bg-accent-hue/15 text-accent' : 'border-tint/15 text-ink-muted hover:bg-tint/10'"
           @click="horizonIndex = index"
         >
           {{ h.days }} 日後
@@ -135,66 +135,66 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-else-if="trackStatus === 'error'" class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">
+    <div v-else-if="trackStatus === 'error'" class="flex flex-wrap items-center gap-3 border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-body text-danger">
       <span>{{ trackError }}</span>
-      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-button font-pixel" @click="loadTrack">重試</button>
+      <button type="button" class="cursor-pointer border-2 border-danger-hue/30 px-3 py-1 text-button font-pixel" @click="loadTrack">重試</button>
     </div>
 
     <template v-else-if="track">
-      <p v-if="track.total === 0" class="text-body text-stone-300">
+      <p v-if="track.total === 0" class="text-body text-ink-muted">
         還沒有任何建議紀錄。到首頁選「股市諮詢」查一次行情，就會開始累積。
       </p>
 
       <template v-else>
-        <p class="text-body text-stone-300">
+        <p class="text-body text-ink-muted">
           共 {{ track.total }} 筆建議，{{ track.pending }} 筆還沒過 5 個交易日。
         </p>
 
         <div v-if="horizon" class="grid gap-3 sm:grid-cols-4">
-          <div class="border-2 border-amber-200/20 bg-amber-200/5 p-3">
-            <p class="text-body text-amber-100/80">整體命中率</p>
-            <p class="mt-1 text-display font-semibold tabular-nums text-stone-50">{{ pct(horizon.hitRate) }}</p>
-            <p class="text-caption text-stone-300">{{ horizon.evaluated }} 筆偏多／偏空已到期</p>
+          <div class="border-2 border-accent-hue/20 bg-accent-hue/5 p-3">
+            <p class="text-body text-accent">整體命中率</p>
+            <p class="mt-1 text-display font-semibold tabular-nums text-ink">{{ pct(horizon.hitRate) }}</p>
+            <p class="text-caption text-ink-muted">{{ horizon.evaluated }} 筆偏多／偏空已到期</p>
           </div>
-          <div class="border-2 border-rose-300/20 bg-rose-300/5 p-3">
-            <p class="text-body text-rose-200/80">偏多之後上漲</p>
-            <p class="mt-1 text-display font-semibold tabular-nums text-stone-50">{{ pct(horizon.bullish.hitRate) }}</p>
-            <p class="text-caption text-stone-300">{{ horizon.bullish.count }} 筆，平均 {{ formatSigned(horizon.bullish.avgReturn, '%') }}</p>
+          <div class="border-2 border-up-hue/20 bg-up-hue/5 p-3">
+            <p class="text-body text-danger">偏多之後上漲</p>
+            <p class="mt-1 text-display font-semibold tabular-nums text-ink">{{ pct(horizon.bullish.hitRate) }}</p>
+            <p class="text-caption text-ink-muted">{{ horizon.bullish.count }} 筆，平均 {{ formatSigned(horizon.bullish.avgReturn, '%') }}</p>
           </div>
-          <div class="border-2 border-emerald-300/20 bg-emerald-300/5 p-3">
-            <p class="text-body text-emerald-200/80">偏空之後下跌</p>
-            <p class="mt-1 text-display font-semibold tabular-nums text-stone-50">{{ pct(horizon.bearish.hitRate) }}</p>
-            <p class="text-caption text-stone-300">{{ horizon.bearish.count }} 筆，平均 {{ formatSigned(horizon.bearish.avgReturn, '%') }}</p>
+          <div class="border-2 border-down-hue/20 bg-down-hue/5 p-3">
+            <p class="text-body text-down-ink">偏空之後下跌</p>
+            <p class="mt-1 text-display font-semibold tabular-nums text-ink">{{ pct(horizon.bearish.hitRate) }}</p>
+            <p class="text-caption text-ink-muted">{{ horizon.bearish.count }} 筆，平均 {{ formatSigned(horizon.bearish.avgReturn, '%') }}</p>
           </div>
-          <div class="border-2 border-white/10 bg-white/5 p-3">
-            <p class="text-body text-stone-300">觀望之後的波動</p>
-            <p class="mt-1 text-display font-semibold tabular-nums text-stone-50">
+          <div class="border-2 border-tint/10 bg-tint/5 p-3">
+            <p class="text-body text-ink-muted">觀望之後的波動</p>
+            <p class="mt-1 text-display font-semibold tabular-nums text-ink">
               {{ horizon.neutral.avgMove === null ? '—' : `±${formatNumber(horizon.neutral.avgMove)}%` }}
             </p>
-            <p class="text-caption text-stone-300">{{ horizon.neutral.count }} 筆，越小代表觀望越合理</p>
+            <p class="text-caption text-ink-muted">{{ horizon.neutral.count }} 筆，越小代表觀望越合理</p>
           </div>
         </div>
 
         <div v-if="horizon" class="grid gap-3 sm:grid-cols-2">
-          <div class="border-2 border-white/10 bg-white/5 p-3">
-            <p class="text-body text-stone-300">依信心分組的命中率</p>
+          <div class="border-2 border-tint/10 bg-tint/5 p-3">
+            <p class="text-body text-ink-muted">依信心分組的命中率</p>
             <ul class="mt-2 space-y-1.5 text-body">
               <li v-for="level in (['high', 'medium', 'low'] as const)" :key="level" class="flex items-center gap-3">
-                <span class="w-[3.5em] shrink-0 whitespace-nowrap text-stone-300">信心{{ CONFIDENCE_LABELS[level] }}</span>
-                <div class="h-2 flex-1 bg-white/10">
-                  <div class="h-2 bg-amber-200/70" :style="{ width: `${horizon.byConfidence[level].hitRate ?? 0}%` }" />
+                <span class="w-[3.5em] shrink-0 whitespace-nowrap text-ink-muted">信心{{ CONFIDENCE_LABELS[level] }}</span>
+                <div class="h-2 flex-1 bg-tint/10">
+                  <div class="h-2 bg-accent-hue/70" :style="{ width: `${horizon.byConfidence[level].hitRate ?? 0}%` }" />
                 </div>
-                <span class="w-24 text-right tabular-nums text-stone-200">
+                <span class="w-24 text-right tabular-nums text-ink-soft">
                   {{ pct(horizon.byConfidence[level].hitRate) }}（{{ horizon.byConfidence[level].count }}）
                 </span>
               </li>
             </ul>
-            <p class="mt-2 text-caption text-stone-300">信心高的命中率應該要比信心低的高；如果沒有，代表信心的算法需要調整。</p>
+            <p class="mt-2 text-caption text-ink-muted">信心高的命中率應該要比信心低的高；如果沒有，代表信心的算法需要調整。</p>
           </div>
-          <div class="border-2 border-white/10 bg-white/5 p-3">
-            <p class="text-body text-stone-300">偏多建議 20 日內先碰到目標價的比例</p>
-            <p class="mt-1 text-display font-semibold tabular-nums text-stone-50">{{ pct(track.targetFirstRate) }}</p>
-            <p class="text-caption text-stone-300">
+          <div class="border-2 border-tint/10 bg-tint/5 p-3">
+            <p class="text-body text-ink-muted">偏多建議 20 日內先碰到目標價的比例</p>
+            <p class="mt-1 text-display font-semibold tabular-nums text-ink">{{ pct(track.targetFirstRate) }}</p>
+            <p class="text-caption text-ink-muted">
               {{ track.targetPathCount }} 筆已經碰到目標或停損。高於 50% 代表停損與目標設得合理。
             </p>
           </div>
@@ -203,7 +203,7 @@ onMounted(() => {
         <div class="overflow-x-auto">
           <table class="w-full min-w-[40rem] text-body">
             <thead>
-              <tr class="border-b border-white/10 text-left text-stone-300">
+              <tr class="border-b border-tint/10 text-left text-ink-muted">
                 <th class="py-1.5 pr-3 font-normal">日期</th>
                 <th class="py-1.5 pr-3 font-normal">標的</th>
                 <th class="py-1.5 pr-3 font-normal">建議</th>
@@ -214,20 +214,20 @@ onMounted(() => {
               </tr>
             </thead>
             <tbody class="tabular-nums">
-              <tr v-for="call in track.calls" :key="call.id" class="border-b border-white/5 text-stone-200">
-                <td class="py-1.5 pr-3 text-stone-300">{{ call.date }}</td>
-                <td class="py-1.5 pr-3">{{ call.name }} <span class="text-stone-300">{{ call.code || call.symbol }}</span></td>
+              <tr v-for="call in track.calls" :key="call.id" class="border-b border-tint/5 text-ink-soft">
+                <td class="py-1.5 pr-3 text-ink-muted">{{ call.date }}</td>
+                <td class="py-1.5 pr-3">{{ call.name }} <span class="text-ink-muted">{{ call.code || call.symbol }}</span></td>
                 <td class="py-1.5 pr-3">
                   <span :class="STANCE_CLASS[call.stance]">{{ STANCE_LABELS[call.stance] }}</span>
-                  <span class="ml-1 text-stone-300">信心{{ CONFIDENCE_LABELS[call.confidence] }}</span>
+                  <span class="ml-1 text-ink-muted">信心{{ CONFIDENCE_LABELS[call.confidence] }}</span>
                 </td>
                 <td class="py-1.5 pr-3 text-right">{{ formatNumber(call.price) }}</td>
                 <td class="py-1.5 pr-3 text-right" :class="trendClass(call.outcomes[horizonIndex]?.return)">{{ outcomeText(call) }}</td>
                 <td class="py-1.5 pr-3">
                   <span v-if="hitMark(call)" :class="hitMark(call)!.cls">{{ hitMark(call)!.text }}</span>
-                  <span v-else class="text-stone-300">—</span>
+                  <span v-else class="text-ink-muted">—</span>
                 </td>
-                <td class="py-1.5 text-stone-300">{{ call.path ? PATH_LABELS[call.path] : '—' }}</td>
+                <td class="py-1.5 text-ink-muted">{{ call.path ? PATH_LABELS[call.path] : '—' }}</td>
               </tr>
             </tbody>
           </table>
@@ -235,7 +235,7 @@ onMounted(() => {
 
         <button
           type="button"
-          class="cursor-pointer border-2 border-white/15 px-3 py-1 text-button text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+          class="cursor-pointer border-2 border-tint/15 px-3 py-1 text-button text-ink-muted transition hover:bg-tint/10 disabled:opacity-60 font-pixel"
           :disabled="clearing"
           @click="clearTrack"
         >

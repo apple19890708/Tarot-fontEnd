@@ -44,7 +44,7 @@ const rising = computed(() => {
       stroke-width="1.5"
       vector-effect="non-scaling-stroke"
       stroke-linejoin="round"
-      :class="rising ? 'stroke-rose-300' : 'stroke-emerald-300'"
+      :class="rising ? 'stroke-up-hue' : 'stroke-down-hue'"
     />
   </svg>
   <div v-else class="h-9 w-full" />

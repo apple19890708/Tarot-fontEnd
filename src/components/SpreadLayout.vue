@@ -97,7 +97,7 @@ function orientationLabel(card: ReadingCard | null) {
             >
               <!-- 正面：有抽到牌就顯示圖，否則是空格 -->
               <span
-                class="absolute inset-0 flex items-center justify-center overflow-hidden border-2 border-white/15 bg-white/5 transition-colors [backface-visibility:hidden] group-hover:border-white/25"
+                class="absolute inset-0 flex items-center justify-center overflow-hidden border-2 border-tint/15 bg-tint/5 transition-colors [backface-visibility:hidden] group-hover:border-tint/25"
               >
                 <img
                   v-if="slot.card && cardImageUrl(slot.card.card.image) && !failedImages.has(slot.position.key)"
@@ -108,10 +108,10 @@ function orientationLabel(card: ReadingCard | null) {
                   @error="failedImages.add(slot.position.key)"
                 />
                 <!-- 圖載不出來時顯示牌名，不要留一個破圖 -->
-                <span v-else-if="slot.card" class="px-1 text-center text-[11px] leading-tight text-stone-300">
+                <span v-else-if="slot.card" class="px-1 text-center text-[11px] leading-tight text-ink-muted">
                   {{ slot.card.card.nameZh }}
                 </span>
-                <span v-else class="text-lg font-semibold text-stone-500">{{ slot.index + 1 }}</span>
+                <span v-else class="text-lg font-semibold text-ink-muted">{{ slot.index + 1 }}</span>
               </span>
 
               <!--
@@ -120,13 +120,13 @@ function orientationLabel(card: ReadingCard | null) {
                 justify-center-safe：內容超出時從上方對齊，切掉的是說明尾端，不會把位置名稱切掉
               -->
               <span
-                class="absolute inset-0 flex flex-col justify-center-safe gap-0.5 overflow-hidden border-2 border-amber-200/40 bg-amber-100/8 px-1.5 py-1 text-center [backface-visibility:hidden] [transform:rotateY(180deg)]"
+                class="absolute inset-0 flex flex-col justify-center-safe gap-0.5 overflow-hidden border-2 border-accent-hue/40 bg-accent-hue/8 px-1.5 py-1 text-center [backface-visibility:hidden] [transform:rotateY(180deg)]"
               >
-                <span class="line-clamp-2 shrink-0 break-words font-medium text-amber-100 text-[11px] leading-tight lg:text-xs">
+                <span class="line-clamp-2 shrink-0 break-words font-medium text-accent text-[11px] leading-tight lg:text-xs">
                   {{ slot.position.label }}
                 </span>
                 <span
-                  class="line-clamp-4 break-words text-stone-200/85 text-[11px] leading-[1.2] sm:line-clamp-6 lg:line-clamp-none lg:leading-snug"
+                  class="line-clamp-4 break-words text-ink-soft/85 text-[11px] leading-[1.2] sm:line-clamp-6 lg:line-clamp-none lg:leading-snug"
                 >
                   {{ slot.position.prompt }}
                 </span>
@@ -135,11 +135,11 @@ function orientationLabel(card: ReadingCard | null) {
 
             <span
               class="mt-1 block truncate text-center text-[11px] leading-tight"
-              :class="flippedKeys.has(slot.position.key) ? 'text-amber-100' : 'text-stone-400'"
+              :class="flippedKeys.has(slot.position.key) ? 'text-accent' : 'text-ink-muted'"
             >
               <template v-if="slot.card">
                 {{ slot.card.card.nameZh }}
-                <span class="block text-[11px] text-stone-500">{{ orientationLabel(slot.card) }}</span>
+                <span class="block text-[11px] text-ink-muted">{{ orientationLabel(slot.card) }}</span>
               </template>
               <template v-else>{{ slot.index + 1 }}. {{ slot.position.label }}</template>
             </span>
@@ -149,11 +149,11 @@ function orientationLabel(card: ReadingCard | null) {
     </div>
 
     <!-- 位置說明已經移到卡背，這裡只留操作提示與一次翻完的捷徑 -->
-    <div class="flex items-center justify-between gap-3 text-xs text-stone-400">
+    <div class="flex items-center justify-between gap-3 text-xs text-ink-muted">
       <span>點一下牌，翻到背面看這個位置代表什麼。</span>
       <button
         type="button"
-        class="shrink-0 border-2 border-white/15 px-3 py-1 transition hover:border-amber-200/50 hover:text-amber-100 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+        class="shrink-0 border-2 border-tint/15 px-3 py-1 transition hover:border-accent-hue/50 hover:text-accent active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         @click="toggleAll"
       >
         {{ allFlipped ? '全部翻回正面' : '全部翻面' }}

@@ -226,17 +226,17 @@ function formatDate(value: string) {
 }
 
 function trendClass(value: number | null | undefined) {
-  if (!value) return 'text-stone-300'
-  return value > 0 ? 'text-rose-300' : 'text-emerald-300'
+  if (!value) return 'text-ink-muted'
+  return value > 0 ? 'text-up' : 'text-down'
 }
 
 onMounted(loadList)
 </script>
 
 <template>
-  <div v-if="listStatus === 'error'" class="flex flex-wrap items-center justify-between gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">
+  <div v-if="listStatus === 'error'" class="flex flex-wrap items-center justify-between gap-3 border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-body text-danger">
     <span>{{ listError }}</span>
-    <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-4 py-1 font-pixel text-button text-rose-50 transition hover:bg-rose-300/15" @click="loadList">
+    <button type="button" class="cursor-pointer border-2 border-danger-hue/30 px-4 py-1 font-pixel text-button text-danger transition hover:bg-danger-hue/15" @click="loadList">
       重試
     </button>
   </div>
@@ -246,12 +246,12 @@ onMounted(loadList)
     <RecordListShell v-model:open="indexOpen" label="分析清單" :count="list.length" collapse-key="stock_history_index_collapsed">
       <!-- 骨架照著真正的列排：標題一行、底下一行資訊 -->
       <div v-if="listStatus === 'loading'" class="space-y-2">
-        <div v-for="n in 4" :key="n" class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+        <div v-for="n in 4" :key="n" class="rounded-2xl border border-tint/10 bg-tint/5 px-4 py-3">
           <SkeletonBlock class="h-4 w-4/5 rounded-full" />
           <SkeletonBlock class="mt-2.5 h-3 w-32 rounded-full" />
         </div>
       </div>
-      <p v-else-if="!list.length" class="px-1 text-body text-stone-300">還沒有股票分析</p>
+      <p v-else-if="!list.length" class="px-1 text-body text-ink-muted">還沒有股票分析</p>
       <RecordIndex
         v-else
         v-model:keyword="keyword"
@@ -274,26 +274,26 @@ onMounted(loadList)
     </RecordListShell>
 
     <!-- 右欄：和塔羅紀錄一樣的和紙菜單 -->
-    <section class="w-full min-w-0 flex-1 border-4 border-[#3b2618] bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px] [image-rendering:pixelated] p-3 shadow-[6px_6px_0_rgba(0,0,0,0.45)] sm:p-5">
-      <div class="space-y-4 border-2 border-[#3b2618] bg-[#0f1526] p-3 [image-rendering:auto] sm:p-5">
+    <section class="w-full min-w-0 flex-1 border-4 border-frame bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px] [image-rendering:pixelated] p-3 shadow-[6px_6px_0_var(--c-shade)] sm:p-5">
+      <div class="space-y-4 border-2 border-frame bg-surface p-3 [image-rendering:auto] sm:p-5">
         <!-- 手機：清單是滿版抽屜，從這裡打開 -->
         <button
           v-if="listStatus === 'ready' && list.length"
           type="button"
-          class="w-full cursor-pointer rounded-full border border-white/15 bg-white/5 px-4 py-2 text-button text-stone-200 transition hover:bg-white/10 active:bg-white/15 lg:hidden"
+          class="w-full cursor-pointer rounded-full border border-tint/15 bg-tint/5 px-4 py-2 text-button text-ink-soft transition hover:bg-tint/10 active:bg-tint/15 lg:hidden"
           @click="indexOpen = true"
         >
           開啟分析清單（共 {{ list.length }} 筆）
         </button>
 
-        <div v-if="listStatus === 'ready' && !list.length" class="border-2 border-dashed border-white/15 bg-black/10 px-5 py-14 text-center">
-          <p class="text-subtitle text-stone-200">還沒有股票分析紀錄</p>
-          <p class="mt-2 text-body text-stone-300">
+        <div v-if="listStatus === 'ready' && !list.length" class="border-2 border-dashed border-tint/15 bg-sink/10 px-5 py-14 text-center">
+          <p class="text-subtitle text-ink-soft">還沒有股票分析紀錄</p>
+          <p class="mt-2 text-body text-ink-muted">
             在「股市追蹤」展開一檔股票，按「個股分析」再按「AI 深度分析」，完成的分析會出現在這裡。
           </p>
           <router-link
             :to="{ name: 'market' }"
-            class="mt-6 inline-block cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-6 py-2 font-pixel text-button text-amber-50 transition hover:bg-amber-200/25"
+            class="mt-6 inline-block cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-6 py-2 font-pixel text-button text-accent transition hover:bg-accent-hue/25"
           >
             前往股市追蹤
           </router-link>
@@ -305,56 +305,56 @@ onMounted(loadList)
           <SkeletonBlock v-for="n in 6" :key="n" class="h-3 w-full" />
         </div>
 
-        <p v-else-if="detailError" class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">{{ detailError }}</p>
+        <p v-else-if="detailError" class="border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-body text-danger">{{ detailError }}</p>
 
         <template v-else-if="detail">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <p class="text-body text-stone-300">{{ formatDate(detail.createdAt) }}・股票分析</p>
+            <p class="text-body text-ink-muted">{{ formatDate(detail.createdAt) }}・股票分析</p>
             <button
               type="button"
-              class="cursor-pointer border-2 border-white/15 px-3 py-1 font-pixel text-button text-rose-200/80 transition hover:bg-rose-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+              class="cursor-pointer border-2 border-tint/15 px-3 py-1 font-pixel text-button text-up-ink transition hover:bg-up-hue/10 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="deletingId === detail.id"
               @click="confirmDelete(detail.id)"
             >
               {{ deletingId === detail.id ? '刪除中…' : '刪除' }}
             </button>
           </div>
-          <p v-if="deleteError" class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">{{ deleteError }}</p>
+          <p v-if="deleteError" class="border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-body text-danger">{{ deleteError }}</p>
 
-          <div class="border-b border-white/10 pb-4">
-            <p class="text-caption uppercase tracking-[0.3em] text-stone-300">Stock Analysis</p>
-            <h2 class="mt-1.5 text-title font-semibold text-stone-50">
-              {{ detail.target.name }}<span class="ml-2 text-caption font-normal text-stone-300">{{ idOf(detail) }}</span>
+          <div class="border-b border-tint/10 pb-4">
+            <p class="text-caption uppercase tracking-[0.3em] text-ink-muted">Stock Analysis</p>
+            <h2 class="mt-1.5 text-title font-semibold text-ink">
+              {{ detail.target.name }}<span class="ml-2 text-caption font-normal text-ink-muted">{{ idOf(detail) }}</span>
             </h2>
-            <p class="mt-1 text-body tabular-nums text-stone-300">
+            <p class="mt-1 text-body tabular-nums text-ink-muted">
               分析時股價 {{ formatNumber(detail.quote.price) }}
               <span :class="trendClass(detail.quote.change)">{{ formatSigned(detail.quote.change) }}（{{ formatSigned(detail.quote.changePct, '%') }}）</span>
-              <span v-if="detail.quote.date" class="text-stone-300"> · {{ detail.quote.date }}</span>
+              <span v-if="detail.quote.date" class="text-ink-muted"> · {{ detail.quote.date }}</span>
             </p>
           </div>
 
           <div ref="aiEl" class="scroll-mt-4">
             <StockAiText :text="detail.text" />
           </div>
-          <p class="text-caption text-stone-300">AI 只根據當時的資料撰寫，僅供參考，不是投資建議。</p>
+          <p class="text-caption text-ink-muted">AI 只根據當時的資料撰寫，僅供參考，不是投資建議。</p>
 
-          <section v-if="detail.holding" ref="holdingEl" class="border-2 border-white/10 bg-white/5 p-4">
-            <p class="mb-3 font-pixel text-[12px] text-stone-200">當時的持股</p>
+          <section v-if="detail.holding" ref="holdingEl" class="border-2 border-tint/10 bg-tint/5 p-4">
+            <p class="mb-3 font-pixel text-[12px] text-ink-soft">當時的持股</p>
             <StockHoldingSummary :holding="detail.holding" />
           </section>
 
           <!-- 分析依據：當時交給 AI 的資料，預設收合 -->
-          <details v-if="savedSnapshot" ref="basisEl" class="group border-2 border-white/10">
-            <summary class="flex cursor-pointer list-none items-center gap-2 px-4 py-3 font-pixel text-[12px] text-stone-200 hover:bg-white/5 [&::-webkit-details-marker]:hidden">
+          <details v-if="savedSnapshot" ref="basisEl" class="group border-2 border-tint/10">
+            <summary class="flex cursor-pointer list-none items-center gap-2 px-4 py-3 font-pixel text-[12px] text-ink-soft hover:bg-tint/5 [&::-webkit-details-marker]:hidden">
               <span class="transition group-open:rotate-90">›</span>分析依據（當時的行情與指標）
             </summary>
-            <div class="border-t border-white/10 p-3">
+            <div class="border-t border-tint/10 p-3">
               <MarketPanel :snapshot="savedSnapshot" status="ready" is-saved hide-refresh />
             </div>
           </details>
         </template>
 
-        <p v-else-if="listStatus === 'ready'" class="border-2 border-dashed border-white/15 bg-black/10 px-5 py-10 text-center text-body text-stone-300">
+        <p v-else-if="listStatus === 'ready'" class="border-2 border-dashed border-tint/15 bg-sink/10 px-5 py-10 text-center text-body text-ink-muted">
           從清單選一筆分析來看
         </p>
       </div>

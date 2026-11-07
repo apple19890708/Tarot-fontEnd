@@ -20,7 +20,7 @@ const data = computed(() => {
     datasets: [
       { label: '外資', data: chips.foreign, backgroundColor: CHART_COLORS.ma60 },
       { label: '投信', data: chips.trust, backgroundColor: CHART_COLORS.ma5 },
-      { label: '自營商', data: chips.dealer, backgroundColor: 'rgba(214,211,209,0.45)' },
+      { label: '自營商', data: chips.dealer, backgroundColor: CHART_COLORS.neutral },
     ],
   }
 })
@@ -29,7 +29,7 @@ const options = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    legend: legendOptions,
+    legend: legendOptions(),
     tooltip: {
       callbacks: {
         label: (ctx: { dataset: { label?: string }; parsed: { y: number | null } }) =>
@@ -44,9 +44,9 @@ const options = computed(() => ({
 }))
 
 function streakClass(value: number) {
-  if (value > 0) return 'text-rose-300'
-  if (value < 0) return 'text-emerald-300'
-  return 'text-stone-300'
+  if (value > 0) return 'text-up'
+  if (value < 0) return 'text-down'
+  return 'text-ink-muted'
 }
 
 function percentileText(p: number | null) {
@@ -68,11 +68,11 @@ const valuationRows = computed(() => {
   <div class="space-y-4">
     <section v-if="chips" class="space-y-3">
       <div>
-        <h4 class="flex items-center gap-1.5 text-body font-semibold text-stone-50">
+        <h4 class="flex items-center gap-1.5 text-body font-semibold text-ink">
           {{ chips.scope === 'market' ? '三大法人（全市場）' : '三大法人與融資' }}
           <HelpTip term="chips" />
         </h4>
-        <p class="mt-1 text-body text-stone-300">
+        <p class="mt-1 text-body text-ink-muted">
           單位：{{ chips.unit }}，正值買超、負值賣超。
           <template v-if="chips.latestOnly">上櫃股票的免費資料只有最新一日。</template>
         </p>
@@ -84,7 +84,7 @@ const valuationRows = computed(() => {
         </li>
         <li
           v-if="chips.summary.margin"
-          :class="chips.summary.margin.direction > 0 ? 'text-rose-300' : chips.summary.margin.direction < 0 ? 'text-emerald-300' : 'text-stone-300'"
+          :class="chips.summary.margin.direction > 0 ? 'text-up' : chips.summary.margin.direction < 0 ? 'text-down' : 'text-ink-muted'"
         >
           {{ chips.summary.margin.text }}
         </li>
@@ -94,27 +94,27 @@ const valuationRows = computed(() => {
         <Bar :data="data" :options="options as never" />
       </div>
 
-      <p v-if="chips.margin" class="text-body tabular-nums text-stone-300">
+      <p v-if="chips.margin" class="text-body tabular-nums text-ink-muted">
         融資餘額 {{ formatNumber(chips.margin.balance, 0) }} 張
         <template v-if="chips.margin.shortBalance !== null">· 融券餘額 {{ formatNumber(chips.margin.shortBalance, 0) }} 張</template>
       </p>
     </section>
 
     <section v-if="valuation" class="space-y-2">
-      <h4 class="flex items-center gap-1.5 text-body font-semibold text-stone-50">估值 <HelpTip term="valuation" /></h4>
+      <h4 class="flex items-center gap-1.5 text-body font-semibold text-ink">估值 <HelpTip term="valuation" /></h4>
       <div class="grid gap-2 sm:grid-cols-3">
-        <div v-for="row in valuationRows" :key="row.label" class="border-2 border-white/10 bg-white/5 p-3">
-          <p class="text-body text-stone-300">{{ row.label }}</p>
-          <p class="mt-1 text-subtitle font-semibold tabular-nums text-stone-50">{{ row.value }}</p>
+        <div v-for="row in valuationRows" :key="row.label" class="border-2 border-tint/10 bg-tint/5 p-3">
+          <p class="text-body text-ink-muted">{{ row.label }}</p>
+          <p class="mt-1 text-subtitle font-semibold tabular-nums text-ink">{{ row.value }}</p>
           <template v-if="row.percentile !== null">
-            <div class="mt-2 h-1.5 w-full bg-white/10">
-              <div class="h-1.5 bg-amber-200/70" :style="{ width: `${row.percentile}%` }" />
+            <div class="mt-2 h-1.5 w-full bg-tint/10">
+              <div class="h-1.5 bg-accent-hue/70" :style="{ width: `${row.percentile}%` }" />
             </div>
-            <p class="mt-1 text-caption text-stone-300">{{ percentileText(row.percentile) }}</p>
+            <p class="mt-1 text-caption text-ink-muted">{{ percentileText(row.percentile) }}</p>
           </template>
         </div>
       </div>
-      <ul v-if="valuation.summary?.notes.length" class="space-y-1 text-body text-amber-100/80">
+      <ul v-if="valuation.summary?.notes.length" class="space-y-1 text-body text-accent">
         <li v-for="note in valuation.summary.notes" :key="note">{{ note }}</li>
       </ul>
     </section>

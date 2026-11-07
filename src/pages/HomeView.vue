@@ -730,14 +730,14 @@ onBeforeUnmount(resetSceneBus)
 
 <template>
   <!-- 滿版：撐滿 App 主內容區的高度，結果卡片（section）再吃掉步驟列以外的空間 -->
-  <div class="flex min-h-full flex-col text-stone-100">
+  <div class="flex min-h-full flex-col text-ink">
     <!-- 手機把左右內距收窄：外層、卡片三層內距疊起來會吃掉一半畫面寬，牌陣就排不下 -->
     <div class="mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col gap-4 px-0 py-2 sm:gap-6 sm:px-5 md:px-8">
 
       <!-- 其他頁各自有 h1，只有首頁沒有：訪客第一眼要知道這是什麼、會拿到什麼 -->
       <header class="text-center">
-        <h1 class="font-pixel text-[24px] text-stone-50">塔羅占卜</h1>
-        <p class="mt-1 text-xs leading-6 text-stone-300/75 sm:text-sm">
+        <h1 class="font-pixel text-[24px] text-ink">塔羅占卜</h1>
+        <p class="mt-1 text-xs leading-6 text-ink-muted sm:text-sm">
           寫下問題、選一個牌陣，抽完牌會得到每張牌的牌義與整組牌的組合分析，也可以請 AI 解讀。
         </p>
       </header>
@@ -749,26 +749,26 @@ onBeforeUnmount(resetSceneBus)
             class="flex items-center gap-1.5 whitespace-nowrap border-2 px-2.5 py-1 font-pixel text-[12px] select-none sm:gap-2 sm:px-4 sm:py-1.5"
             :class="
               step === item.value
-                ? 'border-amber-200/50 bg-amber-200/15 text-amber-50'
-                : 'border-white/10 text-stone-400'
+                ? 'border-accent-hue/50 bg-accent-hue/15 text-accent'
+                : 'border-tint/10 text-ink-muted'
             "
             :aria-current="step === item.value ? 'step' : undefined"
           >
             <span
               class="flex h-4 w-4 items-center justify-center text-[12px] sm:h-5 sm:w-5"
-              :class="step === item.value ? 'bg-amber-200/90 text-slate-950' : 'bg-white/10 text-stone-300'"
+              :class="step === item.value ? 'bg-accent-hue/90 text-slate-950' : 'bg-tint/10 text-ink-muted'"
             >
               {{ item.value }}
             </span>
             {{ item.label }}
           </li>
-          <span v-if="index < STEPS.length - 1" aria-hidden="true" class="text-stone-600">—</span>
+          <span v-if="index < STEPS.length - 1" aria-hidden="true" class="text-ink-muted/50">—</span>
         </template>
       </ol>
 
       <!-- 步驟 1 內容不多，收窄並置中；輸入已抽到的牌是左右並排、牌名要放得下，和步驟 3 一樣用整個寬度 -->
       <section
-        class="w-full min-w-0 border-2 border-white/10 bg-[#0f1526] p-4 shadow-[4px_4px_0_rgba(0,0,0,0.55)] flex flex-1 flex-col sm:p-6"
+        class="w-full min-w-0 border-2 border-tint/10 bg-surface p-4 shadow-[4px_4px_0_var(--c-shade)] flex flex-1 flex-col sm:p-6"
         :class="step === 3 || (step === 2 && drawMode === 'input') ? '' : 'mx-auto max-w-2xl'"
       >
         <!-- 往下一步是往左推、回上一步是往右推；out-in 讓上一步先退場，版面不會同時擠兩份內容 -->
@@ -852,7 +852,7 @@ onBeforeUnmount(resetSceneBus)
           </div>
         </Transition>
 
-        <p v-if="errorMessage" class="mt-4 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+        <p v-if="errorMessage" class="mt-4 border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-sm text-danger">
           {{ errorMessage }}
         </p>
       </section>

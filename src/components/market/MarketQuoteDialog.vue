@@ -58,6 +58,8 @@ async function load() {
     const result = await fetchIndexChart(props.symbol!, range.value)
     if (id !== requestId) return
     chart.value = result.chart
+    // 不支援的範圍後端會改用預設的（櫃買指數沒有 1 天），分頁跟著回傳的範圍
+    range.value = result.chart.range
     status.value = 'ready'
   } catch (requestError) {
     if (id !== requestId) return
@@ -73,6 +75,8 @@ function selectRange(key: IndexChartRange) {
 }
 
 const digits = computed(() => props.digits ?? 2)
+// 能選的範圍：櫃買指數只有日線，第一次載入完才知道；載入前先全部列出
+const ranges = computed(() => (chart.value?.ranges ? RANGES.filter((r) => chart.value!.ranges!.includes(r.key)) : RANGES))
 const period = computed(() => RANGES.find((r) => r.key === range.value)?.period ?? '')
 
 // 漲紅跌綠（台灣習慣）；夜盤和日盤結算價比
@@ -128,7 +132,7 @@ const data = computed(() => {
       label: props.name,
       data: s.points.map((p) => p.close),
       borderColor: lineColor.value,
-      backgroundColor: up.value ? 'rgba(253,164,175,0.12)' : 'rgba(110,231,183,0.12)',
+      backgroundColor: up.value ? CHART_COLORS.upFill : CHART_COLORS.downFill,
       borderWidth: 2,
       pointRadius: 0,
       tension: 0.15,
@@ -141,7 +145,7 @@ const data = computed(() => {
     datasets.push({
       label: s.baselineLabel,
       data: s.points.map(() => baseline),
-      borderColor: 'rgba(214,211,209,0.55)',
+      borderColor: CHART_COLORS.baseline,
       borderWidth: 1,
       borderDash: [4, 4],
       pointRadius: 0,
@@ -208,22 +212,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-black/70 md:p-6" @click.self="close">
+    <div class="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-overlay md:p-6" @click.self="close">
       <div
-        class="flex h-full w-full flex-col bg-[#0f1526] text-stone-100 md:h-auto md:max-h-[90vh] md:max-w-3xl md:border-2 md:border-[#3b2618] md:shadow-[6px_6px_0_rgba(0,0,0,0.5)]"
+        class="flex h-full w-full flex-col bg-surface text-ink md:h-auto md:max-h-[90vh] md:max-w-3xl md:border-2 md:border-frame md:shadow-[6px_6px_0_var(--c-shade)]"
         role="dialog"
         aria-modal="true"
         :aria-label="`${name} 走勢`"
       >
-        <div class="flex items-start justify-between gap-3 border-b-2 border-[#3b2618] px-4 py-3">
+        <div class="flex items-start justify-between gap-3 border-b-2 border-frame px-4 py-3">
           <div class="min-w-0">
-            <p class="text-title font-semibold text-stone-50">{{ name }}</p>
-            <p v-if="symbol" class="text-caption text-stone-300">{{ symbol }}</p>
-            <p v-else-if="futures?.contract" class="text-caption text-stone-300">{{ futures.contract }}（近月合約）</p>
+            <p class="text-title font-semibold text-ink">{{ name }}</p>
+            <p v-if="symbol" class="text-caption text-ink-muted">{{ chart?.source ?? symbol }}</p>
+            <p v-else-if="futures?.contract" class="text-caption text-ink-muted">{{ futures.contract }}（近月合約）</p>
           </div>
           <button
             type="button"
-            class="-mr-1 shrink-0 cursor-pointer border-2 border-white/10 px-3 py-1.5 font-pixel text-button text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px]"
+            class="-mr-1 shrink-0 cursor-pointer border-2 border-tint/10 px-3 py-1.5 font-pixel text-button text-ink-soft transition hover:bg-tint/10 active:translate-x-[2px] active:translate-y-[2px]"
             @click="close"
           >
             關閉
@@ -234,36 +238,36 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           <!-- ── 台指期夜盤：沒有歷史走勢，只顯示即時數字 ── -->
           <template v-if="futures && futuresQuote">
             <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span class="text-display font-semibold tabular-nums text-stone-50">{{ formatNumber(futuresQuote.price, 0) }}</span>
+              <span class="text-display font-semibold tabular-nums text-ink">{{ formatNumber(futuresQuote.price, 0) }}</span>
               <span
                 class="border px-2 py-0.5 text-body tabular-nums"
-                :class="up ? 'border-rose-300/40 bg-rose-300/10 text-rose-100' : 'border-emerald-300/40 bg-emerald-300/10 text-emerald-100'"
+                :class="up ? 'border-up-hue/40 bg-up-hue/10 text-up-ink' : 'border-down-hue/40 bg-down-hue/10 text-down-ink'"
               >
                 {{ up ? '↑' : '↓' }} {{ formatSigned(futuresQuote.changePct, '%') }}
               </span>
-              <span class="text-body tabular-nums" :class="up ? 'text-rose-300' : 'text-emerald-300'">
+              <span class="text-body tabular-nums" :class="up ? 'text-up' : 'text-down'">
                 {{ formatSigned(futuresQuote.change) }} 和日盤結算價比
               </span>
             </div>
-            <p class="text-caption text-stone-300">{{ futuresQuote.date }} {{ futuresQuote.time }}・夜盤 15:00～隔天 05:00</p>
+            <p class="text-caption text-ink-muted">{{ futuresQuote.date }} {{ futuresQuote.time }}・夜盤 15:00～隔天 05:00</p>
 
             <!-- 夜盤的分鐘走勢（期交所） -->
             <div class="relative h-64 sm:h-72">
               <Line v-if="series" :data="data as never" :options="options as never" />
               <SkeletonBlock v-else-if="status === 'loading'" class="h-full w-full rounded-none" />
-              <p v-else-if="status === 'ready'" class="flex h-full items-center justify-center text-body text-stone-300">這次夜盤還沒有成交資料。</p>
-              <div v-if="status === 'error'" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0f1526]/90 text-body text-rose-200">
+              <p v-else-if="status === 'ready'" class="flex h-full items-center justify-center text-body text-ink-muted">這次夜盤還沒有成交資料。</p>
+              <div v-if="status === 'error'" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-surface/90 text-body text-danger">
                 <p>{{ error }}</p>
                 <button
                   type="button"
-                  class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-button text-rose-100 transition hover:bg-rose-300/10 active:translate-x-[2px] active:translate-y-[2px]"
+                  class="cursor-pointer border-2 border-danger-hue/30 px-3 py-1 text-button text-danger transition hover:bg-danger-hue/10 active:translate-x-[2px] active:translate-y-[2px]"
                   @click="load"
                 >
                   重試
                 </button>
               </div>
             </div>
-            <p v-if="series" class="text-caption text-stone-300">每一點是一分鐘的成交價；虛線是日盤結算價，線在虛線上面就是夜盤漲。</p>
+            <p v-if="series" class="text-caption text-ink-muted">每一點是一分鐘的成交價；虛線是日盤結算價，線在虛線上面就是夜盤漲。</p>
           </template>
 
           <!-- ── 指數與匯率 ── -->
@@ -271,18 +275,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             <!-- 價格與這段期間的漲跌；第一次載入時畫同形狀的骨架 -->
             <div v-if="chart" class="space-y-1">
               <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span class="text-display font-semibold tabular-nums text-stone-50">{{ formatNumber(chart.price, digits) }}</span>
+                <span class="text-display font-semibold tabular-nums text-ink">{{ formatNumber(chart.price, digits) }}</span>
                 <span
                   class="border px-2 py-0.5 text-body tabular-nums"
-                  :class="up ? 'border-rose-300/40 bg-rose-300/10 text-rose-100' : 'border-emerald-300/40 bg-emerald-300/10 text-emerald-100'"
+                  :class="up ? 'border-up-hue/40 bg-up-hue/10 text-up-ink' : 'border-down-hue/40 bg-down-hue/10 text-down-ink'"
                 >
                   {{ up ? '↑' : '↓' }} {{ formatSigned(chart.rangeChangePct, '%') }}
                 </span>
-                <span class="text-body tabular-nums" :class="up ? 'text-rose-300' : 'text-emerald-300'">
+                <span class="text-body tabular-nums" :class="up ? 'text-up' : 'text-down'">
                   {{ formatSigned(chart.rangeChange) }} {{ period }}
                 </span>
               </div>
-              <p class="text-caption text-stone-300">{{ updatedText }}</p>
+              <p class="text-caption text-ink-muted">{{ updatedText }}</p>
             </div>
             <div v-else-if="status === 'loading'" class="space-y-2">
               <SkeletonBlock class="h-10 w-64 rounded-none" />
@@ -291,15 +295,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
             <!-- 時間範圍 -->
             <!-- overflow-y-hidden：分頁往下凸 2px 蓋住底線，不加的話會冒出上下捲軸 -->
-            <div class="flex overflow-x-auto overflow-y-hidden border-b-2 border-white/10" role="tablist" aria-label="時間範圍">
+            <div class="flex overflow-x-auto overflow-y-hidden border-b-2 border-tint/10" role="tablist" aria-label="時間範圍">
               <button
-                v-for="option in RANGES"
+                v-for="option in ranges"
                 :key="option.key"
                 type="button"
                 role="tab"
                 :aria-selected="range === option.key"
                 class="-mb-[2px] shrink-0 cursor-pointer whitespace-nowrap border-b-2 px-3 py-2 text-button transition"
-                :class="range === option.key ? 'border-amber-200 text-amber-50' : 'border-transparent text-stone-300 hover:bg-white/5 hover:text-stone-100'"
+                :class="range === option.key ? 'border-accent-hue bg-selected text-on-selected' : 'border-transparent text-ink-muted hover:bg-tint/5 hover:text-ink'"
                 @click="selectRange(option.key)"
               >
                 {{ option.label }}
@@ -310,29 +314,32 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             <div class="relative h-64 sm:h-72">
               <Line v-if="chart" :data="data as never" :options="options as never" />
               <SkeletonBlock v-else-if="status === 'loading'" class="h-full w-full rounded-none" />
-              <div v-if="chart && status === 'loading'" class="absolute inset-0 bg-[#0f1526]/60" aria-hidden="true" />
-              <div v-if="status === 'error'" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0f1526]/90 text-body text-rose-200">
+              <div v-if="chart && status === 'loading'" class="absolute inset-0 bg-surface/60" aria-hidden="true" />
+              <div v-if="status === 'error'" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-surface/90 text-body text-danger">
                 <p>{{ error }}</p>
                 <button
                   type="button"
-                  class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-button text-rose-100 transition hover:bg-rose-300/10 active:translate-x-[2px] active:translate-y-[2px]"
+                  class="cursor-pointer border-2 border-danger-hue/30 px-3 py-1 text-button text-danger transition hover:bg-danger-hue/10 active:translate-x-[2px] active:translate-y-[2px]"
                   @click="load"
                 >
                   重試
                 </button>
               </div>
             </div>
-            <p v-if="range === '1d' && chart" class="text-caption text-stone-300">虛線是上次收盤價：線在虛線上面就是今天漲。</p>
+            <p v-if="range === '1d' && chart" class="text-caption text-ink-muted">虛線是上次收盤價：線在虛線上面就是今天漲。</p>
+            <p v-else-if="chart?.ranges && !chart.ranges.includes('1d')" class="text-caption text-ink-muted">
+              櫃買中心只公布每天的收盤，沒有盤中走勢，所以最短是 1 個月；每一點是一天的收盤。
+            </p>
           </template>
 
           <!-- 今天的數字 -->
-          <dl v-if="stats.length" class="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-white/10 pt-3 text-body tabular-nums sm:grid-cols-3">
+          <dl v-if="stats.length" class="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-tint/10 pt-3 text-body tabular-nums sm:grid-cols-3">
             <div v-for="item in stats" :key="item.label" class="flex justify-between gap-3">
-              <dt class="text-stone-300">{{ item.label }}</dt>
-              <dd class="text-stone-50">{{ item.value }}</dd>
+              <dt class="text-ink-muted">{{ item.label }}</dt>
+              <dd class="text-ink">{{ item.value }}</dd>
             </div>
           </dl>
-          <div v-else-if="status === 'loading'" class="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-white/10 pt-3 sm:grid-cols-3">
+          <div v-else-if="status === 'loading'" class="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-tint/10 pt-3 sm:grid-cols-3">
             <SkeletonBlock v-for="n in 6" :key="n" class="h-5 w-full rounded-none" />
           </div>
         </div>

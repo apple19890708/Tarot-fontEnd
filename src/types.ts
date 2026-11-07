@@ -923,6 +923,8 @@ export interface MarketIndexCard {
   session: 'intraday' | 'closed'
   // 最近約 60 個交易日的收盤（櫃買指數沒有歷史資料，只有一點）
   spark: number[]
+  // 走勢彈窗用的代號：Yahoo 沒有的指數（櫃買指數）才有；舊版後端沒有，櫃買指數卡就不能點
+  chartSymbol?: string
   // 以下是美股區塊才有（新版後端）：分組、白話說明、單位（殖利率是 %）、近 5／20 日漲跌
   group?: 'index' | 'tw' | 'mood'
   note?: string | null
@@ -1001,6 +1003,10 @@ export interface IndexChart {
   rangeChange: number | null
   rangeChangePct: number | null
   stats: { open: number | null; high: number | null; low: number | null; prevClose: number | null; high52: number | null; low52: number | null }
+  // 這個代號能選的範圍（櫃買指數只有日線：1 個月～1 年）；沒有就是全部都能選
+  ranges?: IndexChartRange[]
+  // 資料來源說明（櫃買指數：櫃買中心每日收盤）；沒有就顯示代號
+  source?: string
   points: { t: string; close: number }[]
 }
 

@@ -93,13 +93,13 @@ onMounted(() => load(1))
     管理頁的背景是星夜，深色卡片和夜空太接近，所以整頁做成一本攤開的和紙帳簿：
     米白和紙、深木粗框、墨色文字；表頭是深木條配像素字，角色與開通狀態用方框印章
   -->
-  <div class="border-4 border-[#3b2618] bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px] p-4 text-[#2a1a14] shadow-[6px_6px_0_rgba(0,0,0,0.45)] sm:p-6">
-    <div class="space-y-1 border-b-2 border-dashed border-[#3b2618]/30 pb-4">
+  <div class="border-4 border-frame bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px] p-4 text-[#2a1a14] shadow-[6px_6px_0_var(--c-shade)] sm:p-6">
+    <div class="space-y-1 border-b-2 border-dashed border-frame/30 pb-4">
       <h1 class="font-pixel text-[24px] text-[#2a1a14]">會員列表</h1>
       <p class="text-sm leading-7 text-[#2a1a14]/75">
         共 {{ total }} 位會員。AI 解析與金融股市（股市諮詢、股市追蹤）預設關閉，要分別逐一開通；管理者一律可用。
         要把某個帳號升為管理者，在後端執行
-        <code class="bg-[#3b2618] px-1.5 py-0.5 text-xs text-[#f1e7cf]">npm run user:promote -- &lt;email&gt;</code>。
+        <code class="bg-frame px-1.5 py-0.5 text-xs text-[#f1e7cf]">npm run user:promote -- &lt;email&gt;</code>。
       </p>
     </div>
 
@@ -108,9 +108,9 @@ onMounted(() => load(1))
     </p>
 
     <!-- 手機欄位放不下，表格自己橫向捲動，不撐破頁面 -->
-    <div class="mt-4 overflow-x-auto border-2 border-[#3b2618]">
+    <div class="mt-4 overflow-x-auto border-2 border-frame">
       <table class="w-full min-w-[48rem] text-left text-sm">
-        <thead class="bg-[#3b2618] font-pixel text-[12px] text-[#f1e7cf]">
+        <thead class="bg-frame font-pixel text-[12px] text-[#f1e7cf]">
           <tr>
             <th class="px-4 py-2 font-normal">Email</th>
             <th class="px-4 py-2 font-normal">顯示名稱</th>
@@ -122,13 +122,13 @@ onMounted(() => load(1))
         </thead>
         <tbody>
           <template v-if="loading">
-            <tr v-for="n in 5" :key="n" class="border-b-2 border-dashed border-[#3b2618]/20 last:border-0">
-              <td class="px-4 py-3"><SkeletonBlock class="h-4 w-48 rounded-none bg-[#3b2618]/15!" /></td>
-              <td class="px-4 py-3"><SkeletonBlock class="h-4 w-20 rounded-none bg-[#3b2618]/15!" /></td>
-              <td class="px-4 py-3"><SkeletonBlock class="h-6 w-16 rounded-none bg-[#3b2618]/15!" /></td>
-              <td class="px-4 py-3"><SkeletonBlock class="h-7 w-28 rounded-none bg-[#3b2618]/15!" /></td>
-              <td class="px-4 py-3"><SkeletonBlock class="h-7 w-28 rounded-none bg-[#3b2618]/15!" /></td>
-              <td class="px-4 py-3"><SkeletonBlock class="ml-auto h-4 w-32 rounded-none bg-[#3b2618]/15!" /></td>
+            <tr v-for="n in 5" :key="n" class="border-b-2 border-dashed border-frame/20 last:border-0">
+              <td class="px-4 py-3"><SkeletonBlock class="h-4 w-48 rounded-none bg-frame/15!" /></td>
+              <td class="px-4 py-3"><SkeletonBlock class="h-4 w-20 rounded-none bg-frame/15!" /></td>
+              <td class="px-4 py-3"><SkeletonBlock class="h-6 w-16 rounded-none bg-frame/15!" /></td>
+              <td class="px-4 py-3"><SkeletonBlock class="h-7 w-28 rounded-none bg-frame/15!" /></td>
+              <td class="px-4 py-3"><SkeletonBlock class="h-7 w-28 rounded-none bg-frame/15!" /></td>
+              <td class="px-4 py-3"><SkeletonBlock class="ml-auto h-4 w-32 rounded-none bg-frame/15!" /></td>
             </tr>
           </template>
           <tr v-else-if="!users.length">
@@ -138,7 +138,7 @@ onMounted(() => load(1))
             v-for="user in users"
             v-else
             :key="user.id"
-            class="border-b-2 border-dashed border-[#3b2618]/20 transition-colors last:border-0 hover:bg-[#3b2618]/5"
+            class="border-b-2 border-dashed border-frame/20 transition-colors last:border-0 hover:bg-frame/5"
           >
             <td class="px-4 py-3">{{ user.email }}</td>
             <td class="px-4 py-3 text-[#2a1a14]/75">{{ user.displayName }}</td>
@@ -157,7 +157,7 @@ onMounted(() => load(1))
                 v-else
                 type="button"
                 :disabled="updatingId === `${user.id}:${field}`"
-                class="cursor-pointer border-2 border-[#3b2618] px-2.5 py-1 text-[14px] shadow-[2px_2px_0_rgba(0,0,0,0.3)] transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
+                class="cursor-pointer border-2 border-frame px-2.5 py-1 text-[14px] shadow-[2px_2px_0_var(--c-shade)] transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50"
                 :class="
                   user[field]
                     ? 'bg-[#a8322a] text-[#f1e7cf] hover:bg-[#bf3d33]'
@@ -176,7 +176,7 @@ onMounted(() => load(1))
 
     <div v-if="pageCount > 1" class="mt-4 flex items-center justify-center gap-3 text-sm">
       <button
-        class="cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-3 py-1 font-pixel text-[14px] shadow-[2px_2px_0_rgba(0,0,0,0.3)] transition hover:bg-[#f6eedb] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-40"
+        class="cursor-pointer border-2 border-frame bg-[#e9dcc0] px-3 py-1 font-pixel text-[14px] shadow-[2px_2px_0_var(--c-shade)] transition hover:bg-[#f6eedb] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-40"
         :disabled="page <= 1 || loading"
         @click="load(page - 1)"
       >
@@ -184,7 +184,7 @@ onMounted(() => load(1))
       </button>
       <span class="tabular-nums text-[#2a1a14]/70">{{ page }} / {{ pageCount }}</span>
       <button
-        class="cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-3 py-1 font-pixel text-[14px] shadow-[2px_2px_0_rgba(0,0,0,0.3)] transition hover:bg-[#f6eedb] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-40"
+        class="cursor-pointer border-2 border-frame bg-[#e9dcc0] px-3 py-1 font-pixel text-[14px] shadow-[2px_2px_0_var(--c-shade)] transition hover:bg-[#f6eedb] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-40"
         :disabled="page >= pageCount || loading"
         @click="load(page + 1)"
       >

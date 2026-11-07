@@ -72,15 +72,15 @@ const yearLineNote = computed(() => (yearLineCondition.value === 'below' ? '跌�
 
 // 台灣習慣：偏多紅、偏空綠
 const STANCE_STYLES: Record<MarketAdvice['stance'], string> = {
-  bullish: 'border-rose-300/40 bg-rose-300/15 text-rose-100',
-  bearish: 'border-emerald-300/40 bg-emerald-300/15 text-emerald-100',
-  neutral: 'border-white/20 bg-white/10 text-stone-100',
+  bullish: 'border-up-hue/40 bg-up-hue/15 text-up-ink',
+  bearish: 'border-down-hue/40 bg-down-hue/15 text-down-ink',
+  neutral: 'border-tint/20 bg-tint/10 text-ink',
 }
 
 function directionMark(direction: number) {
-  if (direction > 0) return { text: '偏多', cls: 'text-rose-300' }
-  if (direction < 0) return { text: '偏空', cls: 'text-emerald-300' }
-  return { text: '中性', cls: 'text-stone-300' }
+  if (direction > 0) return { text: '偏多', cls: 'text-up' }
+  if (direction < 0) return { text: '偏空', cls: 'text-down' }
+  return { text: '中性', cls: 'text-ink-muted' }
 }
 
 const groups = computed(() => {
@@ -101,7 +101,7 @@ const groups = computed(() => {
         :key="option.key"
         type="button"
         class="cursor-pointer border-2 px-3 py-1 text-button transition active:translate-x-[2px] active:translate-y-[2px] font-pixel"
-        :class="mode === option.key ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/15 text-stone-300 hover:bg-white/10'"
+        :class="mode === option.key ? 'border-accent-hue/40 bg-accent-hue/15 text-accent' : 'border-tint/15 text-ink-muted hover:bg-tint/10'"
         :aria-pressed="mode === option.key"
         @click="mode = option.key"
       >
@@ -117,82 +117,82 @@ const groups = computed(() => {
         </span>
         <HelpTip :term="mode === 'long' ? 'longTerm' : 'stance'" />
       </span>
-      <span class="flex items-center gap-1.5 text-body text-stone-300">信心 {{ view.confidenceLabel }} <HelpTip term="confidence" /></span>
-      <span class="flex items-center gap-1.5 text-caption text-stone-300">適用 {{ view.horizon }}<HelpTip v-if="mode === 'short'" term="horizon" /></span>
+      <span class="flex items-center gap-1.5 text-body text-ink-muted">信心 {{ view.confidenceLabel }} <HelpTip term="confidence" /></span>
+      <span class="flex items-center gap-1.5 text-caption text-ink-muted">適用 {{ view.horizon }}<HelpTip v-if="mode === 'short'" term="horizon" /></span>
     </div>
-    <p class="text-body text-stone-200/90">{{ view.summary }}</p>
+    <p class="text-body text-ink-soft/90">{{ view.summary }}</p>
 
     <!-- 長期的關鍵價位：只有年線 -->
     <div v-if="mode === 'long' && long" class="grid gap-3 sm:grid-cols-2">
-      <div class="border-2 border-amber-200/20 bg-amber-200/5 p-3">
-        <p class="flex items-center gap-1.5 text-body text-amber-100/80">關鍵價位：年線 <HelpTip term="yearLine" /></p>
-        <p class="mt-1 text-subtitle font-semibold tabular-nums text-stone-50">{{ formatNumber(long.keyLevel.price) }}</p>
-        <p v-if="item" class="text-caption text-stone-300">
+      <div class="border-2 border-accent-hue/20 bg-accent-hue/5 p-3">
+        <p class="flex items-center gap-1.5 text-body text-accent">關鍵價位：年線 <HelpTip term="yearLine" /></p>
+        <p class="mt-1 text-subtitle font-semibold tabular-nums text-ink">{{ formatNumber(long.keyLevel.price) }}</p>
+        <p v-if="item" class="text-caption text-ink-muted">
           現價 {{ formatNumber(item.quote.price) }}，{{ item.quote.price >= long.keyLevel.price ? '在年線之上' : '在年線之下' }}
         </p>
         <button
           v-if="item"
-          class="mt-2 cursor-pointer border-2 border-amber-200/30 px-2 py-0.5 text-button text-amber-100 transition hover:bg-amber-200/10 disabled:cursor-default disabled:opacity-60 font-pixel"
+          class="mt-2 cursor-pointer border-2 border-accent-hue/30 px-2 py-0.5 text-button text-accent transition hover:bg-accent-hue/10 disabled:cursor-default disabled:opacity-60 font-pixel"
           type="button"
           :disabled="['saving', 'saved'].includes(alertState[`${yearLineCondition}-${long.keyLevel.price}`] ?? '')"
           @click="setAlert(yearLineCondition, long.keyLevel.price, yearLineNote)"
         >
           {{ alertLabel(yearLineCondition, long.keyLevel.price) }}
         </button>
-        <p v-if="alertError(yearLineCondition, long.keyLevel.price)" class="mt-1 text-caption text-rose-200">
+        <p v-if="alertError(yearLineCondition, long.keyLevel.price)" class="mt-1 text-caption text-danger">
           {{ alertError(yearLineCondition, long.keyLevel.price) }}
         </p>
       </div>
-      <div class="border-2 border-white/10 bg-white/5 p-3">
-        <p class="flex items-center gap-1.5 text-body text-stone-300">建議部位 <HelpTip term="position" /></p>
-        <p class="mt-1 text-body font-medium text-stone-100">{{ long.positionSize }}</p>
+      <div class="border-2 border-tint/10 bg-tint/5 p-3">
+        <p class="flex items-center gap-1.5 text-body text-ink-muted">建議部位 <HelpTip term="position" /></p>
+        <p class="mt-1 text-body font-medium text-ink">{{ long.positionSize }}</p>
       </div>
     </div>
 
     <!-- 短中期的關鍵價位 -->
     <div v-else class="grid gap-3 sm:grid-cols-3">
-      <div class="border-2 border-emerald-300/20 bg-emerald-300/5 p-3">
-        <p class="flex items-center gap-1.5 text-body text-emerald-200/80">{{ advice.levels.stopLossLabel }} <HelpTip term="stopLoss" /></p>
-        <p class="mt-1 text-subtitle font-semibold tabular-nums text-stone-50">{{ formatNumber(advice.levels.stopLoss.price) }}</p>
-        <p class="text-caption text-stone-300">{{ advice.levels.stopLoss.label }}</p>
+      <div class="border-2 border-down-hue/20 bg-down-hue/5 p-3">
+        <p class="flex items-center gap-1.5 text-body text-down-ink">{{ advice.levels.stopLossLabel }} <HelpTip term="stopLoss" /></p>
+        <p class="mt-1 text-subtitle font-semibold tabular-nums text-ink">{{ formatNumber(advice.levels.stopLoss.price) }}</p>
+        <p class="text-caption text-ink-muted">{{ advice.levels.stopLoss.label }}</p>
         <button
           v-if="item"
-          class="mt-2 cursor-pointer border-2 border-emerald-300/30 px-2 py-0.5 text-button text-emerald-100 transition hover:bg-emerald-300/10 disabled:cursor-default disabled:opacity-60 font-pixel"
+          class="mt-2 cursor-pointer border-2 border-down-hue/30 px-2 py-0.5 text-button text-down-ink transition hover:bg-down-hue/10 disabled:cursor-default disabled:opacity-60 font-pixel"
           type="button"
           :disabled="['saving', 'saved'].includes(alertState[`below-${advice.levels.stopLoss.price}`] ?? '')"
           @click="setAlert('below', advice.levels.stopLoss.price, `${advice.levels.stopLossLabel}：${advice.levels.stopLoss.label}`)"
         >
           {{ alertLabel('below', advice.levels.stopLoss.price) }}
         </button>
-        <p v-if="alertError('below', advice.levels.stopLoss.price)" class="mt-1 text-caption text-rose-200">
+        <p v-if="alertError('below', advice.levels.stopLoss.price)" class="mt-1 text-caption text-danger">
           {{ alertError('below', advice.levels.stopLoss.price) }}
         </p>
       </div>
-      <div class="border-2 border-rose-300/20 bg-rose-300/5 p-3">
-        <p class="flex items-center gap-1.5 text-body text-rose-200/80">{{ advice.levels.targetsLabel }} <HelpTip term="targets" /></p>
+      <div class="border-2 border-up-hue/20 bg-up-hue/5 p-3">
+        <p class="flex items-center gap-1.5 text-body text-danger">{{ advice.levels.targetsLabel }} <HelpTip term="targets" /></p>
         <template v-if="advice.levels.targets.length">
           <div v-for="target in advice.levels.targets" :key="target.price" class="mt-1">
-            <span class="text-subtitle font-semibold tabular-nums text-stone-50">{{ formatNumber(target.price) }}</span>
-            <span class="ml-2 text-caption text-stone-300">{{ target.label }}</span>
+            <span class="text-subtitle font-semibold tabular-nums text-ink">{{ formatNumber(target.price) }}</span>
+            <span class="ml-2 text-caption text-ink-muted">{{ target.label }}</span>
             <button
               v-if="item"
-              class="ml-2 cursor-pointer border-2 border-rose-300/30 px-2 py-0.5 text-button text-rose-100 transition hover:bg-rose-300/10 disabled:cursor-default disabled:opacity-60 font-pixel"
+              class="ml-2 cursor-pointer border-2 border-up-hue/30 px-2 py-0.5 text-button text-up-ink transition hover:bg-up-hue/10 disabled:cursor-default disabled:opacity-60 font-pixel"
               type="button"
               :disabled="['saving', 'saved'].includes(alertState[`above-${target.price}`] ?? '')"
               @click="setAlert('above', target.price, `${advice.levels.targetsLabel}：${target.label}`)"
             >
               {{ alertLabel('above', target.price) }}
             </button>
-            <p v-if="alertError('above', target.price)" class="mt-1 text-caption text-rose-200">{{ alertError('above', target.price) }}</p>
+            <p v-if="alertError('above', target.price)" class="mt-1 text-caption text-danger">{{ alertError('above', target.price) }}</p>
           </div>
         </template>
-        <p v-else class="mt-1 text-body text-stone-300">—</p>
+        <p v-else class="mt-1 text-body text-ink-muted">—</p>
       </div>
-      <div class="border-2 border-white/10 bg-white/5 p-3">
-        <p class="flex items-center gap-1.5 text-body text-stone-300">建議部位 <HelpTip term="position" /></p>
-        <p class="mt-1 text-body font-medium text-stone-100">{{ advice.positionSize }}</p>
-        <p v-if="advice.levels.riskReward !== null" class="mt-1 text-caption text-stone-300">
-          風險報酬比 <span class="tabular-nums" :class="advice.levels.riskReward >= 1.5 ? 'text-rose-200' : 'text-stone-300'">{{ advice.levels.riskReward }}</span>
+      <div class="border-2 border-tint/10 bg-tint/5 p-3">
+        <p class="flex items-center gap-1.5 text-body text-ink-muted">建議部位 <HelpTip term="position" /></p>
+        <p class="mt-1 text-body font-medium text-ink">{{ advice.positionSize }}</p>
+        <p v-if="advice.levels.riskReward !== null" class="mt-1 text-caption text-ink-muted">
+          風險報酬比 <span class="tabular-nums" :class="advice.levels.riskReward >= 1.5 ? 'text-danger' : 'text-ink-muted'">{{ advice.levels.riskReward }}</span>
           <HelpTip class="ml-1" term="riskReward" />
         </p>
       </div>
@@ -200,29 +200,29 @@ const groups = computed(() => {
 
     <!-- 怎麼做 -->
     <div class="grid gap-3 sm:grid-cols-2">
-      <div class="border-2 border-amber-200/20 bg-amber-200/5 p-3">
-        <p class="text-body font-medium text-amber-100/80">還沒進場</p>
-        <p class="mt-1 text-body text-stone-100">{{ view.forNew }}</p>
+      <div class="border-2 border-accent-hue/20 bg-accent-hue/5 p-3">
+        <p class="text-body font-medium text-accent">還沒進場</p>
+        <p class="mt-1 text-body text-ink">{{ view.forNew }}</p>
       </div>
-      <div class="border-2 border-amber-200/20 bg-amber-200/5 p-3">
-        <p class="text-body font-medium text-amber-100/80">已經持有</p>
-        <p class="mt-1 text-body text-stone-100">{{ view.forHolders }}</p>
+      <div class="border-2 border-accent-hue/20 bg-accent-hue/5 p-3">
+        <p class="text-body font-medium text-accent">已經持有</p>
+        <p class="mt-1 text-body text-ink">{{ view.forHolders }}</p>
       </div>
     </div>
 
     <!-- 判斷依據 -->
     <div class="space-y-2">
-      <p class="flex items-center gap-1.5 text-body font-medium text-stone-300">判斷依據 <HelpTip term="evidence" /></p>
+      <p class="flex items-center gap-1.5 text-body font-medium text-ink-muted">判斷依據 <HelpTip term="evidence" /></p>
       <div v-for="[group, items] in groups" :key="group" class="space-y-1">
-        <p class="text-caption tracking-wide text-stone-300">{{ group }}</p>
+        <p class="text-caption tracking-wide text-ink-muted">{{ group }}</p>
         <ul class="space-y-1 text-body">
           <li v-for="item in items" :key="item.label" class="flex gap-2" :class="item.counted ? '' : 'opacity-60'">
             <span class="w-[2.5em] flex-shrink-0 whitespace-nowrap font-medium" :class="directionMark(item.direction).cls">
               {{ item.counted ? directionMark(item.direction).text : '不計' }}
             </span>
-            <span class="min-w-0 text-stone-200">
+            <span class="min-w-0 text-ink-soft">
               {{ item.label }}
-              <span v-if="item.detail" class="block text-caption text-stone-300">{{ item.detail }}</span>
+              <span v-if="item.detail" class="block text-caption text-ink-muted">{{ item.detail }}</span>
             </span>
           </li>
         </ul>
@@ -230,14 +230,14 @@ const groups = computed(() => {
     </div>
 
     <!-- 風險 -->
-    <ul v-if="view.risks.length" class="space-y-1 border-2 border-amber-200/20 bg-amber-200/5 p-3 text-body text-amber-100/85">
+    <ul v-if="view.risks.length" class="space-y-1 border-2 border-accent-hue/20 bg-accent-hue/5 p-3 text-body text-accent/85">
       <li v-for="risk in view.risks" :key="risk">{{ risk }}</li>
     </ul>
 
-    <p v-if="mode === 'long' && long" class="text-caption text-stone-300">
+    <p v-if="mode === 'long' && long" class="text-caption text-ink-muted">
       長期建議由固定規則計算：年線的位置與方向、近一年和大盤比、過去一直抱著的報酬，台股個股再加上估值與營收。歷史表現不代表未來，存股前請再確認公司基本面。
     </p>
-    <p v-else class="text-caption text-stone-300">
+    <p v-else class="text-caption text-ink-muted">
       這份建議由固定規則計算：技術面、在這檔標的有歷史優勢的訊號、表現最好的策略現在的狀態，以及（可靠時）機器學習模型。歷史表現不代表未來，停損請確實執行。
     </p>
   </div>

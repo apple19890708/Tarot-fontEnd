@@ -145,7 +145,7 @@ const TONE_CLASS = { up: 'text-[#a8322a]', down: 'text-[#3d6b2e]' } as const
         v-model="keyword"
         type="search"
         :placeholder="placeholder"
-        class="w-full border-2 border-[#3b2618] bg-[#f1e7cf] px-2 py-1.5 text-body text-[#2a1a14] shadow-[3px_3px_0_rgba(0,0,0,0.35)] placeholder:text-[#2a1a14]/45 focus:border-[#a8322a] focus:outline-none"
+        class="w-full border-2 border-frame bg-[#f1e7cf] px-2 py-1.5 text-body text-[#2a1a14] shadow-[3px_3px_0_var(--c-shade)] placeholder:text-[#2a1a14]/45 focus:border-[#a8322a] focus:outline-none"
       />
       <div class="flex flex-wrap items-center gap-2">
         <button
@@ -155,14 +155,14 @@ const TONE_CLASS = { up: 'text-[#a8322a]', down: 'text-[#3d6b2e]' } as const
           class="cursor-pointer border-2 px-3 py-1 font-pixel text-button transition active:translate-x-[2px] active:translate-y-[2px]"
           :class="
             filter === option.value
-              ? 'border-[#3b2618] bg-[#a8322a] text-[#f1e7cf]'
-              : 'border-[#f1e7cf]/30 bg-transparent text-[#f1e7cf]/85 hover:border-amber-200/60 hover:text-amber-200'
+              ? 'border-frame bg-[#a8322a] text-[#f1e7cf]'
+              : 'border-tint/30 bg-transparent text-cream/85 hover:border-accent-hue/60 hover:text-warn'
           "
           @click="filter = option.value"
         >
           {{ option.label }}
         </button>
-        <span class="ml-auto text-caption text-[#f1e7cf]/85">
+        <span class="ml-auto text-caption text-cream/85">
           <template v-if="hasCondition">符合 {{ items.length }} 筆／</template>共 {{ total }} 筆
         </span>
       </div>
@@ -170,11 +170,11 @@ const TONE_CLASS = { up: 'text-[#a8322a]', down: 'text-[#3d6b2e]' } as const
       <slot name="controls" />
     </div>
 
-    <div v-if="items.length === 0" class="border-2 border-[#3b2618] bg-[#f1e7cf] px-4 py-6 text-center text-body text-[#2a1a14]/85">
+    <div v-if="items.length === 0" class="border-2 border-frame bg-[#f1e7cf] px-4 py-6 text-center text-body text-[#2a1a14]/85">
       <p>沒有符合條件的紀錄</p>
       <button
         type="button"
-        class="mt-3 cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-4 py-1.5 font-pixel text-button text-[#2a1a14] transition hover:bg-[#f1e7cf] active:translate-x-[2px] active:translate-y-[2px]"
+        class="mt-3 cursor-pointer border-2 border-frame bg-[#e9dcc0] px-4 py-1.5 font-pixel text-button text-[#2a1a14] transition hover:bg-[#f1e7cf] active:translate-x-[2px] active:translate-y-[2px]"
         @click="clearConditions"
       >
         清除條件
@@ -190,12 +190,12 @@ const TONE_CLASS = { up: 'text-[#a8322a]', down: 'text-[#3d6b2e]' } as const
       @scroll="hideTip"
     >
       <section v-for="group in groups" :key="group.key">
-        <p class="mb-2 border-b-2 border-dashed border-[#f1e7cf]/15 pb-1 font-pixel text-[12px] tracking-[0.2em] text-amber-200/90">{{ group.label }}</p>
+        <p class="mb-2 border-b-2 border-dashed border-tint/15 pb-1 font-pixel text-[12px] tracking-[0.2em] text-warn/90">{{ group.label }}</p>
         <ul class="space-y-1.5">
           <li v-for="(item, i) in group.items" :key="item.id">
             <button
               type="button"
-              class="w-[calc(100%-0.75rem)] cursor-pointer border-2 border-l-[6px] border-r-0 border-[#3b2618] px-3 py-2 text-left shadow-[-3px_3px_0_rgba(0,0,0,0.45)] transition-[margin,background-color] [transition-timing-function:steps(2)]"
+              class="w-[calc(100%-0.75rem)] cursor-pointer border-2 border-l-[6px] border-r-0 border-frame px-3 py-2 text-left shadow-[-3px_3px_0_var(--c-shade)] transition-[margin,background-color] [transition-timing-function:steps(2)]"
               :class="
                 selectedId === item.id
                   ? 'ml-0 w-full border-l-[#a8322a] bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px]'
@@ -228,7 +228,7 @@ const TONE_CLASS = { up: 'text-[#a8322a]', down: 'text-[#3d6b2e]' } as const
     <Teleport to="body">
       <div
         v-if="tip"
-        class="pointer-events-none fixed z-50 w-72 rounded-md border border-white/10 bg-neutral-800 px-3 py-2 text-body text-stone-100 shadow-lg shadow-black/50"
+        class="pointer-events-none fixed z-50 w-72 border-2 border-frame bg-surface px-3 py-2 text-body text-ink shadow-[4px_4px_0_var(--c-shade)]"
         :style="{ left: `${tip.left}px`, top: `${tip.top}px` }"
         role="tooltip"
       >

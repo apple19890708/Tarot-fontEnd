@@ -121,7 +121,7 @@ onBeforeUnmount(() => {
     v-bind="$attrs"
     ref="button"
     type="button"
-    class="inline-flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full border border-stone-400/60 align-middle text-[10px] leading-none text-stone-300 transition hover:border-amber-200/70 hover:text-amber-100"
+    class="inline-flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full border border-ink-muted/60 align-middle text-[10px] leading-none text-ink-muted transition hover:border-accent-hue/70 hover:text-accent"
     :aria-label="label"
     :aria-expanded="open"
     @click.stop="toggle"
@@ -135,14 +135,14 @@ onBeforeUnmount(() => {
       v-if="open"
       ref="panel"
       role="tooltip"
-      class="fixed z-[70] max-h-[60vh] overflow-y-auto border-2 border-[#3b2618] bg-[#0f1526] p-3 text-left shadow-[4px_4px_0_rgba(0,0,0,0.5)]"
+      class="fixed z-[70] max-h-[60vh] overflow-y-auto border-2 border-frame bg-surface p-3 text-left shadow-[4px_4px_0_var(--c-shade)]"
       :style="{ top: `${position.top}px`, left: `${position.left}px`, width: `${PANEL_WIDTH}px`, maxWidth: 'calc(100vw - 16px)' }"
       @pointerenter="onEnter"
       @pointerleave="onLeave"
     >
-      <div v-for="entry in entries" :key="entry.title" class="space-y-1 [&+&]:mt-3 [&+&]:border-t [&+&]:border-white/10 [&+&]:pt-3">
-        <p class="text-body font-semibold text-amber-100">{{ entry.title }}</p>
-        <p class="text-body text-stone-300">{{ entry.body }}</p>
+      <div v-for="entry in entries" :key="entry.title" class="space-y-1 [&+&]:mt-3 [&+&]:border-t [&+&]:border-tint/10 [&+&]:pt-3">
+        <p class="text-body font-semibold text-accent">{{ entry.title }}</p>
+        <p class="text-body text-ink-muted">{{ entry.body }}</p>
       </div>
     </div>
   </Teleport>

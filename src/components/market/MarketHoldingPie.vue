@@ -8,17 +8,16 @@ import { CHART_COLORS, formatNumber, formatSigned } from '../../lib/marketChart'
 // 賺錢時：成本 + 獲利 = 市值；虧損時：剩下的市值 + 虧損 = 成本。中間顯示報酬率
 const props = defineProps<{ cost: number; pnl: number; currency: string }>()
 
-const COST_COLOR = 'rgba(214,211,209,0.35)'
 
 const segments = computed(() => {
   if (props.pnl >= 0) {
     return [
-      { label: '總成本', value: props.cost, color: COST_COLOR },
+      { label: '總成本', value: props.cost, color: CHART_COLORS.neutralSoft },
       { label: '總獲利', value: props.pnl, color: CHART_COLORS.up },
     ]
   }
   return [
-    { label: '剩餘市值', value: props.cost + props.pnl, color: COST_COLOR },
+    { label: '剩餘市值', value: props.cost + props.pnl, color: CHART_COLORS.neutralSoft },
     { label: '總虧損', value: -props.pnl, color: CHART_COLORS.down },
   ]
 })
@@ -31,7 +30,7 @@ const data = computed(() => ({
     {
       data: segments.value.map((s) => Math.max(s.value, 0)),
       backgroundColor: segments.value.map((s) => s.color),
-      borderColor: '#0f1526',
+      borderColor: CHART_COLORS.surface,
       borderWidth: 2,
     },
   ],
@@ -59,8 +58,8 @@ const options = {
     <div class="relative h-28 w-28 shrink-0">
       <Doughnut :data="data" :options="options" aria-label="持股成本與獲利圓餅圖" role="img" />
       <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span class="text-caption text-stone-300">報酬率</span>
-        <span class="text-body font-semibold tabular-nums" :class="pnl >= 0 ? 'text-rose-300' : 'text-emerald-300'">
+        <span class="text-caption text-ink-muted">報酬率</span>
+        <span class="text-body font-semibold tabular-nums" :class="pnl >= 0 ? 'text-up' : 'text-down'">
           {{ formatSigned(pnlPct, '%') }}
         </span>
       </div>
@@ -68,8 +67,8 @@ const options = {
     <ul class="min-w-0 space-y-1.5 text-body tabular-nums">
       <li v-for="segment in segments" :key="segment.label" class="flex items-center gap-2">
         <span class="h-2.5 w-2.5 shrink-0" :style="{ backgroundColor: segment.color }" />
-        <span class="text-stone-300">{{ segment.label }}</span>
-        <span class="text-stone-100">{{ formatNumber(segment.value, 0) }}</span>
+        <span class="text-ink-muted">{{ segment.label }}</span>
+        <span class="text-ink">{{ formatNumber(segment.value, 0) }}</span>
       </li>
     </ul>
   </div>

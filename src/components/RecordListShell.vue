@@ -63,7 +63,7 @@ onBeforeUnmount(() => {
     手機一直掛著，關閉時移到畫面左外側並隱藏，打開時從左邊滑入；lg 以上的 class 把這些全部蓋回來
   -->
   <aside
-    class="fixed inset-0 z-40 flex flex-col bg-[#161d33] p-5 lg:border-4 lg:border-r-0 lg:border-[#3b2618] transition-[translate,opacity,visibility] duration-300 ease-out motion-reduce:transition-none lg:sticky lg:inset-auto lg:top-5 lg:z-auto lg:visible lg:max-h-[calc(100vh-2.5rem)] lg:shrink-0 lg:translate-x-0 lg:overflow-hidden lg:shadow-[6px_6px_0_rgba(0,0,0,0.45)] lg:opacity-100 lg:backdrop-blur-none lg:transition-[width,padding] lg:pointer-events-auto"
+    class="fixed inset-0 z-40 flex flex-col bg-surface p-5 lg:border-4 lg:border-r-0 lg:border-frame transition-[translate,opacity,visibility] duration-300 ease-out motion-reduce:transition-none lg:sticky lg:inset-auto lg:top-5 lg:z-auto lg:visible lg:max-h-[calc(100vh-2.5rem)] lg:shrink-0 lg:translate-x-0 lg:overflow-hidden lg:shadow-[6px_6px_0_var(--c-shade)] lg:opacity-100 lg:backdrop-blur-none lg:transition-[width,padding] lg:pointer-events-auto"
     :class="[
       open ? 'visible translate-x-0 opacity-100' : 'pointer-events-none invisible -translate-x-full opacity-0',
       showRail ? 'lg:w-14 lg:p-2' : 'lg:w-72 lg:py-4 lg:pl-2 lg:pr-0',
@@ -80,30 +80,30 @@ onBeforeUnmount(() => {
       <div v-if="showRail" key="rail" class="flex flex-col items-center">
         <button
           type="button"
-          class="cursor-pointer border-2 border-[#f1e7cf]/30 px-1.5 py-0.5 font-pixel text-button text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px]"
+          class="cursor-pointer border-2 border-tint/30 px-1.5 py-0.5 font-pixel text-button text-cream/85 transition hover:border-accent-hue/60 hover:text-warn active:translate-x-[2px] active:translate-y-[2px]"
           :title="`展開${label}`"
           :aria-label="`展開${label}`"
           @click="toggleCollapsed"
         >
           »
         </button>
-        <span class="mt-3 text-caption text-[#f1e7cf]/85 [writing-mode:vertical-rl]">共 {{ count }} 筆</span>
+        <span class="mt-3 text-caption text-cream/85 [writing-mode:vertical-rl]">共 {{ count }} 筆</span>
       </div>
 
       <!-- 寬度＝展開時 w-72 扣掉左邊框與 pl-2（右側不留，標籤才貼得到菜單），收合途中內容不會重新排版 -->
       <div v-else key="panel" class="flex min-h-0 flex-1 flex-col lg:w-[17.25rem]">
         <div class="mb-4 flex items-center justify-between gap-3 lg:pr-3">
-          <p class="font-pixel text-[12px] tracking-[0.2em] text-amber-200">{{ label }}</p>
+          <p class="font-pixel text-[12px] tracking-[0.2em] text-warn">{{ label }}</p>
           <button
             type="button"
-            class="hidden cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-button text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px] lg:block"
+            class="hidden cursor-pointer border-2 border-tint/30 px-2 py-0.5 font-pixel text-button text-cream/85 transition hover:border-accent-hue/60 hover:text-warn active:translate-x-[2px] active:translate-y-[2px] lg:block"
             @click="toggleCollapsed"
           >
             « 收合
           </button>
           <button
             type="button"
-            class="cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-button text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px] lg:hidden"
+            class="cursor-pointer border-2 border-tint/30 px-2 py-0.5 font-pixel text-button text-cream/85 transition hover:border-accent-hue/60 hover:text-warn active:translate-x-[2px] active:translate-y-[2px] lg:hidden"
             @click="open = false"
           >
             關閉

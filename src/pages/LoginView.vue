@@ -58,61 +58,61 @@ async function submit() {
 <template>
   <div class="mx-auto max-w-md">
     <form
-      class="space-y-5 rounded-[1.75rem] border border-white/10 bg-[#0f1526] p-7"
+      class="space-y-5 rounded-[1.75rem] border border-tint/10 bg-surface p-7"
       @submit.prevent="submit"
     >
       <div class="space-y-1">
         <h1 class="text-xl font-semibold">登入</h1>
-        <p class="text-sm text-stone-300/80">登入後可以使用 AI 解讀，之後也會保留你的占卜紀錄。</p>
+        <p class="text-sm text-ink-muted">登入後可以使用 AI 解讀，之後也會保留你的占卜紀錄。</p>
       </div>
 
       <label class="block space-y-1.5">
-        <span class="text-sm text-stone-300/80">Email</span>
+        <span class="text-sm text-ink-muted">Email</span>
         <input
           v-model="email"
           type="email"
           autocomplete="email"
           required
-          class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-amber-200/40"
+          class="w-full rounded-xl border border-tint/10 bg-sink/20 px-3 py-2 text-sm outline-none focus:border-accent-hue/40"
         />
       </label>
 
       <label class="block space-y-1.5">
-        <span class="text-sm text-stone-300/80">密碼</span>
+        <span class="text-sm text-ink-muted">密碼</span>
         <input
           v-model="password"
           type="password"
           autocomplete="current-password"
           required
-          class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-amber-200/40"
+          class="w-full rounded-xl border border-tint/10 bg-sink/20 px-3 py-2 text-sm outline-none focus:border-accent-hue/40"
         />
       </label>
 
-      <p v-if="justReset && !error" class="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100">
+      <p v-if="justReset && !error" class="rounded-xl border border-down-hue/20 bg-down-hue-2/10 px-3 py-2 text-sm text-down-ink">
         密碼已經更新，請用新密碼登入。
       </p>
 
       <p class="-mt-2 text-right text-sm">
-        <router-link to="/forgot-password" class="text-amber-200 hover:underline">忘記密碼？</router-link>
+        <router-link to="/forgot-password" class="text-warn hover:underline">忘記密碼？</router-link>
       </p>
 
-      <p v-if="error" class="rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">
+      <p v-if="error" class="rounded-xl border border-up-hue/20 bg-up-hue-2/10 px-3 py-2 text-sm text-up-ink">
         {{ error }}
       </p>
 
       <button
         type="submit"
         :disabled="loading"
-        class="w-full cursor-pointer rounded-xl border border-amber-200/30 bg-amber-200/10 px-4 py-2 text-sm font-medium text-amber-100 hover:bg-amber-200/20 disabled:cursor-not-allowed disabled:opacity-50"
+        class="w-full cursor-pointer rounded-xl border border-accent-hue/30 bg-accent-hue/10 px-4 py-2 text-sm font-medium text-accent hover:bg-accent-hue/20 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {{ loading ? '登入中…' : '登入' }}
       </button>
 
       <GoogleSignInButton @credential="googleSignIn" />
 
-      <p class="text-center text-sm text-stone-300/70">
+      <p class="text-center text-sm text-ink-muted">
         還沒有帳號？
-        <router-link to="/register" class="text-amber-200 hover:underline">註冊一個</router-link>
+        <router-link to="/register" class="text-warn hover:underline">註冊一個</router-link>
       </p>
     </form>
   </div>

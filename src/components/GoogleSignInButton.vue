@@ -40,16 +40,16 @@ onMounted(async () => {
 <template>
   <div v-if="googleClientId" class="space-y-3">
     <!-- 「或」分隔線 -->
-    <div class="flex items-center gap-3 text-caption text-stone-300">
-      <span class="h-px flex-1 bg-white/10" />
+    <div class="flex items-center gap-3 text-caption text-ink-muted">
+      <span class="h-px flex-1 bg-tint/10" />
       或
-      <span class="h-px flex-1 bg-white/10" />
+      <span class="h-px flex-1 bg-tint/10" />
     </div>
     <!-- 載入中先放同高度的佔位，避免版面跳動 -->
     <div class="relative flex min-h-[44px] justify-center">
       <div ref="container" class="flex w-full justify-center" />
-      <div v-if="status === 'loading'" class="absolute inset-0 animate-pulse rounded bg-white/10" />
+      <div v-if="status === 'loading'" class="absolute inset-0 animate-pulse rounded bg-tint/10" />
     </div>
-    <p v-if="status === 'error'" class="text-center text-caption text-rose-200">Google 登入暫時載入不了，請重新整理或改用 email 登入。</p>
+    <p v-if="status === 'error'" class="text-center text-caption text-danger">Google 登入暫時載入不了，請重新整理或改用 email 登入。</p>
   </div>
 </template>

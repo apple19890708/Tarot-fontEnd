@@ -47,16 +47,16 @@ onMounted(load)
       </template>
     </div>
 
-    <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 text-body text-rose-200">
+    <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 text-body text-danger">
       <span>{{ error }}</span>
-      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-button font-pixel" @click="load">重試</button>
+      <button type="button" class="cursor-pointer border-2 border-danger-hue/30 px-3 py-1 text-button font-pixel" @click="load">重試</button>
     </div>
 
     <template v-else-if="detail">
       <MarketPriceChart v-if="detail.chart" :chart="detail.chart" :analysis="detail.analysis" />
-      <p v-else class="text-body text-stone-300">歷史資料不足，畫不出走勢圖。</p>
+      <p v-else class="text-body text-ink-muted">歷史資料不足，畫不出走勢圖。</p>
       <MarketChips v-if="detail.chips || detail.valuation" :chips="detail.chips" :valuation="detail.valuation" />
-      <p v-for="note in detail.notes" :key="note" class="text-body text-stone-300">{{ note }}</p>
+      <p v-for="note in detail.notes" :key="note" class="text-body text-ink-muted">{{ note }}</p>
     </template>
   </div>
 </template>

@@ -1,19 +1,27 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { cardStyle, setCardStyle, type CardStyle } from '../lib/cardStyle'
+import { setTheme, theme, type Theme } from '../lib/theme'
 import CrystalBallIcon from './CrystalBallIcon.vue'
 import { sectionNav, type SectionNavItem } from '../lib/sectionNav'
 
-// 浮在畫面右上的選單：像素水晶球按鈕，打開後可以換牌面風格；
-// 在結果頁時多一區「跳到段落」，內容很長時用來快速移動。
+// 浮在畫面右上的選單：像素水晶球按鈕，全站都有。打開後可以切換日夜模式；
+// 看得到牌的頁面（cards）多一區牌面風格，結果頁再多一區「跳到段落」，內容很長時用來快速移動。
+const props = defineProps<{ cards?: boolean }>()
 
 const open = ref(false)
 const items = ref<SectionNavItem[]>([])
 const rootEl = ref<HTMLElement | null>(null)
 const buttonEl = ref<HTMLButtonElement | null>(null)
 const route = useRoute()
+
+// 預設黑夜（計畫書 v18）
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
+  { value: 'night', label: '黑夜' },
+  { value: 'day', label: '白天' },
+]
 
 const STYLE_OPTIONS: { value: CardStyle; label: string }[] = [
   { value: 'original', label: '原版' },
@@ -36,6 +44,8 @@ watch(
   () => route.fullPath,
   () => (open.value = false),
 )
+
+const showCardStyle = computed(() => props.cards && sectionNav.value?.cardStyle !== false)
 
 function jump(item: SectionNavItem) {
   open.value = false
@@ -73,8 +83,8 @@ onBeforeUnmount(() => {
     <button
       ref="buttonEl"
       type="button"
-      class="flex h-11 w-11 cursor-pointer items-center justify-center border-2 border-[#3b2618] bg-[#0f1526] shadow-[3px_3px_0_rgba(0,0,0,0.5)] transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-      :class="open ? 'text-amber-200' : 'text-violet-200/80 hover:text-amber-200'"
+      class="flex h-11 w-11 cursor-pointer items-center justify-center border-2 border-frame bg-surface shadow-[3px_3px_0_var(--c-shade)] transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+      :class="open ? 'text-orb-glow' : 'text-orb hover:text-orb-glow'"
       :aria-expanded="open"
       aria-controls="floating-menu"
       aria-label="選單"
@@ -95,22 +105,36 @@ onBeforeUnmount(() => {
       <div
         v-if="open"
         id="floating-menu"
-        class="absolute right-0 top-full mt-2 max-h-[calc(100dvh-8rem)] w-60 overflow-y-auto border-2 border-[#3b2618] bg-[#0f1526] p-3 shadow-[4px_4px_0_rgba(0,0,0,0.5)]"
+        class="absolute right-0 top-full mt-2 max-h-[calc(100dvh-8rem)] w-60 overflow-y-auto border-2 border-frame bg-surface p-3 shadow-[4px_4px_0_var(--c-shade)]"
       >
-        <!-- 牌面風格：所有畫面的牌面一起換，選擇記在這台瀏覽器；沒有牌的頁面（股票分析紀錄）不顯示 -->
-        <section v-if="sectionNav?.cardStyle !== false">
-          <p class="text-xs text-amber-100/70">牌面風格</p>
+        <!-- 日夜模式：每一頁都有，選擇記在這台瀏覽器 -->
+        <section>
+          <p class="text-xs text-accent">日夜模式</p>
+          <div class="mt-2 grid grid-cols-2 gap-2">
+            <button
+              v-for="option in THEME_OPTIONS"
+              :key="option.value"
+              type="button"
+              class="cursor-pointer border-2 px-2 py-1 text-sm transition active:translate-x-[2px] active:translate-y-[2px]"
+              :class="theme === option.value ? 'border-accent-line bg-accent-soft text-accent' : 'border-line text-ink-muted hover:bg-raised'"
+              :aria-pressed="theme === option.value"
+              @click="setTheme(option.value)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </section>
+
+        <!-- 牌面風格：所有畫面的牌面一起換，選擇記在這台瀏覽器；只在看得到牌的頁面出現 -->
+        <section v-if="showCardStyle" class="mt-3 border-t-2 border-line pt-3">
+          <p class="text-xs text-accent">牌面風格</p>
           <div class="mt-2 grid grid-cols-2 gap-2">
             <button
               v-for="option in STYLE_OPTIONS"
               :key="option.value"
               type="button"
               class="cursor-pointer border-2 px-2 py-1 text-sm transition active:translate-x-[2px] active:translate-y-[2px]"
-              :class="
-                cardStyle === option.value
-                  ? 'border-amber-200/60 bg-amber-200/15 text-amber-50'
-                  : 'border-white/15 text-stone-300 hover:bg-white/10'
-              "
+              :class="cardStyle === option.value ? 'border-accent-line bg-accent-soft text-accent' : 'border-line text-ink-muted hover:bg-raised'"
               :aria-pressed="cardStyle === option.value"
               @click="setCardStyle(option.value)"
             >
@@ -123,18 +147,18 @@ onBeforeUnmount(() => {
         <nav
           v-if="items.length > 0"
           aria-label="跳到段落"
-          :class="sectionNav?.cardStyle !== false ? 'mt-3 border-t-2 border-white/10 pt-3' : ''"
+          class="mt-3 border-t-2 border-line pt-3"
         >
-          <p class="text-xs text-amber-100/70">跳到段落</p>
+          <p class="text-xs text-accent">跳到段落</p>
           <ul class="mt-2 space-y-0.5">
             <li v-for="(item, index) in items" :key="`${index}-${item.label}`">
               <button
                 type="button"
-                class="w-full cursor-pointer px-2 py-1 text-left transition hover:bg-white/10 hover:text-amber-100"
-                :class="item.level === 2 ? 'pl-5 text-xs text-stone-300/80' : 'text-sm text-stone-100'"
+                class="w-full cursor-pointer px-2 py-1 text-left transition hover:bg-raised hover:text-accent"
+                :class="item.level === 2 ? 'pl-5 text-xs text-ink-muted' : 'text-sm text-ink-soft'"
                 @click="jump(item)"
               >
-                <span v-if="item.level === 2" class="mr-1 text-stone-500" aria-hidden="true">·</span>{{ item.label }}
+                <span v-if="item.level === 2" class="mr-1 text-ink-muted" aria-hidden="true">·</span>{{ item.label }}
               </button>
             </li>
           </ul>

@@ -208,7 +208,7 @@ async function reactivate(id: string) {
 // 顏色：漲、站上、黃金交叉、過熱用紅；跌、跌破、死亡交叉、超賣用綠
 function toneOf(alert: MarketAlert) {
   const direction = alert.kind && alert.kind !== 'price' ? alert.params?.direction : alert.condition
-  return ['above', 'up', 'golden'].includes(direction ?? '') ? 'text-rose-300' : 'text-emerald-300'
+  return ['above', 'up', 'golden'].includes(direction ?? '') ? 'text-up' : 'text-down'
 }
 
 const activeAlerts = computed(() => marketAlerts.value.filter((alert) => alert.active))
@@ -229,11 +229,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="space-y-4 border-2 border-white/10 bg-[#0f1526] p-4 sm:p-6">
+  <section class="space-y-4 border-2 border-tint/10 bg-surface p-4 sm:p-6">
     <div>
-      <p class="text-caption uppercase tracking-[0.2em] text-stone-300 sm:tracking-[0.3em]">Price Alerts</p>
-      <h2 class="mt-1 text-title font-semibold text-stone-50">價位提醒</h2>
-      <p class="mt-1 text-body text-stone-300">
+      <p class="text-caption uppercase tracking-[0.2em] text-ink-muted sm:tracking-[0.3em]">Price Alerts</p>
+      <h2 class="mt-1 text-title font-semibold text-ink">價位提醒</h2>
+      <p class="mt-1 text-body text-ink-muted">
         網頁開著時每 3 分鐘檢查一次，到價會在畫面上提示；瀏覽器允許通知的話也會跳系統通知。開啟推播後，網頁關著也會跳出通知。
         也可以在股市諮詢的「操作建議」或自訂追蹤一鍵帶入標的。
       </p>
@@ -252,7 +252,7 @@ onMounted(async () => {
             role="radio"
             :aria-checked="form.market === market"
             class="cursor-pointer border-2 px-3 py-2 text-button transition font-pixel"
-            :class="form.market === market ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/10 text-stone-300 hover:bg-white/10'"
+            :class="form.market === market ? 'border-accent-hue/40 bg-accent-hue/15 text-accent' : 'border-tint/10 text-ink-muted hover:bg-tint/10'"
             @click="
               () => {
                 form.market = market
@@ -280,7 +280,7 @@ onMounted(async () => {
           role="radio"
           :aria-checked="form.kind === option.value"
           class="cursor-pointer border px-2.5 py-1 text-button transition"
-          :class="form.kind === option.value ? 'border-amber-200/50 bg-amber-200/15 text-amber-50' : 'border-white/10 text-stone-300 hover:bg-white/10'"
+          :class="form.kind === option.value ? 'border-accent-hue/50 bg-accent-hue/15 text-accent' : 'border-tint/10 text-ink-muted hover:bg-tint/10'"
           @click="selectKind(option.value)"
         >
           {{ option.label }}
@@ -299,9 +299,9 @@ onMounted(async () => {
             :class="
               form.direction === option.value
                 ? option.tone === 'up'
-                  ? 'border-rose-300/50 bg-rose-300/15 text-rose-100'
-                  : 'border-emerald-300/50 bg-emerald-300/15 text-emerald-100'
-                : 'border-white/10 text-stone-300 hover:bg-white/10'
+                  ? 'border-up-hue/50 bg-up-hue/15 text-up-ink'
+                  : 'border-down-hue/50 bg-down-hue/15 text-down-ink'
+                : 'border-tint/10 text-ink-muted hover:bg-tint/10'
             "
             @click="form.direction = option.value"
           >
@@ -313,7 +313,7 @@ onMounted(async () => {
           ref="priceInput"
           v-model="form.price"
           inputmode="decimal"
-          class="min-w-0 flex-[1_1_7rem] border-2 border-white/10 bg-white/5 px-3 py-2 text-body tabular-nums text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
+          class="min-w-0 flex-[1_1_7rem] border-2 border-tint/10 bg-tint/5 px-3 py-2 text-body tabular-nums text-ink outline-none placeholder:text-ink-muted focus:border-accent-hue/40"
           placeholder="價格"
         />
         <!-- 均線：MA20 或 MA60 -->
@@ -325,46 +325,46 @@ onMounted(async () => {
             role="radio"
             :aria-checked="form.period === period"
             class="cursor-pointer border-2 px-3 py-2 text-button transition font-pixel"
-            :class="form.period === period ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/10 text-stone-300 hover:bg-white/10'"
+            :class="form.period === period ? 'border-accent-hue/40 bg-accent-hue/15 text-accent' : 'border-tint/10 text-ink-muted hover:bg-tint/10'"
             @click="form.period = period"
           >
             {{ period === 20 ? '月線 MA20' : '季線 MA60' }}
           </button>
         </div>
         <label v-else-if="form.kind !== 'kd'" class="flex min-w-0 flex-[1_1_9rem] items-center gap-2">
-          <span v-if="form.kind === 'volume'" class="shrink-0 text-body text-stone-300">量比達</span>
+          <span v-if="form.kind === 'volume'" class="shrink-0 text-body text-ink-muted">量比達</span>
           <input
             v-model="form.value"
             inputmode="decimal"
-            class="min-w-0 flex-1 border-2 border-white/10 bg-white/5 px-3 py-2 text-body tabular-nums text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
+            class="min-w-0 flex-1 border-2 border-tint/10 bg-tint/5 px-3 py-2 text-body tabular-nums text-ink outline-none placeholder:text-ink-muted focus:border-accent-hue/40"
             :placeholder="form.kind === 'changePct' ? '例如 5' : form.kind === 'rsi' ? '例如 70' : '例如 2'"
           />
-          <span class="shrink-0 text-body text-stone-300">{{ form.kind === 'changePct' ? '%' : form.kind === 'volume' ? '倍' : '' }}</span>
+          <span class="shrink-0 text-body text-ink-muted">{{ form.kind === 'changePct' ? '%' : form.kind === 'volume' ? '倍' : '' }}</span>
         </label>
       </div>
-      <p v-if="form.kind === 'ma'" class="text-caption text-stone-300">均線提醒會先記下目前在均線哪一側，之後從另一側穿越過來才通知。</p>
-      <p v-else-if="form.kind === 'volume'" class="text-caption text-stone-300">量比是當日成交量相對前 20 日平均量的倍數；盤中量還沒累積完，收盤前比較容易偏低。</p>
+      <p v-if="form.kind === 'ma'" class="text-caption text-ink-muted">均線提醒會先記下目前在均線哪一側，之後從另一側穿越過來才通知。</p>
+      <p v-else-if="form.kind === 'volume'" class="text-caption text-ink-muted">量比是當日成交量相對前 20 日平均量的倍數；盤中量還沒累積完，收盤前比較容易偏低。</p>
       <div class="flex flex-wrap gap-2">
         <input
           v-model="form.note"
           maxlength="100"
-          class="min-w-0 flex-[2_1_12rem] border-2 border-white/10 bg-white/5 px-3 py-2 text-body text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
+          class="min-w-0 flex-[2_1_12rem] border-2 border-tint/10 bg-tint/5 px-3 py-2 text-body text-ink outline-none placeholder:text-ink-muted focus:border-accent-hue/40"
           placeholder="備註（選填）"
         />
         <button
           type="submit"
-          class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-4 py-2 text-button text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
+          class="shrink-0 cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-4 py-2 text-button text-accent transition hover:bg-accent-hue/25 disabled:opacity-60 font-pixel"
           :disabled="saving"
         >
           {{ saving ? '新增中…' : '新增提醒' }}
         </button>
       </div>
     </form>
-    <p v-if="formError" class="text-body text-rose-200">{{ formError }}</p>
+    <p v-if="formError" class="text-body text-danger">{{ formError }}</p>
 
     <!-- 骨架對應每筆提醒的一列：名稱與條件、距離提醒價、刪除鈕 -->
     <ul v-if="alertsStatus === 'loading'" class="space-y-2">
-      <li v-for="n in 3" :key="n" class="flex items-center justify-between gap-3 border-2 border-white/10 px-3 py-2.5">
+      <li v-for="n in 3" :key="n" class="flex items-center justify-between gap-3 border-2 border-tint/10 px-3 py-2.5">
         <div class="flex min-w-0 flex-1 items-center gap-3">
           <SkeletonBlock class="h-4 w-40 rounded-none" />
           <SkeletonBlock class="hidden h-3 w-32 rounded-none sm:block" />
@@ -372,26 +372,26 @@ onMounted(async () => {
         <SkeletonBlock class="h-6 w-12 shrink-0 rounded-none" />
       </li>
     </ul>
-    <div v-else-if="alertsStatus === 'error'" class="flex flex-wrap items-center gap-3 text-body text-rose-200">
+    <div v-else-if="alertsStatus === 'error'" class="flex flex-wrap items-center gap-3 text-body text-danger">
       <span>{{ alertsError }}</span>
-      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-button font-pixel" @click="loadAlerts">重試</button>
+      <button type="button" class="cursor-pointer border-2 border-danger-hue/30 px-3 py-1 text-button font-pixel" @click="loadAlerts">重試</button>
     </div>
 
     <template v-else>
-      <p v-if="alertsError" class="text-body text-rose-200">{{ alertsError }}</p>
-      <p v-if="marketAlerts.length === 0" class="text-body text-stone-300">還沒有設定任何提醒。</p>
+      <p v-if="alertsError" class="text-body text-danger">{{ alertsError }}</p>
+      <p v-if="marketAlerts.length === 0" class="text-body text-ink-muted">還沒有設定任何提醒。</p>
 
       <ul v-if="activeAlerts.length" class="space-y-2">
-        <li v-for="alert in activeAlerts" :key="alert.id" class="flex flex-wrap items-center justify-between gap-2 border-2 border-white/10 bg-white/5 px-3 py-2 text-body">
+        <li v-for="alert in activeAlerts" :key="alert.id" class="flex flex-wrap items-center justify-between gap-2 border-2 border-tint/10 bg-tint/5 px-3 py-2 text-body">
           <span class="min-w-0">
-            <span class="text-stone-50">{{ alert.target.name }}</span>
+            <span class="text-ink">{{ alert.target.name }}</span>
             <span :class="toneOf(alert)"> {{ alertTitle(alert) }}</span>
-            <span v-if="distanceText(alert)" class="ml-2 text-caption text-stone-300">{{ distanceText(alert) }}</span>
-            <span v-if="alert.note" class="block text-caption text-stone-300">{{ alert.note }}</span>
+            <span v-if="distanceText(alert)" class="ml-2 text-caption text-ink-muted">{{ distanceText(alert) }}</span>
+            <span v-if="alert.note" class="block text-caption text-ink-muted">{{ alert.note }}</span>
           </span>
           <button
             type="button"
-            class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-button text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+            class="cursor-pointer border-2 border-tint/15 px-2 py-0.5 text-button text-ink-muted transition hover:bg-tint/10 disabled:opacity-60 font-pixel"
             :disabled="deleting === alert.id"
             @click="deleteAlert(alert.id)"
           >
@@ -401,21 +401,21 @@ onMounted(async () => {
       </ul>
 
       <div v-if="firedAlerts.length" class="space-y-2">
-        <p class="text-body text-stone-300">已觸發</p>
+        <p class="text-body text-ink-muted">已觸發</p>
         <ul class="space-y-2">
-          <li v-for="alert in firedAlerts" :key="alert.id" class="flex flex-wrap items-center justify-between gap-2 border-2 border-amber-200/20 bg-amber-200/5 px-3 py-2 text-body">
+          <li v-for="alert in firedAlerts" :key="alert.id" class="flex flex-wrap items-center justify-between gap-2 border-2 border-accent-hue/20 bg-accent-hue/5 px-3 py-2 text-body">
             <span>
-              <span class="text-stone-50">{{ alert.target.name }}</span>
-              <span class="text-stone-300"> {{ alertTitle(alert) }}</span>
-              <span class="ml-2 text-caption text-amber-100/80">
+              <span class="text-ink">{{ alert.target.name }}</span>
+              <span class="text-ink-muted"> {{ alertTitle(alert) }}</span>
+              <span class="ml-2 text-caption text-accent">
                 {{ formatTime(alert.triggeredAt) }} 觸發<template v-if="alert.triggeredPrice !== null">，當時 {{ formatNumber(alert.triggeredPrice) }}</template><template v-if="alert.triggeredNote">，{{ alert.triggeredNote }}</template>
               </span>
-              <span v-if="alert.notifiedAt" class="ml-2 border border-sky-300/30 px-1.5 text-caption text-sky-200">已推播</span>
+              <span v-if="alert.notifiedAt" class="ml-2 border border-info-hue/30 px-1.5 text-caption text-info">已推播</span>
             </span>
             <div class="flex gap-2">
               <button
                 type="button"
-                class="cursor-pointer border-2 border-amber-200/30 px-2 py-0.5 text-button text-amber-100 transition hover:bg-amber-200/10 disabled:opacity-60 font-pixel"
+                class="cursor-pointer border-2 border-accent-hue/30 px-2 py-0.5 text-button text-accent transition hover:bg-accent-hue/10 disabled:opacity-60 font-pixel"
                 :disabled="reactivating === alert.id"
                 @click="reactivate(alert.id)"
               >
@@ -423,7 +423,7 @@ onMounted(async () => {
               </button>
               <button
                 type="button"
-                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-button text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+                class="cursor-pointer border-2 border-tint/15 px-2 py-0.5 text-button text-ink-muted transition hover:bg-tint/10 disabled:opacity-60 font-pixel"
                 :disabled="deleting === alert.id"
                 @click="deleteAlert(alert.id)"
               >

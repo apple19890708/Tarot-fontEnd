@@ -150,7 +150,7 @@ const levelPlugin = {
     }
     ctx.restore()
   },
-  // 價格標：蓋在右側價格軸上（不擋 K 棒），實心底、深色字，和上一個標至少隔一個標高
+  // 價格標：蓋在右側價格軸上（不擋 K 棒），實心底（黑夜配深字、白天配白字），和上一個標至少隔一個標高
   afterDatasetsDraw(chart: ChartJS) {
     const area = chart.chartArea
     const ctx = chart.ctx
@@ -167,7 +167,7 @@ const levelPlugin = {
       ctx.fillStyle = mark.color
       ctx.fillRect(x, labelY - LABEL_HEIGHT / 2, width, LABEL_HEIGHT)
       ctx.globalAlpha = 1
-      ctx.fillStyle = '#0f1526'
+      ctx.fillStyle = CHART_COLORS.onMark
       ctx.fillText(mark.text, x + 4, labelY)
     }
     ctx.restore()
@@ -207,10 +207,6 @@ const LEVEL_GUIDE = '_level'
 // 圖例只留可以開關、需要對照顏色的線；K 棒、成交量一看就懂，手機上省一行
 const LEGEND_HIDDEN = ['K棒', 'K棒影線', '成交量', LEVEL_GUIDE]
 
-// 半透明的漲跌色：成交量用，K 棒用實色
-const UP_FADED = 'rgba(253,164,175,0.4)'
-const DOWN_FADED = 'rgba(110,231,183,0.4)'
-const FLAT_FADED = CHART_COLORS.volume
 
 // 每一根是漲（收盤 > 開盤）、跌、還是平；沒有開盤時和前一根收盤比
 function directions(chart: MarketChartSeries) {
@@ -280,7 +276,7 @@ const data = computed(() => {
     label: '成交量',
     data: chart.volume,
     // 成交量跟著當天漲跌上色
-    backgroundColor: dirs.map((dir) => (dir > 0 ? UP_FADED : dir < 0 ? DOWN_FADED : FLAT_FADED)),
+    backgroundColor: dirs.map((dir) => (dir > 0 ? CHART_COLORS.upFaded : dir < 0 ? CHART_COLORS.downFaded : CHART_COLORS.volume)),
     grouped: false,
     yAxisID: 'volume',
     order: 10,
@@ -289,15 +285,16 @@ const data = computed(() => {
 })
 
 const options = computed(() => {
+  const legend = legendOptions()
   return {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: 'index' as const, intersect: false },
     plugins: {
       legend: {
-        ...legendOptions,
+        ...legend,
         // 影線和 K 棒算同一個東西，圖例只列一次
-        labels: { ...legendOptions.labels, filter: (item: { text: string }) => !LEGEND_HIDDEN.includes(item.text) },
+        labels: { ...legend.labels, filter: (item: { text: string }) => !LEGEND_HIDDEN.includes(item.text) },
       },
       zoom: {
         // 可以拖到第一根到最後一根；最少看 7 根，避免縮到只剩一兩點
@@ -361,7 +358,7 @@ const options = computed(() => {
           :key="option.key"
           type="button"
           class="cursor-pointer border-2 px-3 py-1 text-button transition font-pixel"
-          :class="period === option.key ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/15 text-stone-300 hover:bg-white/10'"
+          :class="period === option.key ? 'border-accent-hue/40 bg-accent-hue/15 text-accent' : 'border-tint/15 text-ink-muted hover:bg-tint/10'"
           :aria-pressed="period === option.key"
           @click="period = option.key"
         >
@@ -375,7 +372,7 @@ const options = computed(() => {
         v-if="hasLevels"
         type="button"
         class="cursor-pointer border-2 px-3 py-1 text-button transition active:translate-x-[2px] active:translate-y-[2px] font-pixel"
-        :class="showLevels ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/15 text-stone-300 hover:bg-white/10'"
+        :class="showLevels ? 'border-accent-hue/40 bg-accent-hue/15 text-accent' : 'border-tint/15 text-ink-muted hover:bg-tint/10'"
         :aria-pressed="showLevels"
         @click="toggleLevels"
       >
@@ -384,7 +381,7 @@ const options = computed(() => {
       <button
         v-if="view.dates.length > DEFAULT_BARS[period]"
         type="button"
-        class="cursor-pointer border-2 border-white/15 px-3 py-1 text-button text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+        class="cursor-pointer border-2 border-tint/15 px-3 py-1 text-button text-ink-soft transition hover:bg-tint/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         @click="showAll"
       >
         看全部
@@ -392,7 +389,7 @@ const options = computed(() => {
       <button
         v-if="zoomed"
         type="button"
-        class="cursor-pointer border-2 border-white/15 px-3 py-1 text-button text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+        class="cursor-pointer border-2 border-tint/15 px-3 py-1 text-button text-ink-soft transition hover:bg-tint/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         @click="resetZoom"
       >
         重設縮放

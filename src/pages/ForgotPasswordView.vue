@@ -27,21 +27,21 @@ async function submit() {
 
 <template>
   <div class="mx-auto max-w-md">
-    <div class="space-y-5 rounded-[1.75rem] border border-white/10 bg-[#0f1526] p-7">
+    <div class="space-y-5 rounded-[1.75rem] border border-tint/10 bg-surface p-7">
       <div class="space-y-1">
         <h1 class="text-xl font-semibold">忘記密碼</h1>
-        <p class="text-sm text-stone-300">輸入註冊時用的信箱，我們會寄一封重設密碼的信給你。</p>
+        <p class="text-sm text-ink-muted">輸入註冊時用的信箱，我們會寄一封重設密碼的信給你。</p>
       </div>
 
       <!-- 寄出之後 -->
       <div v-if="sentTo" class="space-y-3">
-        <p class="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100">
+        <p class="rounded-xl border border-down-hue/20 bg-down-hue-2/10 px-3 py-2 text-sm text-down-ink">
           重設信已經寄到 <span class="font-medium">{{ sentTo }}</span>。請在 30 分鐘內打開信裡的連結設定新密碼。
         </p>
-        <p class="text-sm text-stone-300">沒收到的話，先看看垃圾郵件匣；5 分鐘後可以再寄一次。</p>
+        <p class="text-sm text-ink-muted">沒收到的話，先看看垃圾郵件匣；5 分鐘後可以再寄一次。</p>
         <button
           type="button"
-          class="w-full cursor-pointer rounded-xl border border-white/15 px-4 py-2 text-sm text-stone-200 hover:bg-white/10 active:bg-white/15"
+          class="w-full cursor-pointer rounded-xl border border-tint/15 px-4 py-2 text-sm text-ink-soft hover:bg-tint/10 active:bg-tint/15"
           @click="sentTo = ''"
         >
           換一個信箱
@@ -50,32 +50,32 @@ async function submit() {
 
       <form v-else class="space-y-5" @submit.prevent="submit">
         <label class="block space-y-1.5">
-          <span class="text-sm text-stone-300">註冊時的信箱</span>
+          <span class="text-sm text-ink-muted">註冊時的信箱</span>
           <input
             v-model="email"
             type="email"
             autocomplete="email"
             required
-            class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-amber-200/40"
+            class="w-full rounded-xl border border-tint/10 bg-sink/20 px-3 py-2 text-sm outline-none focus:border-accent-hue/40"
           />
         </label>
 
-        <p v-if="error" class="rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">
+        <p v-if="error" class="rounded-xl border border-up-hue/20 bg-up-hue-2/10 px-3 py-2 text-sm text-up-ink">
           {{ error }}
         </p>
 
         <button
           type="submit"
           :disabled="loading"
-          class="w-full cursor-pointer rounded-xl border border-amber-200/30 bg-amber-200/10 px-4 py-2 text-sm font-medium text-amber-100 hover:bg-amber-200/20 active:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-50"
+          class="w-full cursor-pointer rounded-xl border border-accent-hue/30 bg-accent-hue/10 px-4 py-2 text-sm font-medium text-accent hover:bg-accent-hue/20 active:bg-accent-hue/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {{ loading ? '寄送中…' : '寄重設密碼信' }}
         </button>
       </form>
 
-      <p class="text-center text-sm text-stone-300">
+      <p class="text-center text-sm text-ink-muted">
         想起來了？
-        <router-link to="/login" class="text-amber-200 hover:underline">回登入</router-link>
+        <router-link to="/login" class="text-warn hover:underline">回登入</router-link>
       </p>
     </div>
   </div>

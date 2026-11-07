@@ -31,6 +31,183 @@
   --text-button--line-height: 1.4;
 }
 
+/* 語意色（日夜模式，計畫書 doc/v18-day-mode-plan.md 2.2）：
+   元件用 bg-surface、text-ink、border-line、text-up 這類 class，不直接寫 stone／amber／white/數字。
+   黑夜的值＝原本寫死的顏色，換成語意色後黑夜畫面不變；白天模式在 [data-theme='day'] 改寫同一組變數 */
+@theme inline {
+  --color-page: var(--c-page);
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-line: var(--c-line);
+  --color-frame: var(--c-frame);
+  --color-ink: var(--c-ink);
+  --color-ink-soft: var(--c-ink-soft);
+  --color-ink-muted: var(--c-ink-muted);
+  --color-accent: var(--c-accent);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-line: var(--c-accent-line);
+  --color-up: var(--c-up);
+  --color-up-soft: var(--c-up-soft);
+  --color-down: var(--c-down);
+  --color-down-soft: var(--c-down-soft);
+  --color-info: var(--c-info);
+  --color-warn: var(--c-warn);
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-overlay: var(--c-overlay);
+  --color-shade: var(--c-shade);
+  /* 色相：搭透明度用（bg-tint/5、border-accent-hue/40），黑夜和原本的 white/amber-200/rose-300… 完全一樣 */
+  --color-tint: var(--c-tint);
+  --color-accent-hue: var(--c-accent-hue);
+  --color-danger-hue: var(--c-danger-hue);
+  --color-ok-hue: var(--c-ok-hue);
+  --color-ok: var(--c-ok);
+  --color-info-hue: var(--c-info-hue);
+  --color-info-ink: var(--c-info-ink);
+  /* 漲跌（台股：漲紅跌綠）：hue 是 rose-300／emerald-300，hue-2、hue-3 是熱力圖、比例條用的更深一階；
+     ink 是淡色徽章上的字，pale 是熱力圖深格上的字（黑夜近白、白天墨色） */
+  --color-up-hue: var(--c-up-hue);
+  --color-up-hue-2: var(--c-up-hue-2);
+  --color-up-hue-3: var(--c-up-hue-3);
+  --color-up-ink: var(--c-up-ink);
+  --color-up-pale: var(--c-up-pale);
+  --color-down-hue: var(--c-down-hue);
+  --color-down-hue-2: var(--c-down-hue-2);
+  --color-down-hue-3: var(--c-down-hue-3);
+  --color-down-ink: var(--c-down-ink);
+  --color-down-pale: var(--c-down-pale);
+  /* 往下壓暗（輸入框、內嵌區塊）：黑夜是黑，白天是木色 */
+  --color-sink: var(--c-sink);
+  /* 選中的分頁：黑夜是淡金底（和原本 bg-amber-200/10 一樣），白天是實心深金底配米白字 */
+  --color-selected: var(--c-selected);
+  --color-on-selected: var(--c-on-selected);
+  /* 神秘紫（塔羅判斷依據的「削弱」）：hue 搭透明度當底與框，ink 是字 */
+  --color-mystic-hue: var(--c-mystic-hue);
+  --color-mystic-ink: var(--c-mystic-ink);
+  /* 米色字：我的紀錄左欄（黑夜深底上的和紙色字）；白天左欄也是米白底，改深褐 */
+  --color-cream: var(--c-cream);
+  --color-orb: var(--c-orb);
+  --color-orb-glow: var(--c-orb-glow);
+}
+
+/* 黑夜（預設）：原本寫死的值 */
+:root {
+  --c-page: #0b1020;
+  --c-surface: #0f1526;
+  --c-raised: rgb(255 255 255 / 0.05);
+  --c-line: rgb(255 255 255 / 0.1);
+  --c-frame: #3b2618;
+  --c-ink: #fafaf9;
+  --c-ink-soft: #e7e5e4;
+  --c-ink-muted: #d6d3d1;
+  --c-accent: #fef3c7;
+  --c-accent-soft: rgb(253 230 138 / 0.06);
+  --c-accent-line: rgb(253 230 138 / 0.25);
+  --c-up: #fda4af;
+  --c-up-soft: rgb(253 164 175 / 0.1);
+  --c-down: #6ee7b7;
+  --c-down-soft: rgb(110 231 183 / 0.1);
+  --c-info: #bae6fd;
+  --c-warn: #fde68a;
+  --c-danger: #fecdd3;
+  --c-danger-soft: rgb(253 164 175 / 0.1);
+  --c-overlay: rgb(0 0 0 / 0.7);
+  --c-shade: rgb(0 0 0 / 0.5);
+  --c-tint: #ffffff;
+  --c-accent-hue: #fde68a;
+  --c-danger-hue: #fda4af;
+  --c-ok-hue: #6ee7b7;
+  --c-ok: #d1fae5;
+  --c-info-hue: #7dd3fc;
+  --c-info-ink: #e0f2fe;
+  --c-up-hue: #fda4af;
+  --c-up-hue-2: #fb7185;
+  --c-up-hue-3: #f43f5e;
+  --c-up-ink: #ffe4e6;
+  --c-up-pale: #fff1f2;
+  --c-down-hue: #6ee7b7;
+  --c-down-hue-2: #34d399;
+  --c-down-hue-3: #10b981;
+  --c-down-ink: #d1fae5;
+  --c-down-pale: #ecfdf5;
+  --c-sink: #000000;
+  --c-mystic-hue: #c4b5fd;
+  --c-mystic-ink: #ede9fe;
+  --c-cream: #f1e7cf;
+  --c-selected: rgb(253 230 138 / 0.1);
+  --c-on-selected: #fef3c7;
+  /* 水晶球：閒置的紫、打開（或滑過）時發的光、旁邊冒出的星星 */
+  --c-orb: rgb(221 214 254 / 0.8);
+  --c-orb-glow: #fde68a;
+  --c-orb-star: #fde68a;
+}
+
+/* 白天：和紙暖色（底 #efe6d2、墨 #2a1a14、朱、靛），木框兩種模式共用 */
+:root[data-theme='day'] {
+  --c-page: #efe6d2;
+  --c-surface: #fbf6ea;
+  --c-raised: #f3ead6;
+  --c-line: #d8cbb0;
+  --c-frame: #3b2618;
+  --c-ink: #2a1a14;
+  --c-ink-soft: #44342a;
+  --c-ink-muted: #5c4a3d;
+  --c-accent: #8a5a12;
+  --c-accent-soft: #f6e7c4;
+  --c-accent-line: #d9b56e;
+  --c-up: #b42318;
+  --c-up-soft: #fbe3df;
+  --c-down: #1f6b45;
+  --c-down-soft: #dcefe3;
+  --c-info: #2f5d86;
+  --c-warn: #8a5a12;
+  --c-danger: #9b1c1c;
+  --c-danger-soft: #fbe3df;
+  --c-overlay: rgb(42 26 20 / 0.4);
+  --c-shade: rgb(59 38 24 / 0.25);
+  /* 白天的「白色疊層」改成木色：bg-tint/5 是淡淡的暗影、border-tint/10 是淺框線 */
+  --c-tint: #3b2618;
+  /* 比 accent（字）亮一階：淡金底、框線在和紙上才看得出來；當字用請改 text-warn／text-accent */
+  --c-accent-hue: #c8902a;
+  --c-danger-hue: #9b1c1c;
+  --c-ok-hue: #1f6b45;
+  --c-ok: #1f6b45;
+  --c-info-hue: #2f5d86;
+  --c-info-ink: #2f5d86;
+  /* 白天的漲跌只有一個紅、一個綠，深淺靠透明度。半透明的紅綠疊在和紙上是中間調（鮭魚紅、灰綠），
+     白字對比只有 3:1，所以熱力圖深格的字（pale）白天改用墨色（約 6:1） */
+  --c-up-hue: #b42318;
+  --c-up-hue-2: #b42318;
+  --c-up-hue-3: #b42318;
+  --c-up-ink: #9a1d14;
+  --c-up-pale: #2a1a14;
+  --c-down-hue: #1f6b45;
+  --c-down-hue-2: #1f6b45;
+  --c-down-hue-3: #1f6b45;
+  --c-down-ink: #185636;
+  --c-down-pale: #2a1a14;
+  /* 往下壓暗：白天不壓，和外框同一個米白底（透明）。木色像蓋褐色濾鏡、淺褐使用者也不要（2026-11-08）；
+     區塊之間靠框線分開 */
+  --c-sink: transparent;
+  /* 選中的分頁淡金底在和紙上幾乎看不出來（2026-11-08 使用者回報），白天改實心 */
+  --c-mystic-hue: #6d4fa3;
+  --c-mystic-ink: #4c3780;
+  --c-cream: #44342a;
+  --c-selected: #8a5a12;
+  --c-on-selected: #fbf6ea;
+  /* 白天選單圖示是太陽（CrystalBallIcon）：平常是沉一點的金，打開或滑過時亮成暖陽黃（橘紅使用者覺得醜） */
+  --c-orb: #c98a1b;
+  --c-orb-glow: #f0b429;
+  --c-orb-star: #c98a1b;
+}
+
+/* 瀏覽器原生元件（勾選框、捲軸、下拉清單、日期選擇）跟著日夜模式：
+   白天沒切成 light 時勾選框是黑的（2026-11-08 使用者回報）；勾起來的顏色用深金 */
+:root[data-theme='day'] {
+  color-scheme: light;
+  accent-color: #8a5a12;
+}
+
 /* m：600px 以下（手機） */
 :root {
   --fs-display: 24px;
@@ -139,12 +316,12 @@ body::after {
   min-height: 100vh;
 }
 
-/* 下拉選單的選項：網站是 color-scheme: dark，瀏覽器會把展開的清單畫成深底，
-   選項要配淺字（之前寫死深灰字，深底上完全看不見）。放在 base layer，元件上的 class 仍可覆蓋 */
+/* 下拉選單的選項：黑夜是 color-scheme: dark，瀏覽器會把展開的清單畫成深底，
+   選項要配淺字（之前寫死深灰字，深底上完全看不見）；白天跟著語意色換成米白底、墨色字。放在 base layer，元件上的 class 仍可覆蓋 */
 @layer base {
   select option,
   select optgroup {
-    background-color: #0f1526;
-    color: #e7e5e4;
+    background-color: var(--c-surface);
+    color: var(--c-ink-soft);
   }
 }

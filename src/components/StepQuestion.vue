@@ -58,11 +58,11 @@ const freeCountOptions = computed(() =>
 <template>
   <div class="space-y-5">
     <label class="block space-y-2">
-      <span class="block text-sm font-medium text-stone-200">問題核心</span>
+      <span class="block text-sm font-medium text-ink-soft">問題核心</span>
       <textarea
         :value="question"
         rows="3"
-        class="w-full border-2 border-white/10 bg-white/5 px-4 py-3 text-sm text-stone-50 outline-none transition placeholder:text-stone-400/60 focus:border-amber-200/40 focus:bg-white/8"
+        class="w-full border-2 border-tint/10 bg-tint/5 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-ink-muted focus:border-accent-hue/40 focus:bg-tint/8"
         placeholder="例如：我接下來三個月的工作發展會如何？"
         @input="emit('update:question', ($event.target as HTMLTextAreaElement).value)"
       />
@@ -75,10 +75,10 @@ const freeCountOptions = computed(() =>
         :options="domainOptions"
         @update:model-value="emit('update:domain', $event as QuestionDomain | '')"
       />
-      <span v-if="domain === 'stock'" class="block text-xs leading-5 text-amber-100/80">
+      <span v-if="domain === 'stock'" class="block text-xs leading-5 text-accent">
         AI 解讀時會即時查詢報價與技術指標，以數據分析為主、牌面為輔。問題裡寫上股票代號或名稱（例如 2330、台積電、輝達），沒寫就看加權指數。
       </span>
-      <span v-else class="block text-xs text-stone-400">
+      <span v-else class="block text-xs text-ink-muted">
         指定類型可讓分析的權重更準；留著自動判斷則由問題文字推測。
       </span>
     </div>
@@ -102,20 +102,20 @@ const freeCountOptions = computed(() =>
 
     <div
       v-if="selectedSpread"
-      class="space-y-3 border-2 border-white/10 bg-white/5 p-4 text-sm leading-6 text-stone-200/75"
+      class="space-y-3 border-2 border-tint/10 bg-tint/5 p-4 text-sm leading-6 text-ink-soft"
     >
       <div>
-        <p class="font-medium text-stone-50">{{ selectedSpread.name }}</p>
+        <p class="font-medium text-ink">{{ selectedSpread.name }}</p>
         <p class="mt-1">{{ selectedSpread.description }}</p>
       </div>
       <SpreadLayout :spread="selectedSpread" />
     </div>
-    <p v-else class="border-2 border-dashed border-white/15 bg-black/10 px-4 py-3 text-sm leading-6 text-stone-400">
+    <p v-else class="border-2 border-dashed border-tint/15 bg-sink/10 px-4 py-3 text-sm leading-6 text-ink-muted">
       不指定牌陣時沒有位置之分，分析會用相鄰兩張配對、權重均分。
     </p>
 
     <button
-      class="w-full cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-3 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+      class="w-full cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-5 py-3 text-[14px] font-medium text-accent transition hover:bg-accent-hue/25 disabled:cursor-not-allowed disabled:opacity-60 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
       type="button"
       :disabled="disabled"
       @click="emit('next')"

@@ -158,8 +158,8 @@ async function recordDividend() {
 
 // ---- 顯示 ----
 function trendClass(value: number | null | undefined) {
-  if (!value) return 'text-stone-300'
-  return value > 0 ? 'text-rose-300' : 'text-emerald-300'
+  if (!value) return 'text-ink-muted'
+  return value > 0 ? 'text-up' : 'text-down'
 }
 const money = (value: number | null | undefined, digits = 0) => (value === null || value === undefined ? '—' : formatNumber(value, digits))
 // 台股金額取整數；美股保留到分
@@ -169,18 +169,18 @@ const signedMoney = (value: number | null | undefined) => {
 }
 
 const INPUT_CLASS =
-  'min-w-0 border-2 border-white/10 bg-white/5 px-2.5 py-2 text-body tabular-nums text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40'
+  'min-w-0 border-2 border-tint/10 bg-tint/5 px-2.5 py-2 text-body tabular-nums text-ink outline-none placeholder:text-ink-muted focus:border-accent-hue/40'
 </script>
 
 <template>
   <!-- ── 編輯 ── -->
-  <div v-if="editing" class="space-y-3 border-t border-white/10 pt-3">
+  <div v-if="editing" class="space-y-3 border-t border-tint/10 pt-3">
     <div class="space-y-2">
-      <p class="text-body text-stone-300">
+      <p class="text-body text-ink-muted">
         買賣紀錄依順序先進先出沖銷（{{ unitLabel }}數、成交價、日期）；手續費與證交稅會自動計算。整列空白會略過。
       </p>
       <div v-for="(row, index) in tradeRows" :key="index" class="flex flex-wrap items-center gap-2">
-        <span class="w-5 shrink-0 text-right text-caption tabular-nums text-stone-300">{{ index + 1 }}</span>
+        <span class="w-5 shrink-0 text-right text-caption tabular-nums text-ink-muted">{{ index + 1 }}</span>
         <div class="flex shrink-0" role="radiogroup" :aria-label="`第 ${index + 1} 筆買或賣`">
           <button
             v-for="side in (['buy', 'sell'] as const)"
@@ -192,9 +192,9 @@ const INPUT_CLASS =
             :class="
               row.side === side
                 ? side === 'buy'
-                  ? 'border-rose-300/50 bg-rose-300/15 text-rose-100'
-                  : 'border-emerald-300/50 bg-emerald-300/15 text-emerald-100'
-                : 'border-white/10 text-stone-300 hover:bg-white/10'
+                  ? 'border-up-hue/50 bg-up-hue/15 text-up-ink'
+                  : 'border-down-hue/50 bg-down-hue/15 text-down-ink'
+                : 'border-tint/10 text-ink-muted hover:bg-tint/10'
             "
             @click="row.side = side"
           >
@@ -206,7 +206,7 @@ const INPUT_CLASS =
         <input v-model="row.date" type="date" :class="INPUT_CLASS" class="flex-[1_1_8.5rem] [color-scheme:dark]" :aria-label="`第 ${index + 1} 筆的日期`" />
         <button
           type="button"
-          class="shrink-0 cursor-pointer border-2 border-white/15 px-2 py-2 text-button text-stone-300 transition hover:bg-white/10 font-pixel"
+          class="shrink-0 cursor-pointer border-2 border-tint/15 px-2 py-2 text-button text-ink-muted transition hover:bg-tint/10 font-pixel"
           :aria-label="`刪除第 ${index + 1} 筆`"
           @click="removeTrade(index)"
         >
@@ -217,7 +217,7 @@ const INPUT_CLASS =
         <div class="flex gap-2">
           <button
             type="button"
-            class="cursor-pointer border-2 border-dashed border-rose-300/30 px-3 py-1.5 text-button text-rose-100 transition hover:bg-rose-300/10 disabled:opacity-50 font-pixel"
+            class="cursor-pointer border-2 border-dashed border-up-hue/30 px-3 py-1.5 text-button text-up-ink transition hover:bg-up-hue/10 disabled:opacity-50 font-pixel"
             :disabled="tradeRows.length >= MAX_TRADES"
             @click="addTrade('buy')"
           >
@@ -225,28 +225,28 @@ const INPUT_CLASS =
           </button>
           <button
             type="button"
-            class="cursor-pointer border-2 border-dashed border-emerald-300/30 px-3 py-1.5 text-button text-emerald-100 transition hover:bg-emerald-300/10 disabled:opacity-50 font-pixel"
+            class="cursor-pointer border-2 border-dashed border-down-hue/30 px-3 py-1.5 text-button text-down-ink transition hover:bg-down-hue/10 disabled:opacity-50 font-pixel"
             :disabled="tradeRows.length >= MAX_TRADES"
             @click="addTrade('sell')"
           >
             ＋ 賣出
           </button>
         </div>
-        <p class="text-caption tabular-nums" :class="previewQuantity < 0 ? 'text-rose-200' : 'text-stone-300'">
+        <p class="text-caption tabular-nums" :class="previewQuantity < 0 ? 'text-danger' : 'text-ink-muted'">
           {{ previewQuantity < 0 ? '賣出的數量超過買進' : `剩餘 ${formatNumber(previewQuantity, 3)} ${unitLabel}` }}
         </p>
       </div>
     </div>
 
-    <div class="space-y-2 border-t border-white/5 pt-3">
-      <p class="text-body text-stone-300">現金股利（實際入帳的總金額，{{ currency }}）</p>
+    <div class="space-y-2 border-t border-tint/5 pt-3">
+      <p class="text-body text-ink-muted">現金股利（實際入帳的總金額，{{ currency }}）</p>
       <div v-for="(row, index) in dividendRows" :key="index" class="flex flex-wrap items-center gap-2">
-        <span class="w-5 shrink-0 text-right text-caption tabular-nums text-stone-300">{{ index + 1 }}</span>
+        <span class="w-5 shrink-0 text-right text-caption tabular-nums text-ink-muted">{{ index + 1 }}</span>
         <input v-model="row.amount" inputmode="decimal" :class="INPUT_CLASS" class="flex-[1_1_6rem]" placeholder="金額" :aria-label="`第 ${index + 1} 筆股利金額`" />
         <input v-model="row.date" type="date" :class="INPUT_CLASS" class="flex-[1_1_8.5rem] [color-scheme:dark]" :aria-label="`第 ${index + 1} 筆股利日期`" />
         <button
           type="button"
-          class="shrink-0 cursor-pointer border-2 border-white/15 px-2 py-2 text-button text-stone-300 transition hover:bg-white/10 font-pixel"
+          class="shrink-0 cursor-pointer border-2 border-tint/15 px-2 py-2 text-button text-ink-muted transition hover:bg-tint/10 font-pixel"
           :aria-label="`刪除第 ${index + 1} 筆股利`"
           @click="removeDividend(index)"
         >
@@ -255,7 +255,7 @@ const INPUT_CLASS =
       </div>
       <button
         type="button"
-        class="cursor-pointer border-2 border-dashed border-amber-200/30 px-3 py-1.5 text-button text-amber-100 transition hover:bg-amber-200/10 disabled:opacity-50 font-pixel"
+        class="cursor-pointer border-2 border-dashed border-accent-hue/30 px-3 py-1.5 text-button text-accent transition hover:bg-accent-hue/10 disabled:opacity-50 font-pixel"
         :disabled="dividendRows.length >= MAX_DIVIDENDS"
         @click="addDividend"
       >
@@ -266,7 +266,7 @@ const INPUT_CLASS =
     <div class="flex flex-wrap gap-2">
       <button
         type="button"
-        class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-2 text-button text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
+        class="shrink-0 cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-3 py-2 text-button text-accent transition hover:bg-accent-hue/25 disabled:opacity-60 font-pixel"
         :disabled="saving"
         @click="save()"
       >
@@ -275,7 +275,7 @@ const INPUT_CLASS =
       <button
         v-if="item.trades.length || item.dividends.length"
         type="button"
-        class="shrink-0 cursor-pointer border-2 border-white/15 px-3 py-2 text-button text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+        class="shrink-0 cursor-pointer border-2 border-tint/15 px-3 py-2 text-button text-ink-muted transition hover:bg-tint/10 disabled:opacity-60 font-pixel"
         :disabled="saving"
         @click="save(true)"
       >
@@ -283,101 +283,101 @@ const INPUT_CLASS =
       </button>
       <button
         type="button"
-        class="shrink-0 cursor-pointer border-2 border-white/15 px-3 py-2 text-button text-stone-300 transition hover:bg-white/10 font-pixel"
+        class="shrink-0 cursor-pointer border-2 border-tint/15 px-3 py-2 text-button text-ink-muted transition hover:bg-tint/10 font-pixel"
         @click="editing = false"
       >
         取消
       </button>
     </div>
-    <p v-if="editError" class="text-body text-rose-200">{{ editError }}</p>
+    <p v-if="editError" class="text-body text-danger">{{ editError }}</p>
   </div>
 
   <!-- ── 顯示 ── -->
-  <div v-else-if="position" class="space-y-2 border-t border-white/10 pt-3 text-body tabular-nums ">
+  <div v-else-if="position" class="space-y-2 border-t border-tint/10 pt-3 text-body tabular-nums ">
     <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <div>
-        <p class="text-stone-300">持有</p>
-        <p v-if="position.quantity > 0" class="text-stone-100">
+        <p class="text-ink-muted">持有</p>
+        <p v-if="position.quantity > 0" class="text-ink">
           {{ formatNumber(position.quantity, 3) }} {{ unitLabel }}
-          <span class="text-amber-200">均價 {{ formatNumber(position.avgCost) }}</span>
+          <span class="text-warn">均價 {{ formatNumber(position.avgCost) }}</span>
         </p>
-        <p v-else class="text-stone-300">已出清</p>
+        <p v-else class="text-ink-muted">已出清</p>
       </div>
       <div>
-        <p class="text-stone-300">市值</p>
-        <p class="text-stone-100">{{ money(position.marketValue) }}</p>
+        <p class="text-ink-muted">市值</p>
+        <p class="text-ink">{{ money(position.marketValue) }}</p>
       </div>
       <div>
-        <p class="text-stone-300">未實現損益</p>
+        <p class="text-ink-muted">未實現損益</p>
         <p :class="trendClass(position.unrealized)">
           {{ signedMoney(position.unrealized) }}<template v-if="position.unrealizedPct !== null">（{{ formatSigned(position.unrealizedPct, '%') }}）</template>
         </p>
       </div>
       <div>
-        <p class="text-stone-300">今日損益</p>
+        <p class="text-ink-muted">今日損益</p>
         <p :class="trendClass(position.today)">{{ signedMoney(position.today) }}</p>
       </div>
       <div>
-        <p class="text-stone-300">已實現損益</p>
+        <p class="text-ink-muted">已實現損益</p>
         <p :class="trendClass(position.realized)">{{ signedMoney(position.realized) }}</p>
       </div>
       <div>
-        <p class="text-stone-300">股利</p>
-        <p :class="position.dividends ? 'text-amber-100' : 'text-stone-200'">{{ money(position.dividends, 2) }}</p>
+        <p class="text-ink-muted">股利</p>
+        <p :class="position.dividends ? 'text-accent' : 'text-ink-soft'">{{ money(position.dividends, 2) }}</p>
       </div>
       <div>
-        <p class="text-stone-300">總報酬</p>
+        <p class="text-ink-muted">總報酬</p>
         <p class="font-semibold" :class="trendClass(position.totalReturn)">{{ signedMoney(position.totalReturn) }}</p>
       </div>
       <div>
-        <p class="text-stone-300">已付手續費／稅</p>
-        <p class="text-stone-300">{{ money(position.feesPaid, 2) }}／{{ money(position.taxPaid) }}</p>
+        <p class="text-ink-muted">已付手續費／稅</p>
+        <p class="text-ink-muted">{{ money(position.feesPaid, 2) }}／{{ money(position.taxPaid) }}</p>
       </div>
     </div>
     <!-- 即將除息：預估可領的現金股利，確認後記入 -->
-    <div v-if="pendingDividend" class="flex flex-wrap items-center gap-2 border border-amber-200/25 bg-amber-200/5 px-2.5 py-1.5 text-body">
-      <span class="text-amber-100">
+    <div v-if="pendingDividend" class="flex flex-wrap items-center gap-2 border border-accent-hue/25 bg-accent-hue/5 px-2.5 py-1.5 text-body">
+      <span class="text-accent">
         {{ pendingDividend.date }} 除息，預估可領 {{ formatNumber(pendingDividend.amount, 0) }} 元
-        <span class="text-stone-300">（{{ formatNumber(pendingDividend.quantity, 3) }} 張 × 每股 {{ formatNumber(pendingDividend.perShare, 4) }} 元）</span>
+        <span class="text-ink-muted">（{{ formatNumber(pendingDividend.quantity, 3) }} 張 × 每股 {{ formatNumber(pendingDividend.perShare, 4) }} 元）</span>
       </span>
       <button
         type="button"
-        class="cursor-pointer border border-amber-200/40 px-2 py-0.5 text-amber-50 transition hover:bg-amber-200/15 disabled:opacity-60"
+        class="cursor-pointer border border-accent-hue/40 px-2 py-0.5 text-accent transition hover:bg-accent-hue/15 disabled:opacity-60"
         :disabled="recording"
         @click="recordDividend"
       >
         {{ recording ? '記入中…' : '記入股利' }}
       </button>
-      <span v-if="recordError" class="text-rose-200">{{ recordError }}</span>
+      <span v-if="recordError" class="text-danger">{{ recordError }}</span>
     </div>
 
-    <p class="text-body text-stone-300">
+    <p class="text-body text-ink-muted">
       未實現損益已扣掉現在賣出的預估手續費與稅（{{ money(position.sellCost, 2) }}）；總報酬 = 未實現 + 已實現 + 股利。
     </p>
 
     <!-- 持有中的批次：每筆預設一行，點開看成本、市值、報酬率 -->
     <details v-if="position.openLots.length > 1">
-      <summary class="cursor-pointer text-body text-stone-300 marker:text-stone-200 hover:text-stone-100">持有中的批次（{{ position.openLots.length }}）</summary>
+      <summary class="cursor-pointer text-body text-ink-muted marker:text-ink-soft hover:text-ink">持有中的批次（{{ position.openLots.length }}）</summary>
       <ul class="mt-1.5 space-y-0.5">
         <li v-for="(lot, index) in position.openLots" :key="index">
           <details class="group">
-            <summary class="flex cursor-pointer list-none items-center gap-2 py-0.5 text-body hover:bg-white/5 [&::-webkit-details-marker]:hidden">
-              <span class="w-3 shrink-0 text-stone-200 transition group-open:rotate-90">›</span>
-              <span class="shrink-0 text-stone-300">{{ lot.date || '未填日期' }}</span>
-              <span class="min-w-0 flex-1 truncate text-stone-200">{{ formatNumber(lot.quantity, 3) }} {{ unitLabel }} @ {{ formatNumber(lot.price) }}</span>
+            <summary class="flex cursor-pointer list-none items-center gap-2 py-0.5 text-body hover:bg-tint/5 [&::-webkit-details-marker]:hidden">
+              <span class="w-3 shrink-0 text-ink-soft transition group-open:rotate-90">›</span>
+              <span class="shrink-0 text-ink-muted">{{ lot.date || '未填日期' }}</span>
+              <span class="min-w-0 flex-1 truncate text-ink-soft">{{ formatNumber(lot.quantity, 3) }} {{ unitLabel }} @ {{ formatNumber(lot.price) }}</span>
               <span class="shrink-0" :class="trendClass(lot.pnl)">{{ signedMoney(lot.pnl) }}</span>
             </summary>
-            <div class="mb-1 ml-5 grid grid-cols-3 gap-2 border-l border-white/10 py-1 pl-3 text-body">
+            <div class="mb-1 ml-5 grid grid-cols-3 gap-2 border-l border-tint/10 py-1 pl-3 text-body">
               <div>
-                <p class="text-stone-300">成本（含手續費）</p>
-                <p class="text-stone-200">{{ money(lot.cost) }}</p>
+                <p class="text-ink-muted">成本（含手續費）</p>
+                <p class="text-ink-soft">{{ money(lot.cost) }}</p>
               </div>
               <div>
-                <p class="text-stone-300">市值</p>
-                <p class="text-stone-200">{{ money(lot.value) }}</p>
+                <p class="text-ink-muted">市值</p>
+                <p class="text-ink-soft">{{ money(lot.value) }}</p>
               </div>
               <div>
-                <p class="text-stone-300">報酬率</p>
+                <p class="text-ink-muted">報酬率</p>
                 <p :class="trendClass(lot.pnlPct)">{{ formatSigned(lot.pnlPct, '%') }}</p>
               </div>
             </div>
@@ -388,15 +388,15 @@ const INPUT_CLASS =
 
     <!-- 全部交易紀錄 -->
     <details>
-      <summary class="cursor-pointer text-body text-stone-300 marker:text-stone-200 hover:text-stone-100">
+      <summary class="cursor-pointer text-body text-ink-muted marker:text-ink-soft hover:text-ink">
         交易紀錄（{{ item.trades.length }} 筆買賣<template v-if="item.dividends.length">、{{ item.dividends.length }} 筆股利</template>）
       </summary>
       <ul class="mt-1.5 space-y-1 text-body">
         <li v-for="(trade, index) in item.trades" :key="`t${index}`" class="flex flex-wrap items-center gap-x-3">
-          <span :class="trade.side === 'buy' ? 'text-rose-200' : 'text-emerald-200'">{{ trade.side === 'buy' ? '買' : '賣' }}</span>
-          <span class="text-stone-300">{{ trade.date || '未填日期' }}</span>
-          <span class="text-stone-200">{{ formatNumber(trade.quantity, 3) }} {{ unitLabel }} @ {{ formatNumber(trade.price) }}</span>
-          <span class="text-stone-300">
+          <span :class="trade.side === 'buy' ? 'text-up-ink' : 'text-down-ink'">{{ trade.side === 'buy' ? '買' : '賣' }}</span>
+          <span class="text-ink-muted">{{ trade.date || '未填日期' }}</span>
+          <span class="text-ink-soft">{{ formatNumber(trade.quantity, 3) }} {{ unitLabel }} @ {{ formatNumber(trade.price) }}</span>
+          <span class="text-ink-muted">
             手續費 {{ money(position.trades[index]?.fee, 2) }}<template v-if="position.trades[index]?.tax">、稅 {{ money(position.trades[index]?.tax) }}</template>
           </span>
           <span v-if="position.trades[index]?.realized !== null && position.trades[index]?.realized !== undefined" :class="trendClass(position.trades[index]?.realized)">
@@ -404,9 +404,9 @@ const INPUT_CLASS =
           </span>
         </li>
         <li v-for="(dividend, index) in item.dividends" :key="`d${index}`" class="flex flex-wrap items-center gap-x-3">
-          <span class="text-amber-200">息</span>
-          <span class="text-stone-300">{{ dividend.date || '未填日期' }}</span>
-          <span class="text-amber-100">+{{ money(dividend.amount, 2) }}</span>
+          <span class="text-warn">息</span>
+          <span class="text-ink-muted">{{ dividend.date || '未填日期' }}</span>
+          <span class="text-accent">+{{ money(dividend.amount, 2) }}</span>
         </li>
       </ul>
     </details>

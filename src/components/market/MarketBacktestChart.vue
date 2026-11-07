@@ -40,7 +40,7 @@ const options = computed(() => ({
   maintainAspectRatio: false,
   indexAxis: 'y' as const,
   plugins: {
-    legend: legendOptions,
+    legend: legendOptions(),
     tooltip: {
       callbacks: {
         label: (ctx: { datasetIndex: number; dataIndex: number; parsed: { x: number | null } }) => {

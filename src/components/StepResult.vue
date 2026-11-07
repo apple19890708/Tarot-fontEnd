@@ -210,13 +210,13 @@ function formatSuit(suit: string | null) {
   <!-- data-nav：浮動選單「跳到段落」的目標（見 lib/sectionNav.ts） -->
   <!-- 用 flex + order：股市諮詢時把行情與 AI 分析排到牌面前面，區塊本身不必寫兩份 -->
   <div ref="rootEl" class="flex min-w-0 flex-col gap-4 sm:gap-6">
-    <div class="space-y-3 border-b border-white/10 pb-4 sm:space-y-4 sm:pb-6">
+    <div class="space-y-3 border-b border-tint/10 pb-4 sm:space-y-4 sm:pb-6">
       <div class="flex min-w-0 flex-wrap items-end justify-between gap-4">
         <div class="min-w-0">
-          <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.35em]">
+          <p class="text-[10px] uppercase tracking-[0.2em] text-ink-muted sm:text-xs sm:tracking-[0.35em]">
             {{ stockMode ? 'Market Consult' : 'Reading Result' }}
           </p>
-          <h2 class="mt-1.5 text-2xl font-semibold text-stone-50 sm:mt-2 sm:text-3xl">
+          <h2 class="mt-1.5 text-2xl font-semibold text-ink sm:mt-2 sm:text-3xl">
             {{ stockMode ? `股市諮詢 · ${reading.spread.name}` : reading.spread.name }}
           </h2>
         </div>
@@ -227,8 +227,8 @@ function formatSuit(suit: string | null) {
             class="cursor-pointer border-2 px-3 py-1 text-[14px] transition disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             :class="
               saveStatus === 'saved'
-                ? 'border-amber-200/40 bg-amber-200/15 text-amber-50'
-                : 'border-amber-200/30 bg-amber-200/10 text-amber-50 hover:bg-amber-200/20'
+                ? 'border-accent-hue/40 bg-accent-hue/15 text-accent'
+                : 'border-accent-hue/30 bg-accent-hue/10 text-accent hover:bg-accent-hue/20'
             "
             type="button"
             :disabled="saveStatus === 'saving' || saveStatus === 'saved'"
@@ -237,14 +237,14 @@ function formatSuit(suit: string | null) {
             {{ saveLabel }}
           </button>
           <button
-            class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[14px] text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-tint/15 px-3 py-1 text-[14px] text-ink-soft transition hover:bg-tint/10 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('redraw')"
           >
             重抽
           </button>
           <button
-            class="cursor-pointer border-2 border-white/15 px-3 py-1 text-[14px] text-stone-200 transition hover:bg-white/10 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-tint/15 px-3 py-1 text-[14px] text-ink-soft transition hover:bg-tint/10 sm:px-4 sm:py-1.5 sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('restart')"
           >
@@ -254,17 +254,17 @@ function formatSuit(suit: string | null) {
       </div>
 
       <!-- 問題是整頁的主詞，放在牌面清單上方並給足字級，不要縮在角落 -->
-      <p class="text-base font-medium leading-relaxed text-amber-50 sm:text-xl">
+      <p class="text-base font-medium leading-relaxed text-accent sm:text-xl">
         {{ reading.question || '未填寫問題，這次抽牌以當下整體能量為主。' }}
       </p>
 
       <p
         v-if="saveError"
-        class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100"
+        class="border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-sm text-danger"
       >
         {{ saveError }}
       </p>
-      <p v-else-if="saveStatus === 'saved'" class="text-sm text-stone-300/75">
+      <p v-else-if="saveStatus === 'saved'" class="text-sm text-ink-muted">
         已經存進「我的紀錄」，之後可以回去重看這次的牌與分析。
       </p>
 
@@ -284,13 +284,13 @@ function formatSuit(suit: string | null) {
     <div
       v-if="resultSpread"
       :data-nav="stockMode ? '牌面輔助' : '牌陣'"
-      class="border-2 border-white/10 bg-slate-950/45 p-3 sm:p-5"
+      class="border-2 border-tint/10 bg-sink/45 p-3 sm:p-5"
       :class="{ 'order-3': stockMode }"
     >
-      <p class="mb-3 text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">
+      <p class="mb-3 text-[10px] uppercase tracking-[0.2em] text-ink-muted sm:text-xs sm:tracking-[0.3em]">
         {{ stockMode ? 'Tarot Guidance' : 'Spread Layout' }}
       </p>
-      <p v-if="stockMode" class="mb-4 text-sm leading-7 text-stone-300/80">
+      <p v-if="stockMode" class="mb-4 text-sm leading-7 text-ink-muted">
         牌面不預測價格，只用來提醒這次操作的心態與風險；AI 分析會挑出關鍵的幾張放進判斷裡。
       </p>
       <SpreadLayout :spread="resultSpread" :cards="reading.cards" />
@@ -300,8 +300,8 @@ function formatSuit(suit: string | null) {
       <article
         v-for="(entry, index) in reading.cards"
         :key="`${entry.position?.key ?? index}-${entry.card.id}`"
-        class="flex h-[24rem] min-w-0 flex-col border-2 bg-slate-950/45 p-4 transition hover:-translate-y-0.5 sm:h-[26rem] sm:p-5"
-        :class="reading.analysis?.theme.focusIndex === index ? 'border-amber-200/40' : 'border-white/10'"
+        class="flex h-[24rem] min-w-0 flex-col border-2 bg-sink/45 p-4 transition hover:-translate-y-0.5 sm:h-[26rem] sm:p-5"
+        :class="reading.analysis?.theme.focusIndex === index ? 'border-accent-hue/40' : 'border-tint/10'"
       >
         <div class="flex min-w-0 flex-shrink-0 items-start justify-between gap-3">
           <div class="flex min-w-0 items-start gap-3">
@@ -313,27 +313,27 @@ function formatSuit(suit: string | null) {
               :class="{ 'rotate-180': entry.orientation === 'reversed' }"
             />
             <div class="min-w-0">
-              <p class="text-[10px] uppercase tracking-[0.15em] text-stone-400 sm:text-xs sm:tracking-[0.28em]">
+              <p class="text-[10px] uppercase tracking-[0.15em] text-ink-muted sm:text-xs sm:tracking-[0.28em]">
                 {{ entry.position?.label ?? `第 ${index + 1} 張` }}
               </p>
-              <h3 class="mt-1.5 break-words font-pixel text-[24px] text-stone-50 sm:mt-2">{{ entry.card.nameZh }}</h3>
-              <p class="mt-1 break-words text-xs text-stone-300/75 sm:text-sm">{{ entry.card.nameEn || formatSuit(entry.card.suit) }}</p>
+              <h3 class="mt-1.5 break-words font-pixel text-[24px] text-ink sm:mt-2">{{ entry.card.nameZh }}</h3>
+              <p class="mt-1 break-words text-xs text-ink-muted sm:text-sm">{{ entry.card.nameEn || formatSuit(entry.card.suit) }}</p>
             </div>
           </div>
           <div class="flex flex-col items-end gap-1 sm:gap-2">
-            <span class="border-2 border-amber-100/20 bg-amber-100/10 px-2 py-0.5 text-[10px] font-medium text-amber-50 sm:px-3 sm:py-1 sm:text-xs">
+            <span class="border-2 border-accent-hue/20 bg-accent-hue/10 px-2 py-0.5 text-[10px] font-medium text-accent sm:px-3 sm:py-1 sm:text-xs">
               {{ formatOrientation(entry.orientation) }}
             </span>
             <span
               v-if="reading.analysis?.theme.focusIndex === index"
-              class="bg-amber-200/90 px-2 py-0.5 text-[10px] font-semibold text-slate-950 sm:px-3 sm:py-1 sm:text-xs"
+              class="bg-accent-hue/90 px-2 py-0.5 text-[10px] font-semibold text-slate-950 sm:px-3 sm:py-1 sm:text-xs"
             >
               焦點牌
             </span>
-            <span v-if="entry.card.element" class="bg-white/8 px-2 py-0.5 text-[10px] text-stone-200/80 sm:px-3 sm:py-1 sm:text-xs">
+            <span v-if="entry.card.element" class="bg-tint/8 px-2 py-0.5 text-[10px] text-ink-soft sm:px-3 sm:py-1 sm:text-xs">
               {{ formatElement(entry.card.element) }}元素
             </span>
-            <span v-if="courtRoles.has(index)" class="bg-white/8 px-2 py-0.5 text-[10px] text-stone-200/80 sm:px-3 sm:py-1 sm:text-xs">
+            <span v-if="courtRoles.has(index)" class="bg-tint/8 px-2 py-0.5 text-[10px] text-ink-soft sm:px-3 sm:py-1 sm:text-xs">
               {{ courtRoles.get(index) }}
             </span>
           </div>
@@ -345,30 +345,30 @@ function formatSuit(suit: string | null) {
             <span
               v-for="keyword in entry.card.keywords.slice(0, 4)"
               :key="keyword"
-              class="bg-white/8 px-3 py-1 text-xs text-stone-200/70"
+              class="bg-tint/8 px-3 py-1 text-xs text-ink-soft"
             >
               {{ keyword }}
             </span>
           </div>
 
           <!-- 沒有分組牌義時才顯示開場句；有分組時它與「核心訊息」重複 -->
-          <p v-if="!entry.meaning?.length" class="mt-4 text-sm leading-7 text-stone-200/85">
+          <p v-if="!entry.meaning?.length" class="mt-4 text-sm leading-7 text-ink-soft/85">
             {{ entry.interpretation }}
           </p>
 
           <!-- 完整牌義，依小標題分組 -->
           <div v-if="entry.meaning?.length" class="mt-4 space-y-3">
             <div v-for="group in entry.meaning" :key="group.heading">
-              <p class="text-xs font-medium uppercase tracking-[0.15em] text-amber-100/70">
+              <p class="text-xs font-medium uppercase tracking-[0.15em] text-accent">
                 {{ group.heading }}
               </p>
-              <ul class="mt-1 space-y-1 text-sm leading-7 text-stone-300/85">
+              <ul class="mt-1 space-y-1 text-sm leading-7 text-ink-muted/85">
                 <li v-for="line in group.lines" :key="line">{{ line }}</li>
               </ul>
             </div>
           </div>
 
-          <ul v-else class="mt-4 space-y-2 text-sm text-stone-300/80">
+          <ul v-else class="mt-4 space-y-2 text-sm text-ink-muted">
             <li v-for="highlight in entry.highlights" :key="highlight">{{ highlight }}</li>
           </ul>
         </div>
@@ -379,7 +379,7 @@ function formatSuit(suit: string | null) {
       v-if="narrationStatus !== 'idle'"
       ref="narrationEl"
       :data-nav="stockMode ? 'AI 股市分析' : 'AI 解讀'"
-      class="border-2 border-amber-100/15 bg-gradient-to-br from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:p-6"
+      class="border-2 border-accent-hue/15 bg-gradient-to-br from-accent-hue/10 via-tint/5 to-up-hue/10 p-4 sm:p-6"
       :class="{ 'order-2': stockMode }"
     >
       <!--
@@ -397,26 +397,26 @@ function formatSuit(suit: string | null) {
         @click="narrationStatus !== 'ready' && toggleNarration()"
       >
         <span class="block min-w-0">
-          <span class="block text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">
+          <span class="block text-[10px] uppercase tracking-[0.2em] text-ink-muted sm:text-xs sm:tracking-[0.3em]">
             {{ stockMode ? 'Analysis' : 'Reading' }}
           </span>
-          <span class="mt-2 block text-lg font-semibold text-stone-50 sm:text-xl">
+          <span class="mt-2 block text-lg font-semibold text-ink sm:text-xl">
             {{ stockMode ? 'AI 股市分析' : '這組牌想說的事' }}
           </span>
         </span>
-        <PixelChevron v-if="narrationStatus !== 'ready'" class="text-stone-300" :open="narrationOpen" />
+        <PixelChevron v-if="narrationStatus !== 'ready'" class="text-ink-muted" :open="narrationOpen" />
       </component>
 
       <div v-if="narrationStatus === 'ready'" class="mt-4 space-y-4">
-        <p v-if="stockMode" class="text-sm leading-7 text-stone-300/80">
+        <p v-if="stockMode" class="text-sm leading-7 text-ink-muted">
           AI 會依據上方的即時行情與技術指標，寫出短線方向、支撐壓力與附觸發價位的操作情境，牌面只用來提醒操作心態。文字會陸續出現，隨時可以停止。
         </p>
-        <p v-else class="text-sm leading-7 text-stone-300/80">
+        <p v-else class="text-sm leading-7 text-ink-muted">
           想要更完整的白話解讀嗎？AI 會把這組牌串成這件事接下來會怎麼發展，並給出具體的做法。文字會陸續出現，隨時可以停止。
         </p>
         <button
           v-if="canUseAi"
-          class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+          class="cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-5 py-2.5 text-[14px] font-medium text-accent transition hover:bg-accent-hue/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
           type="button"
           @click="emit('requestNarration')"
         >
@@ -426,22 +426,22 @@ function formatSuit(suit: string | null) {
         <!-- 未登入：按鈕照樣顯示，點了會帶去登入頁 -->
         <template v-else-if="!isLoggedIn">
           <button
-            class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-5 py-2.5 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-5 py-2.5 text-[14px] font-medium text-accent transition hover:bg-accent-hue/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('requestNarration')"
           >
             請 AI 解讀這組牌（需登入）
           </button>
-          <p class="text-xs text-stone-300/60">
+          <p class="text-xs text-ink-muted">
             抽牌與上面的組合分析不需要帳號；AI 解讀會產生費用，所以要登入後才能用。
           </p>
         </template>
 
         <!-- 已登入但還沒被開通：不要給一個按了也沒用的按鈕 -->
         <template v-else>
-          <div class="border-2 border-white/10 bg-white/5 px-4 py-3">
-            <p class="text-sm font-medium text-stone-100">AI 解讀尚未開通</p>
-            <p class="mt-1 text-xs leading-6 text-stone-300/70">
+          <div class="border-2 border-tint/10 bg-tint/5 px-4 py-3">
+            <p class="text-sm font-medium text-ink">AI 解讀尚未開通</p>
+            <p class="mt-1 text-xs leading-6 text-ink-muted">
               這項功能需要管理者逐一開通，請聯絡管理者。上面的牌義與組合分析不受影響，可以照常看。
             </p>
           </div>
@@ -474,20 +474,20 @@ function formatSuit(suit: string | null) {
 
         <div
           v-if="narrationText"
-          class="mt-4 min-w-0 space-y-4 break-words text-sm leading-7 text-stone-100/90 [&_pre]:overflow-x-auto [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto sm:text-base sm:leading-8 [&_h2]:mt-8 [&_h2]:border-t [&_h2]:border-white/10 [&_h2]:pt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-amber-100 [&_h3]:mt-6 [&_h3]:font-semibold [&_h3]:text-stone-50 [&_li]:my-1 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_strong]:font-semibold [&_strong]:text-amber-50 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6 [&_ul]:marker:text-amber-200/60"
+          class="mt-4 min-w-0 space-y-4 break-words text-sm leading-7 text-ink/90 [&_pre]:overflow-x-auto [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto sm:text-base sm:leading-8 [&_h2]:mt-8 [&_h2]:border-t [&_h2]:border-tint/10 [&_h2]:pt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-accent [&_h3]:mt-6 [&_h3]:font-semibold [&_h3]:text-ink [&_li]:my-1 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_strong]:font-semibold [&_strong]:text-accent [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6 [&_ul]:marker:text-warn"
           v-html="narrationHtml"
         />
 
         <div
           v-if="isNarrating"
-          class="mt-5 flex flex-wrap items-center gap-3 border-t border-white/10 pt-4"
+          class="mt-5 flex flex-wrap items-center gap-3 border-t border-tint/10 pt-4"
           aria-live="polite"
         >
-          <span class="text-sm text-stone-300/80">
+          <span class="text-sm text-ink-muted">
             {{ narrationStatus === 'loading' ? '正在整理這次的解讀…' : 'AI 正在撰寫…' }}
           </span>
           <button
-            class="cursor-pointer border-2 border-white/15 bg-white/5 px-4 py-1.5 text-[14px] text-stone-100 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-tint/15 bg-tint/5 px-4 py-1.5 text-[14px] text-ink transition hover:bg-tint/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="emit('stopNarration')"
           >
@@ -501,15 +501,15 @@ function formatSuit(suit: string | null) {
         -->
         <div
           v-else-if="narrationStatus === 'done' && canUseAi"
-          class="mt-5 flex flex-wrap items-center gap-3 border-t border-white/10 pt-4"
+          class="mt-5 flex flex-wrap items-center gap-3 border-t border-tint/10 pt-4"
         >
-          <span class="text-sm leading-7 text-stone-300/80">
+          <span class="text-sm leading-7 text-ink-muted">
             <template v-if="narrationSaved === true">已更新到這筆紀錄。</template>
             <template v-else-if="narrationSaved === false">這篇沒有存進紀錄，可以再產生一次。</template>
             {{ isRecorded ? '重新產生的解讀完成後，會取代紀錄裡的這一篇。' : '不滿意可以重新產生一篇。' }}
           </span>
           <button
-            class="cursor-pointer border-2 border-amber-200/30 bg-amber-200/10 px-4 py-1.5 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-accent-hue/30 bg-accent-hue/10 px-4 py-1.5 text-[14px] font-medium text-accent transition hover:bg-accent-hue/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="regenerateNarration"
           >
@@ -519,15 +519,15 @@ function formatSuit(suit: string | null) {
 
         <div
           v-else-if="narrationStatus === 'stopped' || narrationStatus === 'error'"
-          class="mt-5 flex flex-wrap items-center gap-3 border-t border-white/10 pt-4"
+          class="mt-5 flex flex-wrap items-center gap-3 border-t border-tint/10 pt-4"
         >
-          <span class="text-sm leading-7 text-stone-300/80">
+          <span class="text-sm leading-7 text-ink-muted">
             <template v-if="narrationStatus === 'stopped'">已停止產生，以上是目前寫出的部分。</template>
             <template v-else-if="stockMode">{{ narrationError }}可以先參考上方的行情與技術指標，或稍後再試一次。</template>
             <template v-else>{{ narrationError }}可以先參考下方規則分析的結果，或稍後再試一次。</template>
           </span>
           <button
-            class="cursor-pointer border-2 border-amber-200/30 bg-amber-200/10 px-4 py-1.5 text-[14px] font-medium text-amber-50 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+            class="cursor-pointer border-2 border-accent-hue/30 bg-accent-hue/10 px-4 py-1.5 text-[14px] font-medium text-accent transition hover:bg-accent-hue/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="regenerateNarration"
           >
@@ -543,13 +543,13 @@ function formatSuit(suit: string | null) {
     <div v-if="reading.analysis && !stockMode" ref="analysisWrapEl" data-nav="判斷依據">
       <button
         type="button"
-        class="flex w-full items-center justify-between border-2 border-white/10 bg-white/5 px-4 py-2 text-left text-[14px] text-stone-200/80 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+        class="flex w-full items-center justify-between border-2 border-tint/10 bg-tint/5 px-4 py-2 text-left text-[14px] text-ink-soft transition hover:bg-tint/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
         :aria-expanded="analysisOpen"
         aria-controls="analysis-details"
         @click="analysisOpen = !analysisOpen"
       >
         <span>{{ analysisOpen ? '收合判斷依據' : '查看判斷依據' }}</span>
-        <PixelChevron class="text-stone-300" :open="analysisOpen" />
+        <PixelChevron class="text-ink-muted" :open="analysisOpen" />
       </button>
       <div
         id="analysis-details"
@@ -572,9 +572,9 @@ function formatSuit(suit: string | null) {
       </div>
     </div>
 
-    <div v-if="!stockMode" data-nav="結語" class="border-2 border-amber-100/10 bg-gradient-to-r from-amber-100/10 via-white/5 to-rose-100/10 p-4 sm:p-5">
-      <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Guidance</p>
-      <p class="mt-3 text-sm leading-7 text-stone-100/85 sm:text-base sm:leading-8">{{ reading.guidance }}</p>
+    <div v-if="!stockMode" data-nav="結語" class="border-2 border-accent-hue/10 bg-gradient-to-r from-accent-hue/10 via-tint/5 to-up-hue/10 p-4 sm:p-5">
+      <p class="text-[10px] uppercase tracking-[0.2em] text-ink-muted sm:text-xs sm:tracking-[0.3em]">Guidance</p>
+      <p class="mt-3 text-sm leading-7 text-ink/85 sm:text-base sm:leading-8">{{ reading.guidance }}</p>
     </div>
 
     <!-- 結果頁很長，捲超過一個畫面高就給一顆回頂的按鈕 -->

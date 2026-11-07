@@ -58,9 +58,9 @@ onBeforeUnmount(() => {
       class="flex cursor-pointer items-center justify-center border-2 transition active:translate-x-[2px] active:translate-y-[2px]"
       :class="[
         floating
-          ? 'h-11 w-11 border-[#3b2618] bg-[#0f1526] shadow-[3px_3px_0_rgba(0,0,0,0.5)] active:shadow-none'
-          : 'h-9 w-9 border-white/10 hover:bg-white/10',
-        open ? 'text-amber-200' : 'text-violet-200/80 hover:text-amber-200',
+          ? 'h-11 w-11 border-frame bg-surface shadow-[3px_3px_0_var(--c-shade)] active:shadow-none'
+          : 'h-9 w-9 border-tint/10 hover:bg-tint/10',
+        open ? 'text-orb-glow' : 'text-orb hover:text-orb-glow',
       ]"
       :aria-expanded="open"
       aria-label="跳到段落"
@@ -71,22 +71,22 @@ onBeforeUnmount(() => {
     </button>
     <div
       v-if="open"
-      class="absolute right-0 top-full z-10 mt-2 max-h-[60vh] w-56 overflow-y-auto border-2 border-[#3b2618] bg-[#0f1526] p-3 shadow-[4px_4px_0_rgba(0,0,0,0.5)]"
+      class="absolute right-0 top-full z-10 mt-2 max-h-[60vh] w-56 overflow-y-auto border-2 border-frame bg-surface p-3 shadow-[4px_4px_0_var(--c-shade)]"
     >
-      <p class="text-caption text-amber-100/70">跳到段落</p>
+      <p class="text-caption text-accent">跳到段落</p>
       <ul v-if="list.length" class="mt-2 space-y-0.5">
         <li v-for="(item, index) in list" :key="`${index}-${item.label}`">
           <button
             type="button"
-            class="w-full cursor-pointer px-2 py-1 text-left transition hover:bg-white/10 hover:text-amber-100"
-            :class="item.level === 2 ? 'pl-5 text-caption text-stone-300' : 'text-body text-stone-100'"
+            class="w-full cursor-pointer px-2 py-1 text-left transition hover:bg-tint/10 hover:text-accent"
+            :class="item.level === 2 ? 'pl-5 text-caption text-ink-muted' : 'text-body text-ink'"
             @click="jump(item)"
           >
-            <span v-if="item.level === 2" class="mr-1 text-stone-300" aria-hidden="true">·</span>{{ item.label }}
+            <span v-if="item.level === 2" class="mr-1 text-ink-muted" aria-hidden="true">·</span>{{ item.label }}
           </button>
         </li>
       </ul>
-      <p v-else class="mt-2 text-body text-stone-300">內容還在載入。</p>
+      <p v-else class="mt-2 text-body text-ink-muted">內容還在載入。</p>
     </div>
   </div>
 </template>

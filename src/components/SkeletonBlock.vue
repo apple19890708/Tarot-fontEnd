@@ -5,5 +5,5 @@
 </script>
 
 <template>
-  <div class="animate-pulse rounded-lg bg-white/10 motion-reduce:animate-none" aria-hidden="true" />
+  <div class="animate-pulse rounded-lg bg-tint/10 motion-reduce:animate-none" aria-hidden="true" />
 </template>

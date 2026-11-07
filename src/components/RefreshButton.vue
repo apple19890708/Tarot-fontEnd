@@ -58,12 +58,12 @@ const progress = computed(() =>
 const idle = computed(() => !props.loading && !cooling.value && !props.disabled)
 
 const toneClass = computed(() => {
-  if (props.loading) return 'border-amber-200/50 bg-amber-200/20 text-amber-50'
-  if (justDone.value) return 'border-emerald-300/50 bg-emerald-300/15 text-emerald-100'
-  if (cooling.value || props.disabled) return 'border-white/10 bg-white/[0.03] text-stone-300'
+  if (props.loading) return 'border-accent-hue/50 bg-accent-hue/20 text-accent'
+  if (justDone.value) return 'border-ok-hue/50 bg-ok-hue/15 text-ok'
+  if (cooling.value || props.disabled) return 'border-tint/10 bg-tint/[0.03] text-ink-muted'
   return props.tone === 'danger'
-    ? 'border-rose-200/40 bg-rose-300/10 text-rose-50 hover:bg-rose-300/20 active:bg-rose-300/30'
-    : 'border-amber-200/40 bg-amber-200/10 text-amber-50 hover:bg-amber-200/20 active:bg-amber-200/30'
+    ? 'border-danger-hue/40 bg-danger-hue/10 text-danger hover:bg-danger-hue/20 active:bg-danger-hue/30'
+    : 'border-accent-hue/40 bg-accent-hue/10 text-accent hover:bg-accent-hue/20 active:bg-accent-hue/30'
 })
 </script>
 
@@ -75,7 +75,7 @@ const toneClass = computed(() => {
     :class="[
       toneClass,
       idle
-        ? 'shadow-[3px_3px_0_rgba(0,0,0,0.55)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none'
+        ? 'shadow-[3px_3px_0_var(--c-shade)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none'
         : 'translate-x-[3px] translate-y-[3px] shadow-none',
     ]"
     :disabled="loading || cooling || disabled"
@@ -109,7 +109,7 @@ const toneClass = computed(() => {
     <!-- 冷卻剩餘時間：越來越短，0 秒時消失 -->
     <span
       v-if="cooling && !justDone"
-      class="absolute bottom-0 left-0 h-[2px] bg-amber-200/50 transition-[width] duration-1000 ease-linear"
+      class="absolute bottom-0 left-0 h-[2px] bg-accent-hue/50 transition-[width] duration-1000 ease-linear"
       :style="{ width: `${progress}%` }"
       aria-hidden="true"
     />

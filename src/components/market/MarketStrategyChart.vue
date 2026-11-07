@@ -33,7 +33,7 @@ const options = computed(() => ({
   maintainAspectRatio: false,
   interaction: { mode: 'index' as const, intersect: false },
   plugins: {
-    legend: legendOptions,
+    legend: legendOptions(),
     tooltip: {
       callbacks: {
         title: (items: { label: string }[]) => items[0]?.label ?? '',

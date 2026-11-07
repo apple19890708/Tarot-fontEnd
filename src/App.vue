@@ -16,9 +16,9 @@ import { sceneBus } from './lib/sceneBus'
 
 const router = useRouter()
 const route = useRoute()
-// 右上角的水晶球選單（牌面風格、跳到段落）只在看得到牌的地方出現：占卜結果（第 3 步）與我的紀錄的塔羅分頁；
-// 我的紀錄的股票分析打開一筆時也出現，但只有「跳到段落」
-const showFloatingMenu = computed(
+// 右上角的水晶球選單全站都有（日夜模式）；牌面風格只在看得到牌的地方出現：占卜結果（第 3 步）與我的紀錄
+// （股票分析分頁由 sectionNav.cardStyle = false 再關掉）；跳到段落由各頁登記
+const showCardStyle = computed(
 	() =>
 		(route.name === 'home' && sceneBus.step === 3) ||
 		(route.name === 'history' && (route.query.tab !== 'stock' || Boolean(sectionNav.value))),
@@ -92,14 +92,14 @@ const navVisible = computed(() => isDesktop.value || menuOpen.value)
 // 會員專屬的頁面另外上色，一眼看得出哪些是登入後才有的：
 // 一般會員頁（我的紀錄）藍、金融股市權限頁（股市追蹤）綠；目前所在的頁面只變色（和其他頁一樣變琥珀色），不加底線
 const NAV_TIER_STYLES = {
-  member: { idle: 'text-sky-300/80 hover:text-sky-200', active: 'text-amber-200' },
-  stock: { idle: 'text-emerald-300/80 hover:text-emerald-200', active: 'text-amber-200' },
+  member: { idle: 'text-info-hue hover:text-info', active: 'text-warn' },
+  stock: { idle: 'text-ok-hue hover:text-ok', active: 'text-warn' },
 } as const
 
 function navClass(name: string, tier: 'public' | keyof typeof NAV_TIER_STYLES = 'public') {
   const active = route.name === name
   if (tier === 'public') {
-    return active ? 'text-amber-200' : 'text-stone-200/80 hover:text-amber-200'
+    return active ? 'text-warn' : 'text-ink-soft hover:text-warn'
   }
   return active ? NAV_TIER_STYLES[tier].active : NAV_TIER_STYLES[tier].idle
 }
@@ -131,20 +131,20 @@ function signOut() {
 <template>
 	<!-- 兩列格線：top bar 依內容高度，主內容撐滿剩下的畫面，頁面可以用 min-h-full 做滿版 -->
 	<!-- 全站都有像素世界（PixelWorld）墊在後面，外層不上底色才看得到 -->
-	<div class="grid min-h-screen grid-rows-[auto_1fr] text-stone-100">
+	<div class="grid min-h-screen grid-rows-[auto_1fr] text-ink">
 		<PixelWorld :scene="scene" :dim="sceneDim" />
-		<header class="relative border-b-2 border-[#3b2618] bg-[#0f1526]/85">
+		<header class="relative border-b-2 border-frame bg-surface/85">
 			<div class="mx-auto flex min-w-0 items-center justify-between gap-4 px-5 py-3">
 				<div class="min-w-0 leading-tight">
-					<p class="text-[10px] uppercase tracking-[0.3em] text-amber-100/70">Tarot Divination Studio</p>
-					<p class="font-pixel text-[12px] text-stone-50">塔羅占卜</p>
-					<p class="truncate text-[11px] text-stone-300/75 sm:text-xs">{{ healthLabel }}</p>
+					<p class="text-[10px] uppercase tracking-[0.3em] text-accent">Tarot Divination Studio</p>
+					<p class="font-pixel text-[12px] text-ink">塔羅占卜</p>
+					<p class="truncate text-[11px] text-ink-muted sm:text-xs">{{ healthLabel }}</p>
 				</div>
 
 				<!-- 手機放不下一整列連結，改成漢堡；三條線在打開時轉成叉 -->
 				<button
 					type="button"
-					class="-mr-1 shrink-0 cursor-pointer border-2 border-[#f1e7cf]/30 p-1.5 text-stone-200 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px] sm:hidden"
+					class="-mr-1 shrink-0 cursor-pointer border-2 border-tint/30 p-1.5 text-ink-soft transition hover:border-accent-hue/60 hover:text-warn active:translate-x-[2px] active:translate-y-[2px] sm:hidden"
 					:aria-expanded="menuOpen"
 					aria-controls="main-nav"
 					aria-label="選單"
@@ -179,20 +179,20 @@ function signOut() {
 					<nav
 						v-if="navVisible"
 						id="main-nav"
-						class="absolute inset-x-0 top-full z-30 flex max-h-80 flex-col items-stretch gap-2.5 overflow-hidden border-b-4 border-[#3b2618] bg-[#0f1526] px-5 py-4 shadow-[0_6px_0_rgba(0,0,0,0.45)] sm:static sm:z-auto sm:max-h-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1 sm:overflow-visible sm:whitespace-nowrap sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none"
+						class="absolute inset-x-0 top-full z-30 flex max-h-80 flex-col items-stretch gap-2.5 overflow-hidden border-b-4 border-frame bg-surface px-5 py-4 shadow-[0_6px_0_var(--c-shade)] sm:static sm:z-auto sm:max-h-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1 sm:overflow-visible sm:whitespace-nowrap sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none"
 					>
 						<router-link v-for="r in navRoutes" :key="r.name" :to="r.path" class="font-pixel text-[12px] transition" :class="navClass(r.name, r.tier)">{{ r.label }}</router-link>
 
 						<template v-if="isLoggedIn">
-							<span class="font-pixel text-[12px] text-stone-300/70">
+							<span class="font-pixel text-[12px] text-ink-muted">
 								{{ currentUser?.displayName }}
-								<span v-if="isAdmin" class="ml-1 border-2 border-amber-200/40 bg-amber-200/10 px-1.5 py-0.5 font-pixel text-[12px] text-amber-100">admin</span>
+								<span v-if="isAdmin" class="ml-1 border-2 border-accent-hue/40 bg-accent-hue/10 px-1.5 py-0.5 font-pixel text-[12px] text-accent">admin</span>
 							</span>
-							<button class="cursor-pointer text-left font-pixel text-[14px] text-stone-200/80 transition hover:text-rose-200 sm:text-center" @click="signOut">登出</button>
+							<button class="cursor-pointer text-left font-pixel text-[14px] text-ink-soft transition hover:text-danger sm:text-center" @click="signOut">登出</button>
 						</template>
 						<template v-else>
 							<router-link to="/login" class="font-pixel text-[12px] transition" :class="navClass('login')">登入</router-link>
-							<router-link to="/register" class="border-2 border-amber-200/40 bg-amber-200/10 px-3 py-1 text-center font-pixel text-[14px] text-amber-100 transition hover:bg-amber-200/20 active:translate-x-[2px] active:translate-y-[2px]">註冊</router-link>
+							<router-link to="/register" class="border-2 border-accent-hue/40 bg-accent-hue/10 px-3 py-1 text-center font-pixel text-[14px] text-accent transition hover:bg-accent-hue/20 active:translate-x-[2px] active:translate-y-[2px]">註冊</router-link>
 						</template>
 					</nav>
 				</Transition>
@@ -200,10 +200,10 @@ function signOut() {
 		</header>
 
 		<!--
-			右上的浮動選單（像素水晶球）：切換牌面風格；在結果頁還能跳到各段落。
+			右上的浮動選單（像素水晶球）：切換日夜模式、牌面風格；在結果頁還能跳到各段落。
 			原本這裡是單純的牌面開關，收進選單裡
 		-->
-		<FloatingMenu v-if="showFloatingMenu" />
+		<FloatingMenu :cards="showCardStyle" />
 
 		<!-- 過場中先隱形（版面照占位，淡入時不會跳動），播完再用 0.3 秒淡入 -->
 		<main
@@ -218,16 +218,16 @@ function signOut() {
 			<div
 				v-for="alert in triggeredAlerts"
 				:key="alert.id"
-				class="border-2 border-amber-200/50 bg-[#0f1526] p-3 shadow-[0_6px_0_rgba(0,0,0,0.45)]"
+				class="border-2 border-accent-hue/50 bg-surface p-3 shadow-[0_6px_0_var(--c-shade)]"
 			>
 				<div class="flex items-start justify-between gap-2">
-					<p class="text-sm font-semibold text-amber-100">
+					<p class="text-sm font-semibold text-accent">
 						{{ alert.target.name }} {{ alertTitle(alert) }}
 					</p>
-					<button type="button" class="cursor-pointer text-stone-400 hover:text-stone-100" aria-label="關閉提醒" @click="dismissTriggered(alert.id)">✕</button>
+					<button type="button" class="cursor-pointer text-ink-muted hover:text-ink" aria-label="關閉提醒" @click="dismissTriggered(alert.id)">✕</button>
 				</div>
-				<p class="mt-1 text-xs text-stone-300">{{ alertDetail(alert) }}</p>
-				<router-link to="/market" class="mt-2 inline-block font-pixel text-[12px] text-amber-200 hover:underline" @click="dismissTriggered(alert.id)">
+				<p class="mt-1 text-xs text-ink-muted">{{ alertDetail(alert) }}</p>
+				<router-link to="/market" class="mt-2 inline-block font-pixel text-[12px] text-warn hover:underline" @click="dismissTriggered(alert.id)">
 					到股市追蹤看看
 				</router-link>
 			</div>

@@ -61,18 +61,18 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
 
 <template>
   <div class="mx-auto flex w-full min-w-0 flex-col gap-4 py-4">
-    <header class="border-2 border-white/10 bg-[#0f1526] p-6">
-      <p class="text-caption uppercase tracking-[0.35em] text-amber-100/70">Market Tracking</p>
-      <h1 class="mt-2 text-display font-semibold text-stone-50">股市追蹤</h1>
-      <p class="mt-1 text-body text-stone-300">追蹤自己關注的股票與持股、看國內外財經新聞、檢查股市諮詢建議的命中率，並設定到價提醒。</p>
+    <header class="border-2 border-tint/10 bg-surface p-6">
+      <p class="text-caption uppercase tracking-[0.35em] text-accent">Market Tracking</p>
+      <h1 class="mt-2 text-display font-semibold text-ink">股市追蹤</h1>
+      <p class="mt-1 text-body text-ink-muted">追蹤自己關注的股票與持股、看國內外財經新聞、檢查股市諮詢建議的命中率，並設定到價提醒。</p>
     </header>
 
     <!-- 分頁列：自己一條不透明底色；分頁變多、超出寬度時橫向捲動，不會擠成兩行 -->
-    <div class="border-2 border-white/10 bg-[#0f1526]">
+    <div class="border-2 border-tint/10 bg-surface">
       <div
         role="tablist"
         aria-label="股市追蹤分頁"
-        class="flex overflow-x-auto [scrollbar-color:rgba(255,255,255,0.2)_transparent] [scrollbar-width:thin]"
+        class="flex overflow-x-auto [scrollbar-color:color-mix(in_oklab,var(--c-tint)_20%,transparent)_transparent] [scrollbar-width:thin]"
       >
         <button
           v-for="(tab, index) in TABS"
@@ -86,14 +86,14 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
           class="shrink-0 cursor-pointer whitespace-nowrap border-b-2 px-5 py-3 text-button transition font-pixel"
           :class="
             activeTab === tab.key
-              ? 'border-amber-200 bg-amber-200/10 text-amber-50'
-              : 'border-transparent text-stone-300 hover:bg-white/5 hover:text-stone-200'
+              ? 'border-accent-hue bg-selected text-on-selected'
+              : 'border-transparent text-ink-muted hover:bg-tint/5 hover:text-ink-soft'
           "
           @click="selectTab(tab.key)"
           @keydown="onTabKeydown($event, index)"
         >
           {{ tab.label }}
-          <span v-if="tab.key === 'alerts' && activeCount" class="text-caption text-amber-200/80">（{{ activeCount }}）</span>
+          <span v-if="tab.key === 'alerts' && activeCount" class="text-caption" :class="activeTab === tab.key ? 'text-on-selected' : 'text-warn'">（{{ activeCount }}）</span>
         </button>
       </div>
     </div>

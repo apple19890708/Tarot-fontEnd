@@ -10,6 +10,12 @@
     <meta name="theme-color" content="#0f1526" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Orange_Tarot</title>
+    <!-- 日夜模式：畫面出來前先套好，避免白天模式先閃一下黑夜（和 src/lib/theme.ts 同一個 key） -->
+    <script>
+      try {
+        if (localStorage.getItem('tarot.theme') === 'day') document.documentElement.dataset.theme = 'day'
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -52,37 +52,37 @@ async function removeRoute(rname: string) {
 <template>
   <div class="space-y-4">
     <h1 class="text-2xl font-semibold">路由管理</h1>
-    <p class="text-sm text-stone-300">在此你可以新增或移除前端路由（僅限自訂路由）。</p>
+    <p class="text-sm text-ink-muted">在此你可以新增或移除前端路由（僅限自訂路由）。</p>
 
-    <div class="rounded-lg border bg-[#0f1526] p-4">
+    <div class="rounded-lg border bg-surface p-4">
       <p class="text-sm">目前路由清單:</p>
       <ul class="mt-2 space-y-2 text-sm">
         <li v-for="r in routes" :key="r.name" class="flex items-center justify-between gap-4">
           <div>
             <span class="font-medium">{{ r.name }}</span>
-            <span class="ml-2 text-stone-400">{{ r.path }}</span>
-            <span class="ml-3 text-xs text-stone-300/70">{{ r.permission }}</span>
+            <span class="ml-2 text-ink-muted">{{ r.path }}</span>
+            <span class="ml-3 text-xs text-ink-muted">{{ r.permission }}</span>
           </div>
           <div>
-            <button v-if="r.removable" @click="removeRoute(r.name)" class="cursor-pointer rounded px-3 py-1 text-sm bg-rose-400/10">移除</button>
+            <button v-if="r.removable" @click="removeRoute(r.name)" class="cursor-pointer rounded px-3 py-1 text-sm bg-up-hue-2/10">移除</button>
           </div>
         </li>
       </ul>
     </div>
 
-    <div class="rounded-lg border bg-[#0f1526] p-4">
+    <div class="rounded-lg border bg-surface p-4">
       <p class="text-sm font-medium">新增路由</p>
       <div class="mt-2 flex flex-col gap-2">
-        <input v-model="name" placeholder="Route name" class="rounded px-3 py-2 bg-black/10" />
-        <input v-model="path" placeholder="/path" class="rounded px-3 py-2 bg-black/10" />
+        <input v-model="name" placeholder="Route name" class="rounded px-3 py-2 bg-sink/10" />
+        <input v-model="path" placeholder="/path" class="rounded px-3 py-2 bg-sink/10" />
         <SelectField v-model="permission" :options="PERMISSION_OPTIONS" label="權限" variant="pixel" hide-label />
         <div class="pt-2">
-          <button @click="addRoute" class="cursor-pointer rounded bg-amber-300 px-4 py-2 text-sm">新增</button>
+          <button @click="addRoute" class="cursor-pointer rounded bg-accent-hue px-4 py-2 text-sm">新增</button>
         </div>
       </div>
     </div>
 
-    <router-link to="/" class="text-amber-300">回到首頁</router-link>
+    <router-link to="/" class="text-warn">回到首頁</router-link>
   </div>
 </template>
 

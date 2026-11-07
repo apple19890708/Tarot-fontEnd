@@ -28,9 +28,10 @@ onMounted(load)
 
 const points = computed(() => history.value?.points ?? [])
 const latest = computed(() => points.value[points.value.length - 1] ?? null)
-const BENCHMARK_COLORS: Record<string, string> = { twii: CHART_COLORS.ma5, gspc: CHART_COLORS.ma60 }
+// 顏色寫在函式裡（不存成常數），computed 呼叫時才會跟著日夜模式換
+const benchmarkColor = (key: string) => ({ twii: CHART_COLORS.ma5, gspc: CHART_COLORS.ma60 })[key] ?? CHART_COLORS.baseline
 
-const xAxis = axis({
+const xAxis = () => axis({
   ticks: { color: CHART_COLORS.text, maxTicksLimit: 6, maxRotation: 0, font: { size: 11 }, callback(this: { getLabelForValue: (v: number) => string }, value: number | string) {
     return shortDate(this.getLabelForValue(Number(value)))
   } },
@@ -53,8 +54,8 @@ const returnData = computed(() => ({
       .map((b) => ({
         label: b.label,
         data: b.points.map((p) => p.returnPct),
-        borderColor: BENCHMARK_COLORS[b.key] ?? CHART_COLORS.baseline,
-        backgroundColor: BENCHMARK_COLORS[b.key] ?? CHART_COLORS.baseline,
+        borderColor: benchmarkColor(b.key),
+        backgroundColor: benchmarkColor(b.key),
         borderDash: [6, 4],
         borderWidth: 1.5,
         pointRadius: 0,
@@ -69,7 +70,7 @@ function options(suffix: string, digits: number) {
     maintainAspectRatio: false,
     interaction: { mode: 'index' as const, intersect: false },
     plugins: {
-      legend: legendOptions,
+      legend: legendOptions(),
       tooltip: {
         callbacks: {
           label: (ctx: { dataset: { label?: string }; parsed: { y: number | null } }) =>
@@ -77,11 +78,11 @@ function options(suffix: string, digits: number) {
         },
       },
     },
-    scales: { x: xAxis, y: axis({ position: 'right' as const }) },
+    scales: { x: xAxis(), y: axis({ position: 'right' as const }) },
   }
 }
-const valueOptions = options(' 元', 0)
-const returnOptions = options('%', 2)
+const valueOptions = computed(() => options(' 元', 0))
+const returnOptions = computed(() => options('%', 2))
 
 // 和大盤比：最後一天的差距
 const comparisons = computed(() =>
@@ -103,25 +104,25 @@ const comparisons = computed(() =>
       <SkeletonBlock class="h-48 w-full rounded-none" />
     </div>
 
-    <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 text-body text-rose-200">
+    <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 text-body text-danger">
       <span>{{ error }}</span>
-      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-button font-pixel" @click="load">重試</button>
+      <button type="button" class="cursor-pointer border-2 border-danger-hue/30 px-3 py-1 text-button font-pixel" @click="load">重試</button>
     </div>
 
-    <p v-else-if="points.length < 2" class="text-body text-stone-300">
+    <p v-else-if="points.length < 2" class="text-body text-ink-muted">
       每天台股收盤後（14:00 以後）會記一筆總資產，累積兩天以上才畫得出走勢。
       <template v-if="points.length === 1">目前有 {{ points[0]!.date }} 一筆。</template>
     </p>
 
     <template v-else>
-      <p class="flex flex-wrap gap-x-4 gap-y-1 text-body tabular-nums text-stone-300">
+      <p class="flex flex-wrap gap-x-4 gap-y-1 text-body tabular-nums text-ink-muted">
         <span>
           {{ points[0]!.date }} 起的報酬率
-          <span class="font-semibold" :class="latest!.returnPct >= 0 ? 'text-rose-300' : 'text-emerald-300'">{{ formatSigned(latest!.returnPct, '%') }}</span>
+          <span class="font-semibold" :class="latest!.returnPct >= 0 ? 'text-up' : 'text-down'">{{ formatSigned(latest!.returnPct, '%') }}</span>
         </span>
         <span v-for="c in comparisons" :key="c!.label">
           {{ c!.diff >= 0 ? '贏' : '輸' }}{{ c!.label }}
-          <span :class="c!.diff >= 0 ? 'text-rose-300' : 'text-emerald-300'">{{ formatNumber(Math.abs(c!.diff)) }} 個百分點</span>
+          <span :class="c!.diff >= 0 ? 'text-up' : 'text-down'">{{ formatNumber(Math.abs(c!.diff)) }} 個百分點</span>
         </span>
       </p>
       <div class="h-48">
@@ -130,7 +131,7 @@ const comparisons = computed(() =>
       <div class="h-48">
         <Line :data="returnData" :options="returnOptions" aria-label="報酬率和大盤比較" role="img" />
       </div>
-      <p class="text-caption text-stone-300">
+      <p class="text-caption text-ink-muted">
         報酬率用時間加權計算：加碼或賣出不算賺賠，股利算報酬，才能和指數直接比較。美股依當天匯率換成台幣。
       </p>
     </template>

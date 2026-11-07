@@ -56,38 +56,38 @@ onMounted(check)
 
 <template>
   <div class="mx-auto max-w-md">
-    <div class="space-y-5 rounded-[1.75rem] border border-white/10 bg-[#0f1526] p-7">
+    <div class="space-y-5 rounded-[1.75rem] border border-tint/10 bg-surface p-7">
       <div class="space-y-1">
         <h1 class="text-xl font-semibold">設定新密碼</h1>
-        <p v-if="status === 'valid'" class="text-sm text-stone-300">帳號 {{ maskedEmail }}</p>
+        <p v-if="status === 'valid'" class="text-sm text-ink-muted">帳號 {{ maskedEmail }}</p>
       </div>
 
       <!-- 確認連結中：和表單同形狀的骨架 -->
       <div v-if="status === 'checking'" class="space-y-4" aria-busy="true">
         <div v-for="n in 2" :key="n" class="space-y-1.5">
-          <div class="h-4 w-20 animate-pulse rounded bg-white/10" />
-          <div class="h-9 w-full animate-pulse rounded-xl bg-white/10" />
+          <div class="h-4 w-20 animate-pulse rounded bg-tint/10" />
+          <div class="h-9 w-full animate-pulse rounded-xl bg-tint/10" />
         </div>
-        <div class="h-9 w-full animate-pulse rounded-xl bg-white/10" />
+        <div class="h-9 w-full animate-pulse rounded-xl bg-tint/10" />
       </div>
 
       <div v-else-if="status === 'invalid'" class="space-y-3">
-        <p class="rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">
+        <p class="rounded-xl border border-up-hue/20 bg-up-hue-2/10 px-3 py-2 text-sm text-up-ink">
           這個重設連結已經失效：可能超過 30 分鐘、已經用過，或你後來又申請了一封新的信。
         </p>
         <router-link
           to="/forgot-password"
-          class="block w-full rounded-xl border border-amber-200/30 bg-amber-200/10 px-4 py-2 text-center text-sm font-medium text-amber-100 hover:bg-amber-200/20"
+          class="block w-full rounded-xl border border-accent-hue/30 bg-accent-hue/10 px-4 py-2 text-center text-sm font-medium text-accent hover:bg-accent-hue/20"
         >
           重新申請重設密碼
         </router-link>
       </div>
 
       <div v-else-if="status === 'error'" class="space-y-3">
-        <p class="rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">暫時無法確認連結，請稍後再試。</p>
+        <p class="rounded-xl border border-up-hue/20 bg-up-hue-2/10 px-3 py-2 text-sm text-up-ink">暫時無法確認連結，請稍後再試。</p>
         <button
           type="button"
-          class="w-full cursor-pointer rounded-xl border border-white/15 px-4 py-2 text-sm text-stone-200 hover:bg-white/10 active:bg-white/15"
+          class="w-full cursor-pointer rounded-xl border border-tint/15 px-4 py-2 text-sm text-ink-soft hover:bg-tint/10 active:bg-tint/15"
           @click="check"
         >
           重試
@@ -96,35 +96,35 @@ onMounted(check)
 
       <form v-else class="space-y-5" @submit.prevent="submit">
         <label class="block space-y-1.5">
-          <span class="text-sm text-stone-300">新密碼（至少 8 個字）</span>
+          <span class="text-sm text-ink-muted">新密碼（至少 8 個字）</span>
           <input
             v-model="password"
             type="password"
             autocomplete="new-password"
             required
             minlength="8"
-            class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-amber-200/40"
+            class="w-full rounded-xl border border-tint/10 bg-sink/20 px-3 py-2 text-sm outline-none focus:border-accent-hue/40"
           />
         </label>
         <label class="block space-y-1.5">
-          <span class="text-sm text-stone-300">再輸入一次</span>
+          <span class="text-sm text-ink-muted">再輸入一次</span>
           <input
             v-model="confirm"
             type="password"
             autocomplete="new-password"
             required
-            class="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-amber-200/40"
+            class="w-full rounded-xl border border-tint/10 bg-sink/20 px-3 py-2 text-sm outline-none focus:border-accent-hue/40"
           />
         </label>
 
-        <p v-if="error" class="rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">
+        <p v-if="error" class="rounded-xl border border-up-hue/20 bg-up-hue-2/10 px-3 py-2 text-sm text-up-ink">
           {{ error }}
         </p>
 
         <button
           type="submit"
           :disabled="saving"
-          class="w-full cursor-pointer rounded-xl border border-amber-200/30 bg-amber-200/10 px-4 py-2 text-sm font-medium text-amber-100 hover:bg-amber-200/20 active:bg-amber-200/25 disabled:cursor-not-allowed disabled:opacity-50"
+          class="w-full cursor-pointer rounded-xl border border-accent-hue/30 bg-accent-hue/10 px-4 py-2 text-sm font-medium text-accent hover:bg-accent-hue/20 active:bg-accent-hue/25 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {{ saving ? '更新中…' : '更新密碼' }}
         </button>

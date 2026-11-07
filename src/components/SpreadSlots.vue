@@ -88,12 +88,12 @@ defineExpose({ poseOf })
           ? ''
           : [
               'w-[calc(25%-0.3rem)] border-2 px-1 py-1.5 sm:w-auto sm:min-w-[4.5rem] sm:px-2 sm:py-2',
-              props.cards[index] ? 'border-amber-200/40 bg-amber-100/8' : 'border-dashed border-white/15 bg-black/10',
+              props.cards[index] ? 'border-accent-hue/40 bg-accent-hue/8' : 'border-dashed border-tint/15 bg-sink/10',
             ]
       "
       :style="cellStyle(index)"
     >
-      <span class="w-full truncate text-[9px] text-stone-400 sm:text-[11px]">{{ index + 1 }}. {{ label }}</span>
+      <span class="w-full truncate text-[9px] text-ink-muted sm:text-[11px]">{{ index + 1 }}. {{ label }}</span>
       <!-- 佔位點與牌圖疊在同一個固定大小的框裡，替換時不會有兩個同時撐開版面 -->
       <span
         :ref="(el) => setBox(index, el)"
@@ -105,8 +105,8 @@ defineExpose({ poseOf })
       >
         <span
           v-if="!props.cards[index]"
-          class="absolute inset-0 flex items-center justify-center text-stone-600"
-          :class="isGrid ? 'border-2 border-dashed border-white/20 bg-black/10 text-xs' : ''"
+          class="absolute inset-0 flex items-center justify-center text-ink-muted/50"
+          :class="isGrid ? 'border-2 border-dashed border-tint/20 bg-sink/10 text-xs' : ''"
         >
           {{ isGrid ? index + 1 : '·' }}
         </span>
@@ -126,10 +126,10 @@ defineExpose({ poseOf })
         </Transition>
       </span>
       <!-- 牌名與正逆位兩行，沒有牌時也先佔好高度 -->
-      <span class="h-[1.4rem] w-full text-[9px] leading-tight text-stone-300 sm:h-[1.6rem] sm:text-[10px]">
+      <span class="h-[1.4rem] w-full text-[9px] leading-tight text-ink-muted sm:h-[1.6rem] sm:text-[10px]">
         <template v-if="props.cards[index]">
           <span class="block truncate">{{ props.cards[index]!.nameZh }}</span>
-          <span class="block text-stone-500">
+          <span class="block text-ink-muted">
             {{ props.cards[index]!.orientation === 'upright' ? '正位' : '逆位' }}
           </span>
         </template>

@@ -28,16 +28,17 @@ const data = computed(() => ({
   ],
 }))
 
-const options = {
+// computed：軸線與圖例的顏色跟著日夜模式換
+const options = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   indexAxis: 'y' as const,
-  plugins: { legend: legendOptions },
+  plugins: { legend: legendOptions() },
   scales: {
     x: axis(),
     y: axis({ grid: { display: false } }),
   },
-}
+}))
 </script>
 
 <template>

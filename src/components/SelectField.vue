@@ -20,27 +20,27 @@ const props = withDefaults(
 
 const STYLES = {
   glass: {
-    button: 'rounded-3xl border bg-white/5 py-2.5 pl-4 pr-3 text-stone-50 hover:bg-white/8',
-    buttonOpen: 'border-amber-200/40 bg-white/8',
-    buttonClosed: 'border-white/10',
-    arrow: 'text-stone-400',
-    list: 'rounded-2xl border border-white/10 bg-slate-900/95 p-1 shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur',
+    button: 'rounded-3xl border bg-tint/5 py-2.5 pl-4 pr-3 text-ink hover:bg-tint/8',
+    buttonOpen: 'border-accent-hue/40 bg-tint/8',
+    buttonClosed: 'border-tint/10',
+    arrow: 'text-ink-muted',
+    list: 'rounded-2xl border border-tint/10 bg-surface/95 p-1 shadow-[0_20px_50px_var(--c-shade)] backdrop-blur',
     option: 'rounded-xl px-3 py-2',
   },
   washi: {
-    button: 'border-2 border-[#3b2618] bg-[#f1e7cf] px-2 py-1.5 text-[#2a1a14] shadow-[3px_3px_0_rgba(0,0,0,0.35)]',
+    button: 'border-2 border-frame bg-[#f1e7cf] px-2 py-1.5 text-[#2a1a14] shadow-[3px_3px_0_var(--c-shade)]',
     buttonOpen: 'border-[#a8322a]',
     buttonClosed: '',
     arrow: 'text-[#2a1a14]/60',
-    list: 'border-2 border-[#3b2618] bg-[#0f1526] p-1 shadow-[4px_4px_0_rgba(0,0,0,0.5)]',
+    list: 'border-2 border-frame bg-surface p-1 shadow-[4px_4px_0_var(--c-shade)]',
     option: 'px-2.5 py-1.5',
   },
   pixel: {
-    button: 'border-2 bg-white/5 px-3 py-2 text-stone-50 hover:bg-white/10',
-    buttonOpen: 'border-amber-200/40',
-    buttonClosed: 'border-white/10',
-    arrow: 'text-stone-400',
-    list: 'border-2 border-[#3b2618] bg-[#0f1526] p-1 shadow-[4px_4px_0_rgba(0,0,0,0.5)]',
+    button: 'border-2 bg-tint/5 px-3 py-2 text-ink hover:bg-tint/10',
+    buttonOpen: 'border-accent-hue/40',
+    buttonClosed: 'border-tint/10',
+    arrow: 'text-ink-muted',
+    list: 'border-2 border-frame bg-surface p-1 shadow-[4px_4px_0_var(--c-shade)]',
     option: 'px-2.5 py-1.5',
   },
 } as const
@@ -149,7 +149,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
 
 <template>
   <div ref="root" class="relative" :class="hideLabel ? '' : 'space-y-2'">
-    <span :id="labelId" :class="hideLabel ? 'sr-only' : 'block text-sm font-medium text-stone-200'">{{ label }}</span>
+    <span :id="labelId" :class="hideLabel ? 'sr-only' : 'block text-sm font-medium text-ink-soft'">{{ label }}</span>
 
     <button
       ref="buttonRef"
@@ -193,7 +193,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
         <template v-for="(option, index) in options" :key="option.value">
         <li
           v-if="option.group && option.group !== options[index - 1]?.group"
-          class="mx-2 mt-1 border-t border-white/10 px-1 pb-1 pt-2 text-[11px] tracking-wide text-amber-200/70"
+          class="mx-2 mt-1 border-t border-tint/10 px-1 pb-1 pt-2 text-[11px] tracking-wide text-warn"
           role="presentation"
         >
           {{ option.group }}
@@ -202,8 +202,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
           class="flex cursor-pointer items-center justify-between text-sm transition"
           :class="[
             style.option,
-            index === activeIndex ? 'bg-white/10 text-stone-50' : 'text-stone-300',
-            option.value === modelValue ? 'text-amber-100' : '',
+            index === activeIndex ? 'bg-tint/10 text-ink' : 'text-ink-muted',
+            option.value === modelValue ? 'text-accent' : '',
           ]"
           :data-active="index === activeIndex"
           role="option"
@@ -212,7 +212,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onPointerDown)
           @click="choose(index)"
         >
           <span>{{ option.label }}</span>
-          <span v-if="option.value === modelValue" class="text-amber-200" aria-hidden="true">✓</span>
+          <span v-if="option.value === modelValue" class="text-warn" aria-hidden="true">✓</span>
         </li>
         </template>
       </ul>

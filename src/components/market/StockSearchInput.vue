@@ -135,7 +135,7 @@ onBeforeUnmount(clearPending)
       role="combobox"
       autocomplete="off"
       :aria-expanded="open && results.length > 0"
-      class="w-full min-w-0 border-2 border-white/10 bg-white/5 px-3 py-2 text-body text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
+      class="w-full min-w-0 border-2 border-tint/10 bg-tint/5 px-3 py-2 text-body text-ink outline-none placeholder:text-ink-muted focus:border-accent-hue/40"
       :placeholder="placeholder"
       @focus="onFocus"
       @blur="onBlur"
@@ -145,11 +145,11 @@ onBeforeUnmount(clearPending)
     <ul
       v-if="open && query.trim() && (results.length || status !== 'idle')"
       role="listbox"
-      class="absolute left-0 right-0 top-full z-30 mt-1 max-h-72 overflow-y-auto border-2 border-white/15 bg-[#0f1526] py-1 shadow-xl shadow-black/40"
+      class="absolute left-0 right-0 top-full z-30 mt-1 max-h-72 overflow-y-auto border-2 border-tint/15 bg-surface py-1 shadow-xl shadow-shade"
     >
-      <li v-if="status === 'loading' && results.length === 0" class="px-3 py-2 text-body text-stone-300">搜尋中…</li>
-      <li v-else-if="status === 'error'" class="px-3 py-2 text-body text-rose-200">搜尋暫時失敗，可以直接按新增讓系統判斷。</li>
-      <li v-else-if="status === 'ready' && results.length === 0" class="px-3 py-2 text-body text-stone-300">
+      <li v-if="status === 'loading' && results.length === 0" class="px-3 py-2 text-body text-ink-muted">搜尋中…</li>
+      <li v-else-if="status === 'error'" class="px-3 py-2 text-body text-danger">搜尋暫時失敗，可以直接按新增讓系統判斷。</li>
+      <li v-else-if="status === 'ready' && results.length === 0" class="px-3 py-2 text-body text-ink-muted">
         找不到符合的{{ market === 'tw' ? '台股' : '美股' }}
       </li>
       <li
@@ -158,14 +158,14 @@ onBeforeUnmount(clearPending)
         role="option"
         :aria-selected="index === highlighted"
         class="flex cursor-pointer items-center gap-3 px-3 py-2 text-body"
-        :class="index === highlighted ? 'bg-amber-200/15 text-amber-50' : 'text-stone-200 hover:bg-white/10'"
+        :class="index === highlighted ? 'bg-accent-hue/15 text-accent' : 'text-ink-soft hover:bg-tint/10'"
         @mousedown.prevent="choose(target)"
         @mouseenter="highlighted = index"
       >
-        <span class="w-16 shrink-0 tabular-nums text-stone-300">{{ idOf(target) }}</span>
+        <span class="w-16 shrink-0 tabular-nums text-ink-muted">{{ idOf(target) }}</span>
         <span class="min-w-0 flex-1 truncate">{{ target.name }}</span>
-        <span v-if="target.kind === 'index'" class="shrink-0 text-caption text-amber-100/70">指數</span>
-        <span v-else-if="target.exchange === 'otc'" class="shrink-0 text-caption text-stone-300">上櫃</span>
+        <span v-if="target.kind === 'index'" class="shrink-0 text-caption text-accent">指數</span>
+        <span v-else-if="target.exchange === 'otc'" class="shrink-0 text-caption text-ink-muted">上櫃</span>
       </li>
     </ul>
   </div>

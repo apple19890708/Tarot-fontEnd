@@ -11,6 +11,8 @@ import {
 import { computed } from 'vue'
 import { Radar } from 'vue-chartjs'
 
+import { CHART_COLORS } from '../lib/chartPalette'
+
 import type { AnalysisQuant, QuantDimension, QuantLevel, QuantLevels, ReadingCard } from '../types'
 
 // 只註冊雷達圖需要的模組，其餘不註冊以利 tree-shaking
@@ -33,11 +35,11 @@ const DIMENSION_LABELS: Record<QuantDimension, string> = {
 const DIMENSION_ORDER: QuantDimension[] = ['action', 'emotion', 'logic', 'material']
 
 const DIRECTION_STYLES: Record<string, string> = {
-  strongPositive: 'border-emerald-200/40 bg-emerald-300/15 text-emerald-100',
-  positive: 'border-emerald-200/30 bg-emerald-300/10 text-emerald-100',
-  neutral: 'border-white/15 bg-white/5 text-stone-200',
-  negative: 'border-rose-200/30 bg-rose-300/10 text-rose-100',
-  strongNegative: 'border-rose-200/40 bg-rose-300/15 text-rose-100',
+  strongPositive: 'border-down-hue/40 bg-down-hue/15 text-down-ink',
+  positive: 'border-down-hue/30 bg-down-hue/10 text-down-ink',
+  neutral: 'border-tint/15 bg-tint/5 text-ink-soft',
+  negative: 'border-danger-hue/30 bg-danger-hue/10 text-danger',
+  strongNegative: 'border-danger-hue/40 bg-danger-hue/15 text-danger',
 }
 
 // DI 介於 -100~100，換算成 0~100% 的指針位置。數字本身不顯示給使用者
@@ -49,10 +51,10 @@ const radarData = computed(() => ({
     {
       label: '能量分布',
       data: DIMENSION_ORDER.map((key) => props.quant.energy[key]),
-      backgroundColor: 'rgba(252, 211, 77, 0.18)',
-      borderColor: 'rgba(252, 211, 77, 0.8)',
-      pointBackgroundColor: 'rgba(252, 211, 77, 1)',
-      pointBorderColor: 'rgba(15, 23, 42, 1)',
+      backgroundColor: CHART_COLORS.radarFill,
+      borderColor: CHART_COLORS.radar,
+      pointBackgroundColor: CHART_COLORS.radar,
+      pointBorderColor: CHART_COLORS.radarPointBorder,
       borderWidth: 2,
     },
   ],
@@ -74,9 +76,9 @@ const radarOptions = computed(() => ({
     r: {
       min: 0,
       max: radarMax.value,
-      angleLines: { color: 'rgba(255,255,255,0.1)' },
-      grid: { color: 'rgba(255,255,255,0.1)' },
-      pointLabels: { color: 'rgba(231,229,228,0.8)', font: { size: 12 } },
+      angleLines: { color: CHART_COLORS.grid },
+      grid: { color: CHART_COLORS.grid },
+      pointLabels: { color: CHART_COLORS.text, font: { size: 12 } },
       ticks: { display: false, stepSize: radarMax.value / 4 },
     },
   },
@@ -95,9 +97,9 @@ type Meter = {
 }
 
 const METER_FILL: Record<Meter['tone'], string> = {
-  good: 'bg-emerald-300/70',
-  bad: 'bg-rose-300/70',
-  neutral: 'bg-amber-200/80',
+  good: 'bg-down-hue/70',
+  bad: 'bg-up-hue/70',
+  neutral: 'bg-accent-hue/80',
 }
 
 // 焦點集中度不放在這裡，改成雷達圖下方的說明：它描述的就是雷達圖的形狀，
@@ -185,9 +187,9 @@ function isReversed(index: number) {
 
 function shareStyle(item: { index: number; share: number }) {
   if (Math.abs(item.share) < SHARE_DEAD_ZONE) {
-    return 'text-stone-400'
+    return 'text-ink-muted'
   }
-  return item.share > 0 ? 'text-emerald-200/80' : 'text-rose-200/80'
+  return item.share > 0 ? 'text-down-ink' : 'text-danger'
 }
 
 // 牌數太少時 DI 幾乎必然落在中間，這個指標沒什麼資訊量
@@ -196,10 +198,10 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
 </script>
 
 <template>
-  <div class="min-w-0 space-y-4 rounded-[1.5rem] border border-white/10 bg-slate-950/45 p-4 sm:space-y-5 sm:rounded-[1.75rem] sm:p-5">
+  <div class="min-w-0 space-y-4 rounded-[1.5rem] border border-tint/10 bg-sink/45 p-4 sm:space-y-5 sm:rounded-[1.75rem] sm:p-5">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Direction Analysis</p>
-      <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-stone-300/80">
+      <p class="text-[10px] uppercase tracking-[0.2em] text-ink-muted sm:text-xs sm:tracking-[0.3em]">Direction Analysis</p>
+      <span class="rounded-full border border-tint/10 bg-tint/5 px-3 py-1 text-xs text-ink-muted">
         {{ quant.domainLabel }}{{ quant.domainResolvedFrom === 'user' ? '（你指定）' : '' }}
       </span>
     </div>
@@ -207,50 +209,50 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
     <!-- 指向儀表：只給分級與指針位置，不顯示分數 -->
     <section class="space-y-3">
       <div class="flex items-center gap-3">
-        <h3 class="text-base font-semibold text-stone-50 sm:text-lg">整體看起來</h3>
+        <h3 class="text-base font-semibold text-ink sm:text-lg">整體看起來</h3>
         <span class="rounded-full border px-2.5 py-0.5 text-xs font-medium sm:px-3 sm:py-1 sm:text-sm" :class="DIRECTION_STYLES[quant.direction]">
           {{ quant.directionLabel }}
         </span>
       </div>
 
       <div class="pt-1">
-        <div class="relative h-2 rounded-full bg-gradient-to-r from-rose-400/40 via-white/15 to-emerald-400/40">
-          <span class="absolute left-1/2 top-1/2 h-3 w-px -translate-x-1/2 -translate-y-1/2 bg-white/30" />
+        <div class="relative h-2 rounded-full bg-gradient-to-r from-up-hue-2/40 via-tint/15 to-down-hue-2/40">
+          <span class="absolute left-1/2 top-1/2 h-3 w-px -translate-x-1/2 -translate-y-1/2 bg-tint/30" />
           <span
-            class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-950 bg-amber-200 shadow"
+            class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-sink bg-accent-hue shadow"
             :style="{ left: `${pointerPercent}%` }"
           />
         </div>
-        <div class="mt-2 flex justify-between text-xs text-stone-400">
+        <div class="mt-2 flex justify-between text-xs text-ink-muted">
           <span>不順</span>
           <span>參半</span>
           <span>順利</span>
         </div>
         <!-- 牌數少的時候這根指針幾乎必然落在中間，講清楚免得被當成結論 -->
-        <p v-if="directionUnreliable" class="mt-2 text-xs leading-5 text-stone-500">
+        <p v-if="directionUnreliable" class="mt-2 text-xs leading-5 text-ink-muted">
           這次只有 {{ cards.length }} 張牌，這根指針很容易停在中間，參考就好。
         </p>
       </div>
 
       <!-- confidenceLow 的提醒句已在 quant.text 結尾（後端產生），這裡不再另外顯示一次 -->
-      <p class="text-sm leading-7 text-stone-200/85">{{ quant.text }}</p>
+      <p class="text-sm leading-7 text-ink-soft/85">{{ quant.text }}</p>
     </section>
 
     <!-- 四軸能量 -->
     <section class="space-y-2">
-      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">這次的重心落在哪</h3>
-      <p class="text-xs text-stone-400">牌面的能量集中在哪些面向（只看分布，不代表好壞）</p>
+      <h3 class="text-base font-semibold text-ink sm:text-lg">這次的重心落在哪</h3>
+      <p class="text-xs text-ink-muted">牌面的能量集中在哪些面向（只看分布，不代表好壞）</p>
       <div class="relative h-56 w-full min-w-0">
         <Radar :data="radarData" :options="radarOptions" />
       </div>
       <!-- 圖的刻度會跟著峰值縮放，形狀容易看起來比實際集中，用文字補上實際程度 -->
-      <p v-if="mainAxes.length > 0 || focusLabel" class="text-center text-xs text-stone-400">
+      <p v-if="mainAxes.length > 0 || focusLabel" class="text-center text-xs text-ink-muted">
         <template v-if="mainAxes.length > 0">
-          主軸：<span class="text-amber-50">{{ mainAxes.join('、') }}</span>
+          主軸：<span class="text-accent">{{ mainAxes.join('、') }}</span>
         </template>
         <template v-if="mainAxes.length > 0 && focusLabel">｜</template>
         <template v-if="focusLabel">
-          集中度：<span class="text-amber-50">{{ focusLabel }}</span>
+          集中度：<span class="text-accent">{{ focusLabel }}</span>
         </template>
       </p>
     </section>
@@ -260,19 +262,19 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
       <div
         v-for="meter in meters"
         :key="meter.name"
-        class="min-w-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+        class="min-w-0 rounded-2xl border border-tint/10 bg-tint/5 px-4 py-3"
       >
         <div class="flex items-baseline justify-between gap-2 text-sm">
-          <span class="text-stone-300/80">{{ meter.name }}</span>
-          <span class="font-medium text-amber-50">{{ meter.labels[meter.level - 1] }}</span>
+          <span class="text-ink-muted">{{ meter.name }}</span>
+          <span class="font-medium text-accent">{{ meter.labels[meter.level - 1] }}</span>
         </div>
-        <p class="mt-0.5 text-xs leading-5 text-stone-400">{{ meter.hint }}</p>
+        <p class="mt-0.5 text-xs leading-5 text-ink-muted">{{ meter.hint }}</p>
         <div class="mt-2 flex gap-1.5">
           <span
             v-for="step in 3"
             :key="step"
             class="h-1.5 flex-1 rounded-full"
-            :class="step <= meter.level ? METER_FILL[meter.tone] : 'bg-white/10'"
+            :class="step <= meter.level ? METER_FILL[meter.tone] : 'bg-tint/10'"
           />
         </div>
       </div>
@@ -280,17 +282,17 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
 
     <!-- 貢獻排行 -->
     <section v-if="topContributions.length > 0" class="space-y-2">
-      <h3 class="text-base font-semibold text-stone-50 sm:text-lg">每張牌往哪邊拉</h3>
+      <h3 class="text-base font-semibold text-ink sm:text-lg">每張牌往哪邊拉</h3>
       <!-- share 是除以總和後的佔比，再弱的組合也一定有長條，要講清楚免得和「推力」對不上 -->
-      <p class="text-xs leading-5 text-stone-400">
+      <p class="text-xs leading-5 text-ink-muted">
         長條越長，這張牌對結果的影響越大。顏色淡的是逆位，力道比較弱。
       </p>
       <!-- 刻度：和指針用同一組「不順／順利」 -->
-      <div class="flex items-center gap-2 text-[10px] text-stone-500 sm:gap-3 sm:text-xs">
+      <div class="flex items-center gap-2 text-[10px] text-ink-muted sm:gap-3 sm:text-xs">
         <span class="w-20 flex-shrink-0 sm:w-28" />
         <span class="flex flex-1 justify-between">
-          <span class="text-rose-200/60">← 往不順</span>
-          <span class="text-emerald-200/60">往順利 →</span>
+          <span class="text-danger">← 往不順</span>
+          <span class="text-down-ink">往順利 →</span>
         </span>
         <span class="w-12 flex-shrink-0 sm:w-16" />
       </div>
@@ -301,15 +303,15 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
           class="flex items-center gap-2 text-xs sm:gap-3 sm:text-sm"
         >
           <span class="flex w-20 flex-shrink-0 items-baseline gap-1 sm:w-28">
-            <span class="truncate text-stone-200">{{ cardName(item.index) }}</span>
-            <span v-if="isReversed(item.index)" class="flex-shrink-0 text-[10px] text-stone-500">逆位</span>
+            <span class="truncate text-ink-soft">{{ cardName(item.index) }}</span>
+            <span v-if="isReversed(item.index)" class="flex-shrink-0 text-[10px] text-ink-muted">逆位</span>
           </span>
           <!-- 中線為 0，向右往順利、向左往不順 -->
-          <span class="relative h-2 flex-1 rounded-full bg-white/5">
-            <span class="absolute left-1/2 top-0 h-full w-px bg-white/20" />
+          <span class="relative h-2 flex-1 rounded-full bg-tint/5">
+            <span class="absolute left-1/2 top-0 h-full w-px bg-tint/20" />
             <span
               class="absolute top-0 h-full rounded-full"
-              :class="[item.share >= 0 ? 'bg-emerald-300/70' : 'bg-rose-300/70', isReversed(item.index) ? 'opacity-45' : '']"
+              :class="[item.share >= 0 ? 'bg-down-hue/70' : 'bg-up-hue/70', isReversed(item.index) ? 'opacity-45' : '']"
               :style="
                 item.share >= 0
                   ? { left: '50%', width: `${Math.abs(item.share) * 50}%` }
