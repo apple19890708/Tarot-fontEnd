@@ -4,11 +4,13 @@ import { computed, onActivated, onMounted, ref } from 'vue'
 import { fetchMarketOverview } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { useCooldown } from '../../lib/useCooldown'
+import HelpTip from '../HelpTip.vue'
 import RefreshButton from '../RefreshButton.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import MarketChips from './MarketChips.vue'
+import MarketQuoteDialog from './MarketQuoteDialog.vue'
 import MarketSparkline from './MarketSparkline.vue'
-import type { MarketBreadth, MarketIndexCard, MarketOverview } from '../../types'
+import type { MarketBreadth, MarketFuturesQuote, MarketIndexCard, MarketOverview } from '../../types'
 
 // 大盤概況：主要指數、漲跌家數、類股漲跌熱力圖、三大法人、美股與匯率。資料由後端整理（快取 10 分鐘）
 const overview = ref<MarketOverview | null>(null)
@@ -85,6 +87,82 @@ function breadthParts(b: MarketBreadth) {
 const sectorDate = computed(() => overview.value?.sectors[0]?.date ?? null)
 const priceDigits = (card: MarketIndexCard) => (card.symbol === 'TWD=X' ? 3 : 2)
 
+// ---- 最上方的重點卡：加權指數、台指期夜盤、那斯達克、費城半導體、美元兌台幣 ----
+// 下面各區塊照樣完整顯示，這裡只是把最常看的幾個拉到最上面；某一個抓不到就少一張
+type Highlight = {
+  key: string
+  name: string
+  price: number | null
+  digits: number
+  change: number | null
+  changePct: number | null
+  // 卡片下方的小字：盤中／收盤日期、夜盤的合約與時間
+  note: string
+  // 點開走勢彈窗用：指數與匯率給 symbol；台指期夜盤沒有歷史走勢，給 futures 只顯示即時數字
+  symbol: string | null
+  futures: MarketFuturesQuote | null
+}
+
+// 點了哪一張重點卡（開走勢彈窗）
+const opened = ref<Highlight | null>(null)
+
+const shortDay = (date: string | null) => (date ? date.slice(5).replace('-', '/') : '')
+
+const highlights = computed<Highlight[]>(() => {
+  const o = overview.value
+  if (!o) return []
+  const fromCard = (card: MarketIndexCard | undefined, name: string): Highlight | null =>
+    card
+      ? {
+          key: card.symbol ?? name,
+          name,
+          price: card.price,
+          digits: priceDigits(card),
+          change: card.change,
+          changePct: card.changePct,
+          note: card.session === 'intraday' ? '盤中' : `收盤 ${shortDay(card.date)}`,
+          symbol: card.symbol,
+          futures: null,
+        }
+      : null
+  const night = o.futures?.night
+  const list = [
+    fromCard(o.tw.find((card) => card.symbol === '^TWII') ?? o.tw[0], '加權指數'),
+    night
+      ? {
+          key: 'txf-night',
+          name: '台指期夜盤',
+          price: night.price,
+          digits: 0,
+          change: night.change,
+          changePct: night.changePct,
+          note: [night.contract, night.date && `${shortDay(night.date)} ${night.time?.slice(0, 5) ?? ''}`].filter(Boolean).join('・'),
+          symbol: null,
+          futures: night,
+        }
+      : null,
+    fromCard(o.us.find((card) => card.symbol === '^IXIC'), '那斯達克'),
+    fromCard(o.us.find((card) => card.symbol === '^SOX'), '費城半導體'),
+    fromCard(o.us.find((card) => card.symbol === 'TWD=X'), '美元兌台幣'),
+  ]
+  return list.filter((item): item is Highlight => item !== null)
+})
+
+// 台股指數區塊：加權指數已經放在重點卡，這裡只留其他（櫃買指數）
+const twCards = computed(() => (overview.value?.tw ?? []).filter((card) => card.symbol !== '^TWII'))
+
+// ---- 美國總經數據：通膨看年增率（和上個月的年增率比，升溫或降溫），非農看新增人數 ----
+const monthText = (month: string) => `${Number(month.slice(5, 7))} 月`
+// 千人 → 萬人：165 → +16.5 萬人
+const jobsText = (thousands: number) => `${thousands > 0 ? '+' : ''}${formatNumber(thousands / 10, 1)} 萬人`
+
+// 通膨升溫不是「漲」的好事，不用紅綠（紅綠在這裡代表股價漲跌），用琥珀＝升溫、天藍＝降溫
+function inflationTrend(yoy: number, prevYoy: number) {
+  if (yoy > prevYoy) return { label: '升溫', class: 'text-amber-200' }
+  if (yoy < prevYoy) return { label: '降溫', class: 'text-sky-200' }
+  return { label: '持平', class: 'text-stone-300' }
+}
+
 // 美股區塊分組；舊版後端沒有 group 時全部放在第一組
 const US_GROUPS: { key: NonNullable<MarketIndexCard['group']>; title: string }[] = [
   { key: 'index', title: '美股主要指數' },
@@ -116,10 +194,13 @@ function timeText(value: string) {
       <RefreshButton label="更新" :loading="status === 'loading' || refreshing" :failed="!!error" :cooldown="cooldown" @click="refresh" />
     </div>
 
-    <!-- 載入中：指數卡、漲跌家數、熱力圖、法人、美股 -->
+    <!-- 載入中：重點卡、指數卡、漲跌家數、熱力圖、法人、美股 -->
     <div v-if="status === 'loading'" class="space-y-5">
+      <div v-for="row in 2" :key="row" class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <SkeletonBlock v-for="n in 5" :key="n" class="h-[6.5rem] w-full rounded-none" />
+      </div>
       <div class="grid gap-3 sm:grid-cols-2">
-        <SkeletonBlock v-for="n in 2" :key="n" class="h-28 w-full rounded-none" />
+        <SkeletonBlock class="h-28 w-full rounded-none" />
       </div>
       <div class="grid gap-3 sm:grid-cols-2">
         <SkeletonBlock v-for="n in 2" :key="n" class="h-14 w-full rounded-none" />
@@ -147,9 +228,67 @@ function timeText(value: string) {
         更新於 {{ timeText(overview.asOf) }}<template v-if="error">｜{{ error }}</template>
       </p>
 
-      <!-- ── 台股指數 ── -->
-      <div class="grid gap-3 sm:grid-cols-2">
-        <div v-for="card in overview.tw" :key="card.name" class="flex items-center justify-between gap-3 border-2 border-white/10 bg-white/[0.03] p-3">
+      <!-- ── 重點卡：最常看的五個，數字放大 ── -->
+      <div v-if="highlights.length" class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <!-- 點了開走勢彈窗（線圖、開高低、52 週高低） -->
+        <button
+          v-for="item in highlights"
+          :key="item.key"
+          type="button"
+          class="min-w-0 cursor-pointer border-2 border-amber-200/25 bg-amber-200/[0.06] p-3 text-left transition hover:border-amber-200/50 hover:bg-amber-200/10 active:translate-x-[2px] active:translate-y-[2px]"
+          :aria-label="`${item.name} 走勢`"
+          @click="opened = item"
+        >
+          <p class="flex items-center justify-between gap-2 text-body text-amber-100">
+            <span class="truncate">{{ item.name }}</span>
+            <span class="shrink-0 text-caption text-amber-200/70" aria-hidden="true">走勢 ›</span>
+          </p>
+          <p class="mt-0.5 text-title font-semibold tabular-nums text-stone-50">{{ formatNumber(item.price, item.digits) }}</p>
+          <p class="text-body tabular-nums" :class="trendClass(item.change)">
+            {{ formatSigned(item.change) }}（{{ formatSigned(item.changePct, '%') }}）
+          </p>
+          <p class="truncate text-caption text-stone-300">{{ item.note }}</p>
+        </button>
+      </div>
+      <MarketQuoteDialog
+        v-if="opened"
+        :name="opened.name"
+        :symbol="opened.symbol"
+        :futures="opened.futures"
+        :digits="opened.digits"
+        @close="opened = null"
+      />
+
+      <!-- ── 美國總經數據（每月公布一次） ── -->
+      <div v-if="overview.macro?.length" class="space-y-1.5">
+        <p class="text-body text-stone-300">美國經濟數據</p>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <div v-for="item in overview.macro" :key="item.key" class="min-w-0 border-2 border-sky-200/20 bg-sky-200/[0.04] p-3">
+            <p class="flex items-center gap-1.5 text-body text-sky-100">
+              <span class="truncate">{{ item.name }}</span>
+              <HelpTip :term="item.key" />
+            </p>
+            <template v-if="item.kind === 'inflation'">
+              <p class="mt-0.5 text-title font-semibold tabular-nums text-stone-50">{{ formatNumber(item.yoy, 1) }}%</p>
+              <p class="text-body tabular-nums">
+                <span :class="inflationTrend(item.yoy, item.prevYoy).class">{{ inflationTrend(item.yoy, item.prevYoy).label }}</span>
+                <span class="text-stone-300">（上月 {{ formatNumber(item.prevYoy, 1) }}%）</span>
+              </p>
+              <p class="truncate text-caption text-stone-300">{{ monthText(item.month) }}年增率・月增 {{ formatNumber(item.mom, 1) }}%</p>
+            </template>
+            <template v-else>
+              <p class="mt-0.5 text-title font-semibold tabular-nums text-stone-50">{{ jobsText(item.change) }}</p>
+              <p class="text-body tabular-nums text-stone-300">上月 {{ jobsText(item.prevChange) }}</p>
+              <p class="truncate text-caption text-stone-300">{{ monthText(item.month) }}新增就業</p>
+            </template>
+          </div>
+        </div>
+        <p class="text-caption text-stone-300">資料來自聖路易聯準銀行 FRED（美國官方公布值）；免費來源沒有市場預期值，只和上個月比。</p>
+      </div>
+
+      <!-- ── 台股指數（加權指數已在重點卡，這裡不重複） ── -->
+      <div v-if="twCards.length" class="grid gap-3 sm:grid-cols-2">
+        <div v-for="card in twCards" :key="card.name" class="flex items-center justify-between gap-3 border-2 border-white/10 bg-white/[0.03] p-3">
           <div class="min-w-0">
             <p class="flex items-center gap-2 text-body text-stone-300">
               {{ card.name }}

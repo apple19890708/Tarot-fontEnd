@@ -10,6 +10,9 @@ import type {
   FinanceNewsScopeRegion,
   FinanceNewsView,
   HealthResponse,
+  IndexChart,
+  IndexChartRange,
+  MarketFuturesQuote,
   ManualCardPick,
   MarketAlert,
   MarketAlertKind,
@@ -348,6 +351,16 @@ export function screenMarket(filters: MarketScreenFilters) {
 // 大盤概況：主要指數、漲跌家數、類股漲跌、三大法人、美股與匯率（後端快取 10 分鐘）
 export function fetchMarketOverview() {
   return request<{ overview: MarketOverview }>('/api/market/overview')
+}
+
+// 大盤概況重點卡的走勢彈窗：只能查大盤概況裡的指數與匯率
+export function fetchIndexChart(symbol: string, range: IndexChartRange) {
+  return request<{ chart: IndexChart }>(`/api/market/index-chart?symbol=${encodeURIComponent(symbol)}&range=${range}`)
+}
+
+// 台指期夜盤的分鐘走勢（期交所，當次夜盤 15:00～隔天 05:00）
+export function fetchFuturesChart() {
+  return request<{ chart: { quote: MarketFuturesQuote; points: { t: string; close: number }[] } }>('/api/market/futures-chart')
 }
 
 // 資產走勢：每日快照與大盤比較

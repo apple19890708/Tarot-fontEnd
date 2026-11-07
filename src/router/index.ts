@@ -14,6 +14,7 @@ const ResetPasswordView = () => import('../pages/ResetPasswordView.vue')
 const PrivacyView = () => import('../pages/PrivacyView.vue')
 
 // meta.auth：要登入；meta.role：要指定角色；meta.guest：已登入就不該再看到（登入／註冊頁）
+// meta.wide：資料多的頁面，桌機的內容區放寬到 1600px（一般頁面 1280px）
 // meta.hidden：不列在導覽列（重設密碼頁：從信裡的連結進來，已登入的人也要能打開，所以不能用 guest）
 // meta.stock：要有金融股市權限（admin 或被開通的會員），例如股市追蹤
 // meta.scene：像素世界的場景（city 街景、door 居酒屋門口、interior 店內）；沒寫就是 sky 星夜
@@ -21,7 +22,7 @@ const PrivacyView = () => import('../pages/PrivacyView.vue')
 const routes = [
   { path: '/', name: 'home', component: HomeView, meta: { title: '占卜', scene: 'city', sceneDim: 0 } },
   { path: '/history', name: 'history', component: HistoryView, meta: { auth: true, title: '我的紀錄', scene: 'interior' } },
-  { path: '/market', name: 'market', component: MarketTrackView, meta: { auth: true, stock: true, title: '股市追蹤', scene: 'interior' } },
+  { path: '/market', name: 'market', component: MarketTrackView, meta: { auth: true, stock: true, title: '股市追蹤', scene: 'interior', wide: true } },
   { path: '/login', name: 'login', component: LoginView, meta: { guest: true, title: '登入', scene: 'door', sceneDim: 0.1 } },
   { path: '/register', name: 'register', component: RegisterView, meta: { guest: true, title: '註冊', scene: 'door', sceneDim: 0.1 } },
   { path: '/forgot-password', name: 'forgot-password', component: ForgotPasswordView, meta: { guest: true, title: '忘記密碼', scene: 'door', sceneDim: 0.1 } },

@@ -207,8 +207,8 @@ function signOut() {
 
 		<!-- 過場中先隱形（版面照占位，淡入時不會跳動），播完再用 0.3 秒淡入 -->
 		<main
-			class="mx-auto w-full min-w-0 max-w-7xl px-4 py-3 transition-opacity duration-300 ease-out motion-reduce:transition-none sm:p-5"
-			:class="contentHidden ? 'invisible opacity-0' : 'opacity-100'"
+			class="mx-auto w-full min-w-0 px-4 py-3 transition-opacity duration-300 ease-out motion-reduce:transition-none sm:p-5"
+			:class="[contentHidden ? 'invisible opacity-0' : 'opacity-100', route.meta?.wide ? 'max-w-[1600px]' : 'max-w-7xl']"
 		>
 			<router-view />
 		</main>

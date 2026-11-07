@@ -20,10 +20,11 @@ onMounted(async () => {
       ux_mode: 'popup',
       callback: (response) => emit('credential', response.credential),
     })
+    // 白底（outline）在深色卡片上最清楚；方角和上面的「登入」按鈕一致，不用藥丸形
     google.accounts.id.renderButton(container.value, {
-      theme: 'filled_black',
+      theme: 'outline',
       size: 'large',
-      shape: 'pill',
+      shape: 'rectangular',
       text: props.mode === 'signup' ? 'signup_with' : 'signin_with',
       // Google 按鈕寬度上限 400px
       width: Math.min(400, container.value.offsetWidth || 320),
@@ -37,9 +38,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-if="googleClientId" class="space-y-2">
+  <div v-if="googleClientId" class="space-y-3">
     <!-- 「或」分隔線 -->
-    <div class="flex items-center gap-3 text-xs text-stone-300">
+    <div class="flex items-center gap-3 text-caption text-stone-300">
       <span class="h-px flex-1 bg-white/10" />
       或
       <span class="h-px flex-1 bg-white/10" />
@@ -47,8 +48,8 @@ onMounted(async () => {
     <!-- 載入中先放同高度的佔位，避免版面跳動 -->
     <div class="relative flex min-h-[44px] justify-center">
       <div ref="container" class="flex w-full justify-center" />
-      <div v-if="status === 'loading'" class="absolute inset-0 animate-pulse rounded-full bg-white/10" />
+      <div v-if="status === 'loading'" class="absolute inset-0 animate-pulse rounded bg-white/10" />
     </div>
-    <p v-if="status === 'error'" class="text-center text-xs text-rose-200">Google 登入暫時載入不了，請重新整理或改用 email 登入。</p>
+    <p v-if="status === 'error'" class="text-center text-caption text-rose-200">Google 登入暫時載入不了，請重新整理或改用 email 登入。</p>
   </div>
 </template>

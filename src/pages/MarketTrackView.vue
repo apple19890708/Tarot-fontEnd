@@ -15,9 +15,9 @@ import type { MarketAlertTarget } from '../types'
 // 股市追蹤：自訂股票追蹤、大盤概況、財經新聞、選股、參考命中（建議自動對答案）、價位提醒等分頁。
 // 限 admin 與開通金融股市的會員（路由 meta.stock）。目前的分頁放在網址 ?tab=，重新整理或分享時會停在同一頁
 const TABS = [
-  { key: 'watch', label: '自訂股票追蹤' },
   { key: 'overview', label: '大盤概況' },
   { key: 'news', label: '財經新聞' },
+  { key: 'watch', label: '自訂股票追蹤' },
   { key: 'screen', label: '選股' },
   { key: 'hits', label: '參考命中' },
   { key: 'alerts', label: '價位提醒' },
@@ -29,7 +29,8 @@ const router = useRouter()
 
 const activeTab = computed<TabKey>(() => {
   const tab = route.query.tab
-  return TABS.some((t) => t.key === tab) ? (tab as TabKey) : 'watch'
+  // 沒指定分頁時開第一個（大盤概況）
+  return TABS.some((t) => t.key === tab) ? (tab as TabKey) : TABS[0].key
 })
 
 function selectTab(key: TabKey) {

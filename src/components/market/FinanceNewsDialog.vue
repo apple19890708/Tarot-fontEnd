@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { fetchFinanceNewsDigest } from '../../lib/api'
+import { NEWS_TONES } from '../../lib/newsTone'
 import { useScrollLock } from '../../lib/useScrollLock'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import type { FinanceNewsDigest, FinanceNewsItem, FinanceNewsTheme } from '../../types'
@@ -40,12 +41,8 @@ async function load() {
   }
 }
 
-// 台股慣例：偏多紅、偏空綠
-const TONES = {
-  positive: { label: '語氣偏多', class: 'border-rose-300/40 bg-rose-300/10 text-rose-100' },
-  negative: { label: '語氣偏空', class: 'border-emerald-300/40 bg-emerald-300/10 text-emerald-100' },
-  neutral: { label: '語氣中性', class: 'border-white/15 bg-white/5 text-stone-300' },
-} as const
+// 語氣標籤和清單卡片共用（lib/newsTone.ts）
+const TONES = NEWS_TONES
 
 // 族群依據的主要主題（後端用全文判斷，可能和列表上的主題標籤不同）
 const themeLabels = computed(() => (digest.value?.groups ?? []).map((g) => g.label))

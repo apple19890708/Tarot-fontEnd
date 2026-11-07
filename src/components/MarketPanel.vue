@@ -284,7 +284,8 @@ function indicatorRows(item: MarketItem) {
 
         <!-- 分頁籤模式：操作建議、籌碼與估值、歷史回測與模型 -->
         <div v-if="tabs && tabsOf(item).length" class="border-t-2 border-amber-200/20 pt-4" data-panel-section="操作建議・籌碼・回測">
-          <div role="tablist" aria-label="分析分頁" class="flex overflow-x-auto border-b-2 border-white/10">
+          <!-- overflow-y-hidden：分頁往下凸 2px 蓋住底線，不加的話會冒出上下捲軸 -->
+          <div role="tablist" aria-label="分析分頁" class="flex overflow-x-auto overflow-y-hidden border-b-2 border-white/10">
             <button
               v-for="(tab, index) in tabsOf(item)"
               :id="`panel-tab-${itemKey(item)}-${tab.key}`"

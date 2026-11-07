@@ -3,6 +3,7 @@ import { computed, onActivated, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { fetchFinanceNews, fetchFinanceNewsAnalysis, streamFinanceNewsAnalysis } from '../../lib/api'
 import { canUseAi } from '../../lib/auth'
+import { NEWS_TONES } from '../../lib/newsTone'
 import { useCooldown } from '../../lib/useCooldown'
 import RefreshButton from '../RefreshButton.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
@@ -449,6 +450,15 @@ function isTodayInTaipei(iso: string) {
             </span>
             <span>{{ item.sourceLabel }}</span>
             <time :datetime="item.publishedAt" :title="dateTime(item.publishedAt)">{{ timeAgo(item.publishedAt) }}</time>
+            <!-- 語氣：只標偏多、偏空（中性不標，卡片才不會太雜）；用詞統計，不是預測 -->
+            <span
+              v-if="item.tone && item.tone !== 'neutral'"
+              class="border px-1.5"
+              :class="NEWS_TONES[item.tone].class"
+              title="依標題與內容的漲跌用詞判斷，不是預測"
+            >
+              {{ NEWS_TONES[item.tone].label }}
+            </span>
             <!-- 最多列 2 檔，其他的顯示「更多（+N）」（不展開，點新聞進彈窗看全部） -->
             <span v-if="item.watched?.length" class="border border-rose-300/40 bg-rose-300/10 px-1.5 text-rose-100" :title="item.watched.join('、')">
               與我追蹤相關：{{ item.watched.slice(0, 2).join('、') }}<span v-if="item.watched.length > 2" class="ml-1 text-rose-200/70">更多（+{{ item.watched.length - 2 }}）</span>

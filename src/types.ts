@@ -955,7 +955,53 @@ export interface MarketOverview {
   sectors: MarketSector[]
   // 上市三大法人買賣超（億元，最近 5 個交易日）
   institutional: MarketChips | null
+  // 台指期夜盤近月合約（期交所）；舊版後端沒有、或夜盤沒有成交時是 null
+  futures?: { night: MarketFuturesQuote | null }
+  // 美國總經數據（FRED）；舊版後端沒有
+  macro?: MarketMacroItem[]
   notes: string[]
+}
+
+// 台指期報價（大盤概況最上方的重點卡）：漲跌和參考價比，夜盤的參考價是當天日盤的結算價
+export interface MarketFuturesQuote {
+  session: 'day' | 'night'
+  // 「臺指期116」：民國年＋月份
+  contract: string | null
+  price: number
+  refPrice: number | null
+  change: number | null
+  changePct: number | null
+  open: number | null
+  high: number | null
+  low: number | null
+  volume: number | null
+  date: string | null
+  time: string | null
+}
+
+// 美國總經數據：通膨（CPI、PCE）看年增率；非農看當月新增就業人數（千人）。month 是數據所屬月份 YYYY-MM
+export type MarketMacroItem =
+  | { key: 'cpi' | 'coreCpi' | 'pce' | 'corePce'; name: string; kind: 'inflation'; month: string; yoy: number; prevYoy: number; mom: number }
+  | { key: 'nfp'; name: string; kind: 'jobs'; month: string; change: number; prevChange: number }
+
+// 大盤概況重點卡點開的走勢彈窗（像 Google 財經）：range 是時間範圍，baseline 是範圍起點（1 天是上次收盤價）
+export type IndexChartRange = '1d' | '5d' | '1mo' | '6mo' | 'ytd' | '1y' | '5y'
+export interface IndexChart {
+  symbol: string
+  name: string
+  range: IndexChartRange
+  currency: string | null
+  // 交易所的時區（例如 Asia/Taipei、America/New_York），橫軸時間用它顯示
+  timezone: string | null
+  time: string | null
+  price: number | null
+  dayChange: number | null
+  dayChangePct: number | null
+  baseline: number | null
+  rangeChange: number | null
+  rangeChangePct: number | null
+  stats: { open: number | null; high: number | null; low: number | null; prevClose: number | null; high52: number | null; low52: number | null }
+  points: { t: string; close: number }[]
 }
 
 // ===== 自訂股票追蹤 =====
@@ -1247,6 +1293,8 @@ export interface FinanceNewsItem {
   codes: string[]
   // 其中在我追蹤清單裡的代號
   watched?: string[]
+  // 語氣（漲跌用詞統計）：打開過新聞重點的用全文算，其他用標題＋摘要；舊版後端沒有
+  tone?: 'positive' | 'negative' | 'neutral'
   // 同一件事的報導有相同的值（群裡最新那則的 id）；舊版後端沒有，就當成各自一則
   clusterId?: string
 }
