@@ -73,20 +73,20 @@ onBeforeUnmount(() => {
       v-if="open"
       class="absolute right-0 top-full z-10 mt-2 max-h-[60vh] w-56 overflow-y-auto border-2 border-[#3b2618] bg-[#0f1526] p-3 shadow-[4px_4px_0_rgba(0,0,0,0.5)]"
     >
-      <p class="text-xs text-amber-100/70">跳到段落</p>
+      <p class="text-caption text-amber-100/70">跳到段落</p>
       <ul v-if="list.length" class="mt-2 space-y-0.5">
         <li v-for="(item, index) in list" :key="`${index}-${item.label}`">
           <button
             type="button"
             class="w-full cursor-pointer px-2 py-1 text-left transition hover:bg-white/10 hover:text-amber-100"
-            :class="item.level === 2 ? 'pl-5 text-xs text-stone-300/80' : 'text-sm text-stone-100'"
+            :class="item.level === 2 ? 'pl-5 text-caption text-stone-300' : 'text-body text-stone-100'"
             @click="jump(item)"
           >
-            <span v-if="item.level === 2" class="mr-1 text-stone-500" aria-hidden="true">·</span>{{ item.label }}
+            <span v-if="item.level === 2" class="mr-1 text-stone-300" aria-hidden="true">·</span>{{ item.label }}
           </button>
         </li>
       </ul>
-      <p v-else class="mt-2 text-xs text-stone-400">內容還在載入。</p>
+      <p v-else class="mt-2 text-body text-stone-300">內容還在載入。</p>
     </div>
   </div>
 </template>

@@ -177,7 +177,7 @@ function dateText(value: string | null) {
 }
 
 const BUTTON =
-  'shrink-0 cursor-pointer touch-manipulation border-2 px-3 py-1.5 text-[14px] transition active:translate-x-[2px] active:translate-y-[2px] active:brightness-125 disabled:cursor-not-allowed disabled:opacity-60 disabled:translate-x-0 disabled:translate-y-0 font-pixel'
+  'shrink-0 cursor-pointer touch-manipulation border-2 px-3 py-1.5 text-button transition active:translate-x-[2px] active:translate-y-[2px] active:brightness-125 disabled:cursor-not-allowed disabled:opacity-60 disabled:translate-x-0 disabled:translate-y-0 font-pixel'
 const PRIMARY = 'border-amber-200/40 bg-amber-200/15 text-amber-50 hover:bg-amber-200/25'
 const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
 </script>
@@ -185,8 +185,8 @@ const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
 <template>
   <div class="space-y-3 border-2 border-white/10 bg-white/[0.03] p-3">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <p class="text-sm text-stone-100">到價推播</p>
-      <span v-if="anyChannel" class="border border-emerald-300/40 px-2 py-0.5 text-[11px] text-emerald-200">已開啟</span>
+      <p class="text-body text-stone-100">到價推播</p>
+      <span v-if="anyChannel" class="border border-emerald-300/40 px-2 py-0.5 text-caption text-emerald-200">已開啟</span>
     </div>
 
     <!-- 載入中：說明列、按鈕列 -->
@@ -198,7 +198,7 @@ const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
       </div>
     </div>
 
-    <div v-else-if="loadStatus === 'error'" class="flex flex-wrap items-center gap-3 text-xs text-rose-200">
+    <div v-else-if="loadStatus === 'error'" class="flex flex-wrap items-center gap-3 text-body text-rose-200">
       <span>{{ error }}</span>
       <button type="button" :class="[BUTTON, 'border-rose-200/30']" @click="load">重試</button>
     </div>
@@ -206,24 +206,24 @@ const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
     <template v-else-if="status">
       <!-- ── 瀏覽器推播（所有人）── -->
       <div class="space-y-2">
-        <p v-if="!status.push.available" class="text-xs leading-5 text-stone-400">
+        <p v-if="!status.push.available" class="text-body text-stone-300">
           伺服器還沒開放推播，目前只有網頁開著時才會檢查提醒。
         </p>
-        <p v-else-if="support === 'ios-needs-install'" class="text-xs leading-5 text-amber-100/90">
+        <p v-else-if="support === 'ios-needs-install'" class="text-body text-amber-100/90">
           iPhone／iPad 要先把網站加到主畫面：用 Safari 開啟 → 下方「分享」→「加入主畫面」，再從主畫面的圖示開啟網站，回到這裡開啟通知（iOS 16.4 以上）。
         </p>
-        <p v-else-if="support === 'unsupported'" class="text-xs leading-5 text-stone-400">這個瀏覽器不支援推播通知，請改用 Chrome、Edge、Firefox 或 Safari。</p>
+        <p v-else-if="support === 'unsupported'" class="text-body text-stone-300">這個瀏覽器不支援推播通知，請改用 Chrome、Edge、Firefox 或 Safari。</p>
 
         <template v-else>
-          <p class="text-xs leading-5 text-stone-400">
+          <p class="text-body text-stone-300">
             開啟後，網頁關著也會跳出到價通知（交易時段約每 10 分鐘檢查一次，可能晚幾分鐘）。每台裝置要分別開啟。
           </p>
-          <p v-if="permissionDenied && !thisDevice" class="text-xs leading-5 text-rose-200">
+          <p v-if="permissionDenied && !thisDevice" class="text-body text-rose-200">
             這個瀏覽器封鎖了本站的通知，請到網址列左邊的網站設定把「通知」改成允許，再重新整理。
           </p>
           <div class="flex flex-wrap items-center gap-2">
             <template v-if="thisDevice">
-              <span class="text-xs text-emerald-200">這台裝置（{{ thisDevice.label || '目前的瀏覽器' }}）已開啟</span>
+              <span class="text-body text-emerald-200">這台裝置（{{ thisDevice.label || '目前的瀏覽器' }}）已開啟</span>
               <button type="button" :class="[BUTTON, SECONDARY]" :disabled="busy !== ''" @click="disablePush">
                 {{ busy === 'push-off' ? '關閉中…' : '關閉這台' }}
               </button>
@@ -237,16 +237,16 @@ const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
           </div>
         </template>
 
-        <p v-if="pushMessage" class="text-xs text-emerald-200">{{ pushMessage }}</p>
-        <p v-if="pushError" class="text-xs leading-5 text-rose-200">{{ pushError }}</p>
+        <p v-if="pushMessage" class="text-body text-emerald-200">{{ pushMessage }}</p>
+        <p v-if="pushError" class="text-body text-rose-200">{{ pushError }}</p>
 
         <!-- 其他已開啟的裝置（換手機、換電腦時可以在這裡移除舊的） -->
-        <ul v-if="otherDevices.length" class="space-y-1 text-xs">
-          <li class="text-stone-500">其他已開啟的裝置</li>
+        <ul v-if="otherDevices.length" class="space-y-1 text-body">
+          <li class="text-stone-300">其他已開啟的裝置</li>
           <li v-for="device in otherDevices" :key="device.id" class="flex flex-wrap items-center gap-2">
             <span class="text-stone-300">{{ device.label || '未命名裝置' }}</span>
-            <span class="text-stone-500">{{ dateText(device.createdAt) }}</span>
-            <button type="button" class="cursor-pointer border border-white/15 px-1.5 text-[14px] text-stone-400 transition hover:bg-white/10" :disabled="busy !== ''" @click="removeDevice(device.id)">
+            <span class="text-stone-300">{{ dateText(device.createdAt) }}</span>
+            <button type="button" class="cursor-pointer border border-white/15 px-1.5 text-button text-stone-300 transition hover:bg-white/10" :disabled="busy !== ''" @click="removeDevice(device.id)">
               移除
             </button>
           </li>
@@ -254,14 +254,14 @@ const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
       </div>
 
       <!-- ── Discord（只有管理者會拿到 status.discord）── -->
-      <details v-if="status.discord" class="border-t border-white/10 pt-2 text-xs">
+      <details v-if="status.discord" class="border-t border-white/10 pt-2 text-body">
         <summary class="cursor-pointer text-stone-300 marker:text-stone-200 hover:text-stone-100">
           Discord 通知（管理者專用）
           <span v-if="status.discord.linked" class="ml-1 text-emerald-200">已綁定</span>
         </summary>
         <div class="mt-2 space-y-2">
           <template v-if="status.discord.linked && !editingDiscord">
-            <p class="leading-5 text-stone-400">
+            <p class="leading-5 text-stone-300">
               {{ dateText(status.discord.linkedAt) }} 綁定（<span class="font-mono text-stone-300">{{ status.discord.hint }}</span>）。
             </p>
             <div class="flex flex-wrap gap-2">
@@ -270,7 +270,7 @@ const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
             </div>
           </template>
           <template v-else>
-            <p class="leading-5 text-stone-400">
+            <p class="leading-5 text-stone-300">
               頻道「編輯頻道」→「整合」→「Webhook」→「新 Webhook」→「複製 Webhook 網址」，貼到下面。後端會先送一則確認訊息，成功才儲存；之後不會再顯示完整網址。
             </p>
             <form class="flex flex-wrap gap-2" @submit.prevent="link">
@@ -280,7 +280,7 @@ const SECONDARY = 'border-white/15 text-stone-300 hover:bg-white/10'
                 autocomplete="off"
                 spellcheck="false"
                 aria-label="Discord Webhook 網址"
-                class="min-w-0 flex-[1_1_16rem] border-2 border-white/10 bg-white/5 px-3 py-2 font-mono text-sm text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
+                class="min-w-0 flex-[1_1_16rem] border-2 border-white/10 bg-white/5 px-3 py-2 font-mono text-body text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
                 placeholder="https://discord.com/api/webhooks/…"
               />
               <button type="submit" :class="[BUTTON, PRIMARY, 'py-2']" :disabled="busy !== ''">

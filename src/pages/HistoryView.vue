@@ -393,17 +393,17 @@ onBeforeUnmount(() => {
 <template>
   <div class="mx-auto flex w-full min-w-0 flex-col gap-6 py-4">
     <header class="rounded-[2rem] border border-white/10 bg-[#0f1526] p-6">
-      <p class="text-xs uppercase tracking-[0.35em] text-amber-100/70">{{ HEADINGS[tab].eyebrow }}</p>
-      <h1 class="mt-2 text-2xl font-semibold text-stone-50">{{ HEADINGS[tab].title }}</h1>
-      <p v-if="tab === 'news'" class="mt-1 text-sm leading-6 text-stone-300/75">
+      <p class="text-caption uppercase tracking-[0.35em] text-amber-100/70">{{ HEADINGS[tab].eyebrow }}</p>
+      <h1 class="mt-2 text-display font-semibold text-stone-50">{{ HEADINGS[tab].title }}</h1>
+      <p v-if="tab === 'news'" class="mt-1 text-body text-stone-300">
         在「股市追蹤」的「財經新聞」分頁跑過的 AI 影響分析會留在這裡，最多 30 份；股市頁只顯示今天最新的一份。
         每一份都留著當時交給 AI 的新聞，點文中的小編號可以對回原始新聞。
       </p>
-      <p v-else-if="tab === 'stock'" class="mt-1 text-sm leading-6 text-stone-300/75">
+      <p v-else-if="tab === 'stock'" class="mt-1 text-body text-stone-300">
         在「股市追蹤」的個股分析裡跑過的 AI 深度分析會留在這裡，最多 100 筆。每一筆都留著當時的行情與持股，
         回頭看得出 AI 是根據什麼寫的。
       </p>
-      <p v-else class="mt-1 text-sm leading-6 text-stone-300/75">
+      <p v-else class="mt-1 text-body text-stone-300">
         在結果頁按「保存紀錄」的占卜會留在這裡，最多 100 筆。從清單選一筆，就能重看當時的牌與分析；
         保存時已經產生的 AI 解讀會一併留著，沒用過的也還能在這裡請 AI 解讀。
       </p>
@@ -421,12 +421,12 @@ onBeforeUnmount(() => {
           type="button"
           role="tab"
           :aria-selected="tab === option.value"
-          class="relative min-w-0 cursor-pointer touch-manipulation truncate px-2 py-2.5 text-center font-pixel text-[14px] transition-colors active:bg-white/15"
+          class="relative min-w-0 cursor-pointer touch-manipulation truncate px-2 py-2.5 text-center font-pixel text-button transition-colors active:bg-white/15"
           :class="[
             index > 0 ? 'border-l-2 border-[#3b2618]' : '',
             tab === option.value
               ? 'bg-amber-200/15 text-amber-50 after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-amber-300'
-              : 'text-stone-400 hover:bg-white/5 hover:text-stone-200',
+              : 'text-stone-300 hover:bg-white/5 hover:text-stone-200',
           ]"
           @click="switchTab(option.value)"
         >
@@ -442,12 +442,12 @@ onBeforeUnmount(() => {
 
     <div
       v-if="listError"
-      class="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100"
+      class="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100"
     >
       <span>{{ listError }}</span>
       <button
         type="button"
-        class="cursor-pointer rounded-full border border-rose-200/30 px-4 py-1.5 text-sm text-rose-50 transition hover:bg-rose-300/15"
+        class="cursor-pointer rounded-full border border-rose-200/30 px-4 py-1.5 text-button text-rose-50 transition hover:bg-rose-300/15"
         :disabled="isListLoading"
         @click="loadList"
       >
@@ -470,7 +470,7 @@ onBeforeUnmount(() => {
             <SkeletonBlock class="mt-2.5 h-3 w-28 rounded-full" />
           </div>
         </div>
-        <p v-else-if="isEmpty" class="px-1 text-sm text-stone-400">還沒有紀錄</p>
+        <p v-else-if="isEmpty" class="px-1 text-body text-stone-300">還沒有紀錄</p>
         <ReadingHistoryIndex v-else-if="isListLoaded" :readings="readings" :selected-id="selectedId" @select="selectReading" />
       </RecordListShell>
 
@@ -485,7 +485,7 @@ onBeforeUnmount(() => {
         <button
           v-if="isListLoaded && !isEmpty"
           type="button"
-          class="w-full cursor-pointer rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-stone-200 transition hover:bg-white/10 lg:hidden"
+          class="w-full cursor-pointer rounded-full border border-white/15 bg-white/5 px-4 py-2 text-button text-stone-200 transition hover:bg-white/10 lg:hidden"
           @click="isMobileIndexOpen = true"
         >
           開啟紀錄清單（共 {{ readings.length }} 筆）
@@ -495,13 +495,13 @@ onBeforeUnmount(() => {
           v-if="isEmpty"
           class="rounded-[1.75rem] border border-dashed border-white/15 bg-black/10 px-5 py-14 text-center"
         >
-          <p class="text-base text-stone-200">還沒有占卜紀錄</p>
-          <p class="mt-2 text-sm leading-6 text-stone-400">
+          <p class="text-subtitle text-stone-200">還沒有占卜紀錄</p>
+          <p class="mt-2 text-body text-stone-300">
             占卜後在結果頁按「保存紀錄」，那次的牌與分析就會出現在這裡。
           </p>
           <router-link
             :to="{ name: 'home' }"
-            class="mt-6 inline-block cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-6 py-3 text-sm font-medium text-amber-50 transition hover:bg-amber-200/25"
+            class="mt-6 inline-block cursor-pointer rounded-full border border-amber-200/40 bg-amber-200/15 px-6 py-3 text-button font-medium text-amber-50 transition hover:bg-amber-200/25"
           >
             立即占卜
           </router-link>
@@ -557,21 +557,21 @@ onBeforeUnmount(() => {
 
           <p
             v-else-if="detailError"
-            class="rounded-3xl border border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100"
+            class="rounded-3xl border border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100"
           >
             {{ detailError }}
           </p>
 
           <template v-else-if="detail">
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <p class="text-sm text-stone-400">
+              <p class="text-body text-stone-300">
                 {{ formatDate(detail.createdAt) }}・{{ detail.reading.spread.name || '自選牌' }}・{{
                   detail.reading.cards.length
                 }}
                 張
               </p>
               <button
-                class="cursor-pointer rounded-full border border-white/15 px-4 py-1.5 text-sm text-rose-200/80 transition hover:bg-rose-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                class="cursor-pointer rounded-full border border-white/15 px-4 py-1.5 text-button text-rose-200/80 transition hover:bg-rose-300/10 disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
                 :disabled="deletingId === detail.id"
                 @click="confirmDelete(detail.id)"
@@ -582,7 +582,7 @@ onBeforeUnmount(() => {
 
             <p
               v-if="deleteError"
-              class="rounded-3xl border border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100"
+              class="rounded-3xl border border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100"
             >
               {{ deleteError }}
             </p>
@@ -619,7 +619,7 @@ onBeforeUnmount(() => {
 
         <p
           v-else-if="isListLoaded"
-          class="rounded-[1.75rem] border border-dashed border-white/15 bg-black/10 px-5 py-10 text-center text-sm text-stone-400"
+          class="rounded-[1.75rem] border border-dashed border-white/15 bg-black/10 px-5 py-10 text-center text-body text-stone-300"
         >
           從清單選一筆紀錄來看
         </p>

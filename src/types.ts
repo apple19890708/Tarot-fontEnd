@@ -552,15 +552,44 @@ export interface MarketAdvice {
   forHolders: string
   positionSize: string
   risks: string[]
+  // 長期建議（半年以上，看年線、大盤、估值、營收）；歷史不到約一年、或舊版後端時沒有
+  longTerm?: MarketLongTermAdvice | null
 }
 
-export interface MarketChart {
+// 長期建議：和短中期同樣的結論與依據格式，價位只有一個關鍵價位（年線）
+export interface MarketLongTermAdvice {
+  stance: 'bullish' | 'bearish' | 'neutral'
+  stanceLabel: string
+  confidence: 'high' | 'medium' | 'low'
+  confidenceLabel: string
+  score: number
+  summary: string
+  horizon: string
+  keyLevel: MarketLevel
+  evidence: MarketAdviceEvidence[]
+  forNew: string
+  forHolders: string
+  positionSize: string
+  risks: string[]
+}
+
+export interface MarketChartSeries {
   dates: string[]
+  // 開高低：畫 K 棒用，新版後端才有
+  open?: (number | null)[] | null
+  high?: (number | null)[] | null
+  low?: (number | null)[] | null
   close: (number | null)[]
   ma5: (number | null)[]
   ma20: (number | null)[]
   ma60: (number | null)[]
   volume: (number | null)[]
+}
+
+// 最外層是日 K（約一年）；週 K（約三年）、月 K（五年）是新版後端才有，均線是 5／20／60 週（月）
+export interface MarketChart extends MarketChartSeries {
+  weekly?: MarketChartSeries | null
+  monthly?: MarketChartSeries | null
 }
 
 // ---- 歷史回測（這檔標的自己的歷史）----
@@ -606,6 +635,8 @@ export interface MarketStrategyResult {
   key: string
   label: string
   description: string
+  // 白話說明（給沒學過技術指標的人看）；舊版後端沒有
+  plain?: string
   totalReturn: number | null
   annualReturn: number | null
   maxDrawdown: number | null
@@ -651,6 +682,8 @@ export interface MarketStrategies {
 export interface MarketPredictionFactor {
   key: string
   label: string
+  // 白話名稱（新版後端才有）
+  plain?: string
   // 標準化後的權重：正值代表這個特徵越大越偏向上漲
   weight: number
   // 今天這個特徵把機率往哪邊推
@@ -813,6 +846,11 @@ export interface MarketNewsItem {
   title: string
   detail: string
   clause: string
+  // 後端從說明挑出的重點欄位（去掉「不適用」與制式欄位、名稱改白話）；舊版後端沒有
+  points?: { label: string; value: string }[]
+  // 原文拆成的欄位表（看原文用）與沒有內容的欄位名稱；不是編號格式的公告 fields 是空的
+  fields?: { label: string; value: string }[]
+  emptyFields?: string[]
 }
 
 // ===== 選股 =====
@@ -885,6 +923,11 @@ export interface MarketIndexCard {
   session: 'intraday' | 'closed'
   // 最近約 60 個交易日的收盤（櫃買指數沒有歷史資料，只有一點）
   spark: number[]
+  // 以下是美股區塊才有（新版後端）：分組、白話說明、單位（殖利率是 %）、近 5／20 日漲跌
+  group?: 'index' | 'tw' | 'mood'
+  note?: string | null
+  unit?: string | null
+  changes?: { d5: number | null; d20: number | null } | null
 }
 
 // 漲跌家數：最新一個交易日收盤

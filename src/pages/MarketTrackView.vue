@@ -61,9 +61,9 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
 <template>
   <div class="mx-auto flex w-full min-w-0 flex-col gap-4 py-4">
     <header class="border-2 border-white/10 bg-[#0f1526] p-6">
-      <p class="text-xs uppercase tracking-[0.35em] text-amber-100/70">Market Tracking</p>
-      <h1 class="mt-2 text-2xl font-semibold text-stone-50">股市追蹤</h1>
-      <p class="mt-1 text-sm leading-6 text-stone-300/75">追蹤自己關注的股票與持股、看國內外財經新聞、檢查股市諮詢建議的命中率，並設定到價提醒。</p>
+      <p class="text-caption uppercase tracking-[0.35em] text-amber-100/70">Market Tracking</p>
+      <h1 class="mt-2 text-display font-semibold text-stone-50">股市追蹤</h1>
+      <p class="mt-1 text-body text-stone-300">追蹤自己關注的股票與持股、看國內外財經新聞、檢查股市諮詢建議的命中率，並設定到價提醒。</p>
     </header>
 
     <!-- 分頁列：自己一條不透明底色；分頁變多、超出寬度時橫向捲動，不會擠成兩行 -->
@@ -82,17 +82,17 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
           :aria-selected="activeTab === tab.key"
           :aria-controls="`market-panel-${tab.key}`"
           :tabindex="activeTab === tab.key ? 0 : -1"
-          class="shrink-0 cursor-pointer whitespace-nowrap border-b-2 px-5 py-3 text-[14px] transition font-pixel"
+          class="shrink-0 cursor-pointer whitespace-nowrap border-b-2 px-5 py-3 text-button transition font-pixel"
           :class="
             activeTab === tab.key
               ? 'border-amber-200 bg-amber-200/10 text-amber-50'
-              : 'border-transparent text-stone-400 hover:bg-white/5 hover:text-stone-200'
+              : 'border-transparent text-stone-300 hover:bg-white/5 hover:text-stone-200'
           "
           @click="selectTab(tab.key)"
           @keydown="onTabKeydown($event, index)"
         >
           {{ tab.label }}
-          <span v-if="tab.key === 'alerts' && activeCount" class="text-[11px] text-amber-200/80">（{{ activeCount }}）</span>
+          <span v-if="tab.key === 'alerts' && activeCount" class="text-caption text-amber-200/80">（{{ activeCount }}）</span>
         </button>
       </div>
     </div>

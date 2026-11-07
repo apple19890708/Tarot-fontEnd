@@ -59,16 +59,16 @@ const options = {
     <div class="relative h-28 w-28 shrink-0">
       <Doughnut :data="data" :options="options" aria-label="持股成本與獲利圓餅圖" role="img" />
       <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span class="text-[10px] text-stone-500">報酬率</span>
-        <span class="text-sm font-semibold tabular-nums" :class="pnl >= 0 ? 'text-rose-300' : 'text-emerald-300'">
+        <span class="text-caption text-stone-300">報酬率</span>
+        <span class="text-body font-semibold tabular-nums" :class="pnl >= 0 ? 'text-rose-300' : 'text-emerald-300'">
           {{ formatSigned(pnlPct, '%') }}
         </span>
       </div>
     </div>
-    <ul class="min-w-0 space-y-1.5 text-xs tabular-nums">
+    <ul class="min-w-0 space-y-1.5 text-body tabular-nums">
       <li v-for="segment in segments" :key="segment.label" class="flex items-center gap-2">
         <span class="h-2.5 w-2.5 shrink-0" :style="{ backgroundColor: segment.color }" />
-        <span class="text-stone-400">{{ segment.label }}</span>
+        <span class="text-stone-300">{{ segment.label }}</span>
         <span class="text-stone-100">{{ formatNumber(segment.value, 0) }}</span>
       </li>
     </ul>

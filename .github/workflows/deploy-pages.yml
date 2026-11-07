@@ -51,6 +51,17 @@ jobs:
             exit 1
           fi
 
+      # Google 登入的 Client ID（公開資訊，放 repo 的 Variables）；沒設定就不顯示 Google 按鈕，不讓 build 失敗
+      - name: Resolve Google client ID
+        env:
+          GOOGLE_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+        run: |
+          if [ -n "$GOOGLE_ID" ]; then
+            echo "VITE_GOOGLE_CLIENT_ID=$GOOGLE_ID" >> "$GITHUB_ENV"
+          else
+            echo "沒有設定 VITE_GOOGLE_CLIENT_ID，登入頁不顯示 Google 按鈕"
+          fi
+
       - name: Build
         run: npm run build
 

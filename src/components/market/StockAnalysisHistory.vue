@@ -226,7 +226,7 @@ function formatDate(value: string) {
 }
 
 function trendClass(value: number | null | undefined) {
-  if (!value) return 'text-stone-400'
+  if (!value) return 'text-stone-300'
   return value > 0 ? 'text-rose-300' : 'text-emerald-300'
 }
 
@@ -234,9 +234,9 @@ onMounted(loadList)
 </script>
 
 <template>
-  <div v-if="listStatus === 'error'" class="flex flex-wrap items-center justify-between gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+  <div v-if="listStatus === 'error'" class="flex flex-wrap items-center justify-between gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">
     <span>{{ listError }}</span>
-    <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-4 py-1 font-pixel text-[14px] text-rose-50 transition hover:bg-rose-300/15" @click="loadList">
+    <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-4 py-1 font-pixel text-button text-rose-50 transition hover:bg-rose-300/15" @click="loadList">
       重試
     </button>
   </div>
@@ -251,7 +251,7 @@ onMounted(loadList)
           <SkeletonBlock class="mt-2.5 h-3 w-32 rounded-full" />
         </div>
       </div>
-      <p v-else-if="!list.length" class="px-1 text-sm text-stone-400">還沒有股票分析</p>
+      <p v-else-if="!list.length" class="px-1 text-body text-stone-300">還沒有股票分析</p>
       <RecordIndex
         v-else
         v-model:keyword="keyword"
@@ -280,20 +280,20 @@ onMounted(loadList)
         <button
           v-if="listStatus === 'ready' && list.length"
           type="button"
-          class="w-full cursor-pointer rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-stone-200 transition hover:bg-white/10 active:bg-white/15 lg:hidden"
+          class="w-full cursor-pointer rounded-full border border-white/15 bg-white/5 px-4 py-2 text-button text-stone-200 transition hover:bg-white/10 active:bg-white/15 lg:hidden"
           @click="indexOpen = true"
         >
           開啟分析清單（共 {{ list.length }} 筆）
         </button>
 
         <div v-if="listStatus === 'ready' && !list.length" class="border-2 border-dashed border-white/15 bg-black/10 px-5 py-14 text-center">
-          <p class="text-base text-stone-200">還沒有股票分析紀錄</p>
-          <p class="mt-2 text-sm leading-6 text-stone-400">
+          <p class="text-subtitle text-stone-200">還沒有股票分析紀錄</p>
+          <p class="mt-2 text-body text-stone-300">
             在「股市追蹤」展開一檔股票，按「個股分析」再按「AI 深度分析」，完成的分析會出現在這裡。
           </p>
           <router-link
             :to="{ name: 'market' }"
-            class="mt-6 inline-block cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-6 py-2 font-pixel text-[14px] text-amber-50 transition hover:bg-amber-200/25"
+            class="mt-6 inline-block cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-6 py-2 font-pixel text-button text-amber-50 transition hover:bg-amber-200/25"
           >
             前往股市追蹤
           </router-link>
@@ -305,38 +305,38 @@ onMounted(loadList)
           <SkeletonBlock v-for="n in 6" :key="n" class="h-3 w-full" />
         </div>
 
-        <p v-else-if="detailError" class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">{{ detailError }}</p>
+        <p v-else-if="detailError" class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">{{ detailError }}</p>
 
         <template v-else-if="detail">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <p class="text-sm text-stone-400">{{ formatDate(detail.createdAt) }}・股票分析</p>
+            <p class="text-body text-stone-300">{{ formatDate(detail.createdAt) }}・股票分析</p>
             <button
               type="button"
-              class="cursor-pointer border-2 border-white/15 px-3 py-1 font-pixel text-[14px] text-rose-200/80 transition hover:bg-rose-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+              class="cursor-pointer border-2 border-white/15 px-3 py-1 font-pixel text-button text-rose-200/80 transition hover:bg-rose-300/10 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="deletingId === detail.id"
               @click="confirmDelete(detail.id)"
             >
               {{ deletingId === detail.id ? '刪除中…' : '刪除' }}
             </button>
           </div>
-          <p v-if="deleteError" class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">{{ deleteError }}</p>
+          <p v-if="deleteError" class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">{{ deleteError }}</p>
 
           <div class="border-b border-white/10 pb-4">
-            <p class="text-[10px] uppercase tracking-[0.3em] text-stone-400">Stock Analysis</p>
-            <h2 class="mt-1.5 text-xl font-semibold text-stone-50">
-              {{ detail.target.name }}<span class="ml-2 text-sm font-normal text-stone-400">{{ idOf(detail) }}</span>
+            <p class="text-caption uppercase tracking-[0.3em] text-stone-300">Stock Analysis</p>
+            <h2 class="mt-1.5 text-title font-semibold text-stone-50">
+              {{ detail.target.name }}<span class="ml-2 text-caption font-normal text-stone-300">{{ idOf(detail) }}</span>
             </h2>
-            <p class="mt-1 text-sm tabular-nums text-stone-300">
+            <p class="mt-1 text-body tabular-nums text-stone-300">
               分析時股價 {{ formatNumber(detail.quote.price) }}
               <span :class="trendClass(detail.quote.change)">{{ formatSigned(detail.quote.change) }}（{{ formatSigned(detail.quote.changePct, '%') }}）</span>
-              <span v-if="detail.quote.date" class="text-stone-500"> · {{ detail.quote.date }}</span>
+              <span v-if="detail.quote.date" class="text-stone-300"> · {{ detail.quote.date }}</span>
             </p>
           </div>
 
           <div ref="aiEl" class="scroll-mt-4">
             <StockAiText :text="detail.text" />
           </div>
-          <p class="text-[11px] text-stone-500">AI 只根據當時的資料撰寫，僅供參考，不是投資建議。</p>
+          <p class="text-caption text-stone-300">AI 只根據當時的資料撰寫，僅供參考，不是投資建議。</p>
 
           <section v-if="detail.holding" ref="holdingEl" class="border-2 border-white/10 bg-white/5 p-4">
             <p class="mb-3 font-pixel text-[12px] text-stone-200">當時的持股</p>
@@ -354,7 +354,7 @@ onMounted(loadList)
           </details>
         </template>
 
-        <p v-else-if="listStatus === 'ready'" class="border-2 border-dashed border-white/15 bg-black/10 px-5 py-10 text-center text-sm text-stone-400">
+        <p v-else-if="listStatus === 'ready'" class="border-2 border-dashed border-white/15 bg-black/10 px-5 py-10 text-center text-body text-stone-300">
           從清單選一筆分析來看
         </p>
       </div>

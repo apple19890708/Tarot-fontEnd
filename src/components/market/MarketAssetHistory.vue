@@ -103,18 +103,18 @@ const comparisons = computed(() =>
       <SkeletonBlock class="h-48 w-full rounded-none" />
     </div>
 
-    <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 text-xs text-rose-200">
+    <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 text-body text-rose-200">
       <span>{{ error }}</span>
-      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[14px] font-pixel" @click="load">重試</button>
+      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-button font-pixel" @click="load">重試</button>
     </div>
 
-    <p v-else-if="points.length < 2" class="text-xs leading-5 text-stone-400">
+    <p v-else-if="points.length < 2" class="text-body text-stone-300">
       每天台股收盤後（14:00 以後）會記一筆總資產，累積兩天以上才畫得出走勢。
       <template v-if="points.length === 1">目前有 {{ points[0]!.date }} 一筆。</template>
     </p>
 
     <template v-else>
-      <p class="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums text-stone-400">
+      <p class="flex flex-wrap gap-x-4 gap-y-1 text-body tabular-nums text-stone-300">
         <span>
           {{ points[0]!.date }} 起的報酬率
           <span class="font-semibold" :class="latest!.returnPct >= 0 ? 'text-rose-300' : 'text-emerald-300'">{{ formatSigned(latest!.returnPct, '%') }}</span>
@@ -130,7 +130,7 @@ const comparisons = computed(() =>
       <div class="h-48">
         <Line :data="returnData" :options="returnOptions" aria-label="報酬率和大盤比較" role="img" />
       </div>
-      <p class="text-[11px] leading-5 text-stone-500">
+      <p class="text-caption text-stone-300">
         報酬率用時間加權計算：加碼或賣出不算賺賠，股利算報酬，才能和指數直接比較。美股依當天匯率換成台幣。
       </p>
     </template>

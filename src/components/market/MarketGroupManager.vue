@@ -83,18 +83,18 @@ async function remove(group: MarketWatchGroup) {
   })
 }
 
-const SMALL = 'cursor-pointer border border-white/15 px-1.5 py-0.5 text-[11px] text-stone-300 transition hover:bg-white/10 disabled:opacity-40'
+const SMALL = 'cursor-pointer border border-white/15 px-1.5 py-0.5 text-caption text-stone-300 transition hover:bg-white/10 disabled:opacity-40'
 </script>
 
 <template>
-  <div class="space-y-2 text-xs">
+  <div class="space-y-2 text-body">
     <ul v-if="groups.length" class="space-y-1">
       <li v-for="(group, index) in groups" :key="group.id" class="flex flex-wrap items-center gap-2">
         <template v-if="editingId === group.id">
           <input
             v-model="editName"
             maxlength="20"
-            class="min-w-0 flex-[1_1_8rem] border-2 border-white/10 bg-white/5 px-2 py-1 text-sm text-stone-50 outline-none focus:border-amber-200/40"
+            class="min-w-0 flex-[1_1_8rem] border-2 border-white/10 bg-white/5 px-2 py-1 text-body text-stone-50 outline-none focus:border-amber-200/40"
             :aria-label="`清單「${group.name}」的新名稱`"
             @keydown.enter.prevent="saveRename(group)"
             @keydown.esc="editingId = ''"
@@ -111,21 +111,21 @@ const SMALL = 'cursor-pointer border border-white/15 px-1.5 py-0.5 text-[11px] t
         </template>
       </li>
     </ul>
-    <p v-else class="text-stone-400">還沒有清單。新增後，加入股票時可以選放進哪個清單，展開卡片也可以「移到清單」。</p>
+    <p v-else class="text-stone-300">還沒有清單。新增後，加入股票時可以選放進哪個清單，展開卡片也可以「移到清單」。</p>
 
     <form v-if="groups.length < MAX_GROUPS" class="flex flex-wrap gap-2" @submit.prevent="add">
       <input
         v-model="newName"
         maxlength="20"
-        class="min-w-0 flex-[1_1_10rem] border-2 border-white/10 bg-white/5 px-2 py-1 text-sm text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
+        class="min-w-0 flex-[1_1_10rem] border-2 border-white/10 bg-white/5 px-2 py-1 text-body text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40"
         placeholder="新清單名稱（例如 長期存股）"
         aria-label="新清單名稱"
       />
-      <button type="submit" class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-1 text-[14px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel" :disabled="busy || !newName.trim()">
+      <button type="submit" class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-1 text-button text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel" :disabled="busy || !newName.trim()">
         新增清單
       </button>
     </form>
-    <p v-else class="text-stone-500">清單最多 {{ MAX_GROUPS }} 個。</p>
+    <p v-else class="text-stone-300">清單最多 {{ MAX_GROUPS }} 個。</p>
     <p v-if="error" class="text-rose-200">{{ error }}</p>
   </div>
 </template>

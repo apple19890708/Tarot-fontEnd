@@ -68,17 +68,17 @@ const valuationRows = computed(() => {
   <div class="space-y-4">
     <section v-if="chips" class="space-y-3">
       <div>
-        <h4 class="flex items-center gap-1.5 text-sm font-semibold text-stone-50">
+        <h4 class="flex items-center gap-1.5 text-body font-semibold text-stone-50">
           {{ chips.scope === 'market' ? '三大法人（全市場）' : '三大法人與融資' }}
           <HelpTip term="chips" />
         </h4>
-        <p class="mt-1 text-xs leading-5 text-stone-400">
+        <p class="mt-1 text-body text-stone-300">
           單位：{{ chips.unit }}，正值買超、負值賣超。
           <template v-if="chips.latestOnly">上櫃股票的免費資料只有最新一日。</template>
         </p>
       </div>
 
-      <ul v-if="chips.summary" class="space-y-1 text-sm">
+      <ul v-if="chips.summary" class="space-y-1 text-body">
         <li v-for="part in [chips.summary.foreign, chips.summary.trust, chips.summary.dealer]" :key="part.name" :class="streakClass(part.total)">
           {{ part.text }}
         </li>
@@ -94,27 +94,27 @@ const valuationRows = computed(() => {
         <Bar :data="data" :options="options as never" />
       </div>
 
-      <p v-if="chips.margin" class="text-xs tabular-nums text-stone-400">
+      <p v-if="chips.margin" class="text-body tabular-nums text-stone-300">
         融資餘額 {{ formatNumber(chips.margin.balance, 0) }} 張
         <template v-if="chips.margin.shortBalance !== null">· 融券餘額 {{ formatNumber(chips.margin.shortBalance, 0) }} 張</template>
       </p>
     </section>
 
     <section v-if="valuation" class="space-y-2">
-      <h4 class="flex items-center gap-1.5 text-sm font-semibold text-stone-50">估值 <HelpTip term="valuation" /></h4>
+      <h4 class="flex items-center gap-1.5 text-body font-semibold text-stone-50">估值 <HelpTip term="valuation" /></h4>
       <div class="grid gap-2 sm:grid-cols-3">
         <div v-for="row in valuationRows" :key="row.label" class="border-2 border-white/10 bg-white/5 p-3">
-          <p class="text-xs text-stone-400">{{ row.label }}</p>
-          <p class="mt-1 text-lg font-semibold tabular-nums text-stone-50">{{ row.value }}</p>
+          <p class="text-body text-stone-300">{{ row.label }}</p>
+          <p class="mt-1 text-subtitle font-semibold tabular-nums text-stone-50">{{ row.value }}</p>
           <template v-if="row.percentile !== null">
             <div class="mt-2 h-1.5 w-full bg-white/10">
               <div class="h-1.5 bg-amber-200/70" :style="{ width: `${row.percentile}%` }" />
             </div>
-            <p class="mt-1 text-[11px] text-stone-400">{{ percentileText(row.percentile) }}</p>
+            <p class="mt-1 text-caption text-stone-300">{{ percentileText(row.percentile) }}</p>
           </template>
         </div>
       </div>
-      <ul v-if="valuation.summary?.notes.length" class="space-y-1 text-xs leading-5 text-amber-100/80">
+      <ul v-if="valuation.summary?.notes.length" class="space-y-1 text-body text-amber-100/80">
         <li v-for="note in valuation.summary.notes" :key="note">{{ note }}</li>
       </ul>
     </section>

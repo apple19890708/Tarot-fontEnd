@@ -490,7 +490,7 @@ function dropOn(targetId: string) {
 
 // ---- 篩選與排序 ----
 const marketFilter = ref<'all' | Market>('all')
-const sortKey = ref<'added' | 'change' | 'pnl' | 'position'>('added')
+const sortKey = ref<'added' | 'change' | 'pnl'>('added')
 // 換成其他排序時離開排序模式
 watch(sortKey, (key) => {
   if (key !== 'added') sortMode.value = false
@@ -499,7 +499,6 @@ const SORT_OPTIONS = [
   { value: 'added', label: '自訂順序' },
   { value: 'change', label: '今日漲跌' },
   { value: 'pnl', label: '持股損益' },
-  { value: 'position', label: '52 週位置' },
 ] as const
 
 // 市場的計數只算目前選的清單（市場是清單底下的篩選）
@@ -522,8 +521,7 @@ const visibleItems = computed(() => {
   // 沒有數值的排最後
   const valueOf = (item: MarketWatchItem): number | null => {
     if (sortKey.value === 'change') return item.summary?.quote.changePct ?? null
-    if (sortKey.value === 'pnl') return item.position?.unrealizedPct ?? null
-    return item.summary?.range52w?.position ?? null
+    return item.position?.unrealizedPct ?? null
   }
   return [...list].sort((a, b) => {
     const va = valueOf(a)
@@ -562,16 +560,16 @@ function timeText(value: string) {
 }
 
 const INPUT_CLASS =
-  'min-w-0 border-2 border-white/10 bg-white/5 px-3 py-2 text-sm tabular-nums text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40'
+  'min-w-0 border-2 border-white/10 bg-white/5 px-3 py-2 text-body tabular-nums text-stone-50 outline-none placeholder:text-stone-500 focus:border-amber-200/40'
 </script>
 
 <template>
   <section class="space-y-5 border-2 border-white/10 bg-[#0f1526] p-4 sm:p-6">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Watchlist</p>
-        <h2 class="mt-1 text-lg font-semibold text-stone-50">自訂股票追蹤</h2>
-        <p class="mt-1 text-xs leading-5 text-stone-400">
+        <p class="text-caption uppercase tracking-[0.2em] text-stone-300 sm:tracking-[0.3em]">Watchlist</p>
+        <h2 class="mt-1 text-title font-semibold text-stone-50">自訂股票追蹤</h2>
+        <p class="mt-1 text-body text-stone-300">
           加入想觀察的台股或美股，可以另外記下持股（台股以「張」計，零股可填小數；美股以「股」計）。頁面開著時每分鐘更新報價。
         </p>
       </div>
@@ -595,8 +593,8 @@ const INPUT_CLASS =
             type="button"
             role="radio"
             :aria-checked="form.market === market"
-            class="cursor-pointer border-2 px-3 py-2 text-[14px] transition font-pixel"
-            :class="form.market === market ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/10 text-stone-400 hover:bg-white/10'"
+            class="cursor-pointer border-2 px-3 py-2 text-button transition font-pixel"
+            :class="form.market === market ? 'border-amber-200/40 bg-amber-200/15 text-amber-50' : 'border-white/10 text-stone-300 hover:bg-white/10'"
             @click="form.market = market"
           >
             {{ MARKET_LABELS[market] }}
@@ -621,7 +619,7 @@ const INPUT_CLASS =
         <input v-model="form.cost" inputmode="decimal" :class="INPUT_CLASS" class="flex-[1_1_8rem]" placeholder="第一筆成本價（選填）" />
         <button
           type="submit"
-          class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-4 py-2 text-[14px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
+          class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-4 py-2 text-button text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
           :disabled="adding"
         >
           {{ adding ? '加入中…' : '加入追蹤' }}
@@ -629,7 +627,7 @@ const INPUT_CLASS =
       </div>
       <!-- 加到哪個清單：可以選既有清單，或當場建立新清單 -->
       <div class="flex flex-wrap items-center gap-2">
-        <span class="shrink-0 text-[12px] text-stone-400" aria-hidden="true">加到清單</span>
+        <span class="shrink-0 text-caption text-stone-300" aria-hidden="true">加到清單</span>
         <SelectField v-model="addTarget" :options="addTargetOptions" label="加到清單" variant="pixel" hide-label class="min-w-0 flex-[1_1_9rem]" />
         <input
           v-if="addTarget === NEW_GROUP"
@@ -641,32 +639,32 @@ const INPUT_CLASS =
           aria-label="新清單名稱"
         />
       </div>
-      <p v-if="formError" class="text-sm text-rose-200">{{ formError }}</p>
+      <p v-if="formError" class="text-body text-rose-200">{{ formError }}</p>
     </form>
 
     <!-- 交易成本：損益會扣掉手續費與證交稅，券商有折扣的話在這裡設定 -->
     <details class="border-2 border-white/10 bg-white/[0.03] px-3 py-2">
-      <summary class="cursor-pointer text-xs text-stone-300 marker:text-stone-200 hover:text-stone-100">交易成本設定</summary>
-      <div class="mt-3 space-y-2 text-xs">
-        <p class="leading-5 text-stone-400">
+      <summary class="cursor-pointer text-body text-stone-300 marker:text-stone-200 hover:text-stone-100">交易成本設定</summary>
+      <div class="mt-3 space-y-2 text-body">
+        <p class="leading-5 text-stone-300">
           台股手續費 0.1425% × 折扣（2.8 折填 0.28），單筆有最低金額；證交稅股票 0.3%、ETF 0.1%（賣出時收，不用設定）。美股以每筆固定手續費計。
         </p>
         <div class="flex flex-wrap items-end gap-2">
           <label class="flex min-w-0 flex-[1_1_7rem] flex-col gap-1">
-            <span class="text-stone-400">台股手續費折扣</span>
+            <span class="text-stone-300">台股手續費折扣</span>
             <input v-model="feeForm.twDiscount" inputmode="decimal" :class="INPUT_CLASS" />
           </label>
           <label class="flex min-w-0 flex-[1_1_7rem] flex-col gap-1">
-            <span class="text-stone-400">台股最低手續費（元）</span>
+            <span class="text-stone-300">台股最低手續費（元）</span>
             <input v-model="feeForm.twMinFee" inputmode="decimal" :class="INPUT_CLASS" />
           </label>
           <label class="flex min-w-0 flex-[1_1_7rem] flex-col gap-1">
-            <span class="text-stone-400">美股每筆手續費（美元）</span>
+            <span class="text-stone-300">美股每筆手續費（美元）</span>
             <input v-model="feeForm.usFee" inputmode="decimal" :class="INPUT_CLASS" />
           </label>
           <button
             type="button"
-            class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-2 text-[14px] text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
+            class="shrink-0 cursor-pointer border-2 border-amber-200/40 bg-amber-200/15 px-3 py-2 text-button text-amber-50 transition hover:bg-amber-200/25 disabled:opacity-60 font-pixel"
             :disabled="feeSaving"
             @click="saveFees"
           >
@@ -716,34 +714,34 @@ const INPUT_CLASS =
       </ul>
     </div>
 
-    <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+    <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">
       <span>{{ error }}</span>
-      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[14px] font-pixel" @click="load()">重試</button>
+      <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-button font-pixel" @click="load()">重試</button>
     </div>
 
     <template v-else>
-      <p v-if="error" class="text-xs text-rose-200">{{ error }}</p>
+      <p v-if="error" class="text-body text-rose-200">{{ error }}</p>
 
-      <p v-if="items.length === 0" class="text-sm text-stone-300/80">還沒有追蹤任何股票，從上面輸入代號或名稱加入。</p>
+      <p v-if="items.length === 0" class="text-body text-stone-300">還沒有追蹤任何股票，從上面輸入代號或名稱加入。</p>
 
       <template v-else>
         <!-- ── 持股總覽（依幣別分開）── -->
         <div v-if="totals.length" class="grid gap-3 sm:grid-cols-2">
           <div v-for="total in totals" :key="total.market" class="border-2 border-amber-200/20 bg-amber-200/5 p-3">
-            <p class="text-xs text-amber-100/80">{{ MARKET_LABELS[total.market] }}持股（{{ total.count }} 檔，{{ total.currency }}）</p>
+            <p class="text-body text-amber-100/80">{{ MARKET_LABELS[total.market] }}持股（{{ total.count }} 檔，{{ total.currency }}）</p>
             <div class="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-              <p class="text-2xl font-semibold tabular-nums text-stone-50">{{ money(total.value) }}</p>
-              <p class="text-sm tabular-nums" :class="trendClass(total.pnl)">
+              <p class="text-display font-semibold tabular-nums text-stone-50">{{ money(total.value) }}</p>
+              <p class="text-body tabular-nums" :class="trendClass(total.pnl)">
                 {{ formatSigned(Math.round(total.pnl)) }}（{{ formatSigned(total.pnlPct, '%') }}）
               </p>
             </div>
-            <p class="mt-1 text-[11px] tabular-nums text-stone-400">
+            <p class="mt-1 text-caption tabular-nums text-stone-300">
               成本 {{ money(total.cost) }}
               <template v-if="total.today !== null">
                 ・今日 <span :class="trendClass(total.today)">{{ formatSigned(Math.round(total.today)) }}</span>
               </template>
             </p>
-            <p v-if="total.realized || total.dividends" class="mt-0.5 text-[11px] tabular-nums text-stone-400">
+            <p v-if="total.realized || total.dividends" class="mt-0.5 text-caption tabular-nums text-stone-300">
               已實現 <span :class="trendClass(total.realized)">{{ formatSigned(Math.round(total.realized)) }}</span>
               ・股利 <span class="text-amber-100">{{ money(total.dividends) }}</span>
             </p>
@@ -753,39 +751,39 @@ const INPUT_CLASS =
 
         <!-- ── 資產走勢：展開時才載入 ── -->
         <details v-if="totals.length" class="border-2 border-white/10 bg-white/[0.03] px-3 py-2" @toggle="historyOpened = historyOpened || ($event.target as HTMLDetailsElement).open">
-          <summary class="cursor-pointer text-xs text-stone-300 marker:text-stone-200 hover:text-stone-100">資產走勢與大盤比較</summary>
+          <summary class="cursor-pointer text-body text-stone-300 marker:text-stone-200 hover:text-stone-100">資產走勢與大盤比較</summary>
           <MarketAssetHistory v-if="historyOpened" class="mt-3" />
         </details>
 
         <!-- ── 重大訊息（台股）── -->
         <details v-if="hasTwStock" class="border-2 border-white/10 bg-white/[0.03] px-3 py-2">
-          <summary class="cursor-pointer text-xs text-stone-300 marker:text-stone-200 hover:text-stone-100">
-            重大訊息<span v-if="newsStatus === 'ready'" class="ml-1 text-stone-500">（最近 30 天 {{ news.length }} 則）</span>
+          <summary class="cursor-pointer text-body text-stone-300 marker:text-stone-200 hover:text-stone-100">
+            重大訊息<span v-if="newsStatus === 'ready'" class="ml-1 text-stone-300">（最近 30 天 {{ news.length }} 則）</span>
           </summary>
           <div class="mt-2">
             <div v-if="newsStatus === 'loading' || newsStatus === 'idle'" class="space-y-1.5">
               <SkeletonBlock v-for="n in 4" :key="n" class="h-4 w-full rounded-none" />
             </div>
-            <div v-else-if="newsStatus === 'error'" class="flex flex-wrap items-center gap-3 text-xs text-rose-200">
+            <div v-else-if="newsStatus === 'error'" class="flex flex-wrap items-center gap-3 text-body text-rose-200">
               <span>重大訊息暫時讀不到。</span>
-              <button type="button" class="cursor-pointer border border-rose-200/30 px-2 py-0.5 text-[14px]" @click="loadNews">重試</button>
+              <button type="button" class="cursor-pointer border border-rose-200/30 px-2 py-0.5 text-button" @click="loadNews">重試</button>
             </div>
-            <p v-else-if="!news.length" class="text-xs text-stone-400">追蹤的公司最近 30 天沒有重大訊息。</p>
+            <p v-else-if="!news.length" class="text-body text-stone-300">追蹤的公司最近 30 天沒有重大訊息。</p>
             <MarketNewsList v-else :news="news" show-company />
-            <p class="mt-2 text-[11px] leading-5 text-stone-500">資料來自公開資訊觀測站（每 30 分鐘更新），保留 30 天。說明是公司原文。</p>
+            <p class="mt-2 text-caption text-stone-300">資料來自公開資訊觀測站（每 30 分鐘更新），保留 30 天。說明是公司原文。</p>
           </div>
         </details>
 
         <!-- ── 除權息與營收一覽（台股）── -->
         <details v-if="hasTwStock" class="border-2 border-white/10 bg-white/[0.03] px-3 py-2">
-          <summary class="cursor-pointer text-xs text-stone-300 marker:text-stone-200 hover:text-stone-100">除權息與營收一覽</summary>
+          <summary class="cursor-pointer text-body text-stone-300 marker:text-stone-200 hover:text-stone-100">除權息與營收一覽</summary>
           <MarketEventsCalendar class="mt-3" :items="items" :revenue-deadline="revenueDeadline" />
         </details>
 
         <!-- ── 第一層：自選清單（分頁）。右邊是管理清單 ── -->
         <div>
           <div class="flex items-end gap-2 border-b-2 border-white/10">
-            <span class="shrink-0 pb-2 text-[11px] text-stone-500">清單</span>
+            <span class="shrink-0 pb-2 text-caption text-stone-300">清單</span>
             <div class="-mb-[2px] flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:thin]" role="tablist" aria-label="自選清單">
               <button
                 v-for="option in [{ id: 'all', name: '全部' }, ...groups, { id: 'none', name: '未分類' }]"
@@ -793,17 +791,17 @@ const INPUT_CLASS =
                 type="button"
                 role="tab"
                 :aria-selected="groupFilter === option.id"
-                class="shrink-0 cursor-pointer whitespace-nowrap border-b-2 px-3 py-1.5 text-[14px] transition"
-                :class="groupFilter === option.id ? 'border-amber-200 bg-amber-200/10 text-amber-50' : 'border-transparent text-stone-400 hover:bg-white/5 hover:text-stone-200'"
+                class="shrink-0 cursor-pointer whitespace-nowrap border-b-2 px-3 py-1.5 text-button transition"
+                :class="groupFilter === option.id ? 'border-amber-200 bg-amber-200/10 text-amber-50' : 'border-transparent text-stone-300 hover:bg-white/5 hover:text-stone-200'"
                 @click="groupFilter = option.id"
               >
-                {{ option.name }}<span class="text-[11px] text-stone-500">（{{ groupCount(option.id) }}）</span>
+                {{ option.name }}<span class="text-caption text-stone-300">（{{ groupCount(option.id) }}）</span>
               </button>
             </div>
             <button
               type="button"
-              class="mb-1 shrink-0 cursor-pointer border px-2 py-0.5 text-[14px] transition"
-              :class="managingGroups ? 'border-amber-200/40 text-amber-100' : 'border-white/10 text-stone-400 hover:bg-white/10'"
+              class="mb-1 shrink-0 cursor-pointer border px-2 py-0.5 text-button transition"
+              :class="managingGroups ? 'border-amber-200/40 text-amber-100' : 'border-white/10 text-stone-300 hover:bg-white/10'"
               :aria-expanded="managingGroups"
               @click="managingGroups = !managingGroups"
             >
@@ -812,7 +810,7 @@ const INPUT_CLASS =
           </div>
           <MarketGroupManager
             v-if="managingGroups"
-            class="mt-2 border-2 border-white/10 bg-white/[0.03] p-3 text-xs"
+            class="mt-2 border-2 border-white/10 bg-white/[0.03] p-3 text-body"
             :groups="groups"
             @changed="onGroupsChanged"
             @removed="onGroupRemoved"
@@ -820,15 +818,15 @@ const INPUT_CLASS =
         </div>
 
         <!-- ── 第二層：這個清單裡的篩選與排序 ── -->
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px]">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-button">
           <div class="flex flex-wrap items-center gap-1">
-            <span class="mr-1 text-stone-500">市場</span>
+            <span class="mr-1 text-stone-300">市場</span>
             <button
               v-for="option in (['all', 'tw', 'us'] as const)"
               :key="option"
               type="button"
               class="cursor-pointer border px-2 py-0.5 transition"
-              :class="marketFilter === option ? 'border-amber-200/40 text-amber-100' : 'border-white/10 text-stone-400 hover:bg-white/10'"
+              :class="marketFilter === option ? 'border-amber-200/40 text-amber-100' : 'border-white/10 text-stone-300 hover:bg-white/10'"
               :aria-pressed="marketFilter === option"
               @click="marketFilter = option"
             >
@@ -836,13 +834,13 @@ const INPUT_CLASS =
             </button>
           </div>
           <div class="flex flex-wrap items-center gap-1">
-            <span class="mr-1 text-stone-500">排序</span>
+            <span class="mr-1 text-stone-300">排序</span>
             <button
               v-for="option in SORT_OPTIONS"
               :key="option.value"
               type="button"
               class="cursor-pointer border px-2 py-0.5 transition"
-              :class="sortKey === option.value ? 'border-amber-200/40 text-amber-100' : 'border-white/10 text-stone-400 hover:bg-white/10'"
+              :class="sortKey === option.value ? 'border-amber-200/40 text-amber-100' : 'border-white/10 text-stone-300 hover:bg-white/10'"
               @click="sortKey = option.value"
             >
               {{ option.label }}
@@ -851,7 +849,7 @@ const INPUT_CLASS =
               v-if="sortKey === 'added'"
               type="button"
               class="cursor-pointer border px-2 py-0.5 transition"
-              :class="sortMode ? 'border-sky-300/50 bg-sky-300/10 text-sky-100' : 'border-white/10 text-stone-400 hover:bg-white/10'"
+              :class="sortMode ? 'border-sky-300/50 bg-sky-300/10 text-sky-100' : 'border-white/10 text-stone-300 hover:bg-white/10'"
               :aria-pressed="sortMode"
               @click="sortMode = !sortMode"
             >
@@ -859,13 +857,13 @@ const INPUT_CLASS =
             </button>
           </div>
         </div>
-        <p v-if="sortMode" class="text-[11px] text-sky-200/80">
+        <p v-if="sortMode" class="text-caption text-sky-200/80">
           排序模式：桌機可以直接拖曳，手機用 ↑ ↓。只調整目前畫面上的這些股票{{ savingOrder ? '（儲存中…）' : '' }}。
         </p>
 
-        <p v-if="asOf" class="text-[11px] text-stone-500">報價更新於 {{ timeText(asOf) }}</p>
+        <p v-if="asOf" class="text-caption text-stone-300">報價更新於 {{ timeText(asOf) }}</p>
 
-        <p v-if="visibleItems.length === 0" class="text-sm text-stone-300/80">這個分類還沒有股票。</p>
+        <p v-if="visibleItems.length === 0" class="text-body text-stone-300">這個分類還沒有股票。</p>
 
         <!-- ── 清單 ── -->
         <ul class="space-y-3">
@@ -887,55 +885,55 @@ const INPUT_CLASS =
             @drop.prevent="dropOn(item.id)"
           >
             <!-- 排序模式：精簡一列＋上移下移 -->
-            <div v-if="sortMode" class="flex cursor-grab items-center gap-2 px-3 py-2 text-sm active:cursor-grabbing">
-              <span class="shrink-0 select-none text-stone-500" aria-hidden="true">⋮⋮</span>
+            <div v-if="sortMode" class="flex cursor-grab items-center gap-2 px-3 py-2 text-body active:cursor-grabbing">
+              <span class="shrink-0 select-none text-stone-300" aria-hidden="true">⋮⋮</span>
               <span class="min-w-0 flex-1 truncate text-stone-100">
                 {{ item.summary?.name || item.target.name }}
-                <span class="text-xs tabular-nums text-stone-500">{{ idOf(item.target) }}</span>
+                <span class="text-caption tabular-nums text-stone-300">{{ idOf(item.target) }}</span>
               </span>
-              <button type="button" class="cursor-pointer border border-white/15 px-2 py-0.5 text-[14px] text-stone-300 hover:bg-white/10 disabled:opacity-30" :disabled="index === 0" :aria-label="`把${item.target.name}往上移`" @click="moveBy(item.id, -1)">↑</button>
-              <button type="button" class="cursor-pointer border border-white/15 px-2 py-0.5 text-[14px] text-stone-300 hover:bg-white/10 disabled:opacity-30" :disabled="index === visibleItems.length - 1" :aria-label="`把${item.target.name}往下移`" @click="moveBy(item.id, 1)">↓</button>
+              <button type="button" class="cursor-pointer border border-white/15 px-2 py-0.5 text-button text-stone-300 hover:bg-white/10 disabled:opacity-30" :disabled="index === 0" :aria-label="`把${item.target.name}往上移`" @click="moveBy(item.id, -1)">↑</button>
+              <button type="button" class="cursor-pointer border border-white/15 px-2 py-0.5 text-button text-stone-300 hover:bg-white/10 disabled:opacity-30" :disabled="index === visibleItems.length - 1" :aria-label="`把${item.target.name}往下移`" @click="moveBy(item.id, 1)">↓</button>
             </div>
 
             <!-- 收合時：一行（名稱、現價、今日漲跌、持股損益） -->
             <button
               v-else-if="!expandedIds.has(item.id)"
               type="button"
-              class="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left text-sm transition hover:bg-white/5 sm:gap-3 sm:px-4"
+              class="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left text-body transition hover:bg-white/5 sm:gap-3 sm:px-4"
               :aria-expanded="false"
               @click="toggleExpanded(item.id)"
             >
               <span class="w-3 shrink-0 text-stone-200">›</span>
               <span class="min-w-0 flex-1 truncate">
                 <span class="font-semibold text-stone-50">{{ item.summary?.name || item.target.name }}</span>
-                <span class="ml-1.5 text-xs tabular-nums text-stone-500">{{ idOf(item.target) }}</span>
-                <span v-if="marketFilter === 'all'" class="ml-1.5 text-[10px] text-stone-500">{{ MARKET_LABELS[item.target.market] }}</span>
-                <span v-if="groupFilter === 'all' && item.group" class="ml-1.5 text-[10px] text-sky-200/70">{{ groupName(item.group) }}</span>
+                <span class="ml-1.5 text-caption tabular-nums text-stone-300">{{ idOf(item.target) }}</span>
+                <span v-if="marketFilter === 'all'" class="ml-1.5 text-caption text-stone-300">{{ MARKET_LABELS[item.target.market] }}</span>
+                <span v-if="groupFilter === 'all' && item.group" class="ml-1.5 text-caption text-sky-200/70">{{ groupName(item.group) }}</span>
               </span>
               <!-- 名稱以外每一欄都固定寬度（現價、漲跌、標籤、損益），沒有標籤或沒有持股時留空，數字上下才對得齊 -->
               <template v-if="item.summary">
-                <span class="w-20 shrink-0 text-right tabular-nums text-stone-100">{{ formatNumber(item.summary.quote.price) }}</span>
-                <span class="w-16 shrink-0 text-right text-xs tabular-nums" :class="trendClass(item.summary.quote.change)">
+                <span class="w-20 shrink-0 text-right tabular-nums text-stone-100 min-[1920px]:w-24">{{ formatNumber(item.summary.quote.price) }}</span>
+                <span class="w-16 shrink-0 text-right text-caption tabular-nums min-[1920px]:w-20" :class="trendClass(item.summary.quote.change)">
                   {{ formatSigned(item.summary.quote.changePct, '%') }}
                 </span>
               </template>
-              <span v-else class="w-36 shrink-0 text-right text-xs text-stone-500">無報價</span>
+              <span v-else class="w-36 shrink-0 text-right text-caption text-stone-300 min-[1920px]:w-44">無報價</span>
               <!-- 標籤欄：手機只放「重訊」，平板以上再放除權息與籌碼 -->
-              <span class="flex w-9 shrink-0 items-center justify-end gap-1 overflow-hidden md:w-52">
-                <span v-if="hasRecentNews(item)" class="shrink-0 border border-sky-300/40 px-1.5 text-[10px] text-sky-100">重訊</span>
-                <span v-if="exSoon(item)" class="hidden shrink-0 border border-amber-200/40 px-1.5 text-[10px] text-amber-100 md:inline">
+              <span class="flex w-11 shrink-0 items-center justify-end gap-1 overflow-hidden md:w-56">
+                <span v-if="hasRecentNews(item)" class="shrink-0 border border-sky-300/40 px-1.5 text-caption text-sky-100">重訊</span>
+                <span v-if="exSoon(item)" class="hidden shrink-0 border border-amber-200/40 px-1.5 text-caption text-amber-100 md:inline">
                   除{{ exSoon(item)!.type }} {{ shortDate(exSoon(item)!.date) }}
                 </span>
                 <span
                   v-if="item.summary?.chipsTag"
-                  class="hidden shrink-0 border px-1.5 text-[10px] md:inline"
+                  class="hidden shrink-0 border px-1.5 text-caption md:inline"
                   :class="TONE_STYLES[item.summary.chipsTag.tone]"
                 >
                   {{ item.summary.chipsTag.text }}
                 </span>
               </span>
               <span
-                class="hidden w-24 shrink-0 text-right text-xs tabular-nums sm:inline"
+                class="hidden w-24 shrink-0 text-right text-caption tabular-nums sm:inline min-[1920px]:w-28"
                 :class="holdingPnl(item) !== null ? trendClass(holdingPnl(item)) : ''"
                 :title="holdingPnl(item) !== null ? '未實現損益' : undefined"
               >
@@ -958,45 +956,51 @@ const INPUT_CLASS =
                 <p class="flex flex-wrap items-center gap-2">
                   <span class="w-3 rotate-90 text-stone-200">›</span>
                   <span class="font-semibold text-stone-50">{{ item.summary?.name || item.target.name }}</span>
-                  <span class="text-xs tabular-nums text-stone-500">{{ idOf(item.target) }}</span>
-                  <span class="border border-white/15 px-1.5 text-[10px] text-stone-400">{{ MARKET_LABELS[item.target.market] }}</span>
-                  <span v-if="item.target.kind === 'index'" class="border border-amber-200/30 px-1.5 text-[10px] text-amber-100/80">指數</span>
-                  <span v-if="item.summary?.session === 'intraday'" class="border border-rose-300/30 px-1.5 text-[10px] text-rose-200">盤中</span>
+                  <span class="text-caption tabular-nums text-stone-300">{{ idOf(item.target) }}</span>
+                  <span class="border border-white/15 px-1.5 text-caption text-stone-300">{{ MARKET_LABELS[item.target.market] }}</span>
+                  <span v-if="item.target.kind === 'index'" class="border border-amber-200/30 px-1.5 text-caption text-amber-100/80">指數</span>
+                  <span v-if="item.summary?.session === 'intraday'" class="border border-rose-300/30 px-1.5 text-caption text-rose-200">盤中</span>
                 </p>
                 <p v-if="item.summary" class="mt-1 flex flex-wrap items-baseline gap-x-3">
-                  <span class="text-2xl font-semibold tabular-nums text-stone-50">{{ formatNumber(item.summary.quote.price) }}</span>
-                  <span class="text-sm tabular-nums" :class="trendClass(item.summary.quote.change)">
+                  <span class="text-display font-semibold tabular-nums text-stone-50">{{ formatNumber(item.summary.quote.price) }}</span>
+                  <span class="text-body tabular-nums" :class="trendClass(item.summary.quote.change)">
                     {{ formatSigned(item.summary.quote.change) }}（{{ formatSigned(item.summary.quote.changePct, '%') }}）
                   </span>
-                  <span class="text-[11px] text-stone-500">{{ item.summary.quote.date }}</span>
+                  <span class="text-caption text-stone-300">{{ item.summary.quote.date }}</span>
                 </p>
-                <p v-else class="mt-1 text-sm text-stone-400">報價暫時取不到，稍後再更新。</p>
+                <p v-else class="mt-1 text-body text-stone-300">報價暫時取不到，稍後再更新。</p>
               </div>
               <div v-if="item.summary?.spark.length" class="w-32 shrink-0 sm:w-40">
                 <MarketSparkline :values="item.summary.spark" />
-                <p class="text-right text-[10px] text-stone-500">近 {{ item.summary.spark.length }} 個交易日</p>
+                <p class="text-right text-caption text-stone-300">近 {{ item.summary.spark.length }} 個交易日</p>
               </div>
             </div>
 
             <template v-if="item.summary">
-              <!-- 區間漲跌與 52 週位置 -->
-              <div class="mt-3 grid gap-3 text-xs sm:grid-cols-2">
+              <!-- 區間漲跌與近一年的價格位置 -->
+              <div class="mt-3 grid gap-3 text-body sm:grid-cols-2">
                 <div v-if="item.summary.changes" class="flex gap-4 tabular-nums">
-                  <span class="text-stone-400">5 日 <span :class="trendClass(item.summary.changes.d5)">{{ formatSigned(item.summary.changes.d5, '%') }}</span></span>
-                  <span class="text-stone-400">20 日 <span :class="trendClass(item.summary.changes.d20)">{{ formatSigned(item.summary.changes.d20, '%') }}</span></span>
-                  <span class="text-stone-400">60 日 <span :class="trendClass(item.summary.changes.d60)">{{ formatSigned(item.summary.changes.d60, '%') }}</span></span>
+                  <span class="text-stone-300">5 日 <span :class="trendClass(item.summary.changes.d5)">{{ formatSigned(item.summary.changes.d5, '%') }}</span></span>
+                  <span class="text-stone-300">20 日 <span :class="trendClass(item.summary.changes.d20)">{{ formatSigned(item.summary.changes.d20, '%') }}</span></span>
+                  <span class="text-stone-300">60 日 <span :class="trendClass(item.summary.changes.d60)">{{ formatSigned(item.summary.changes.d60, '%') }}</span></span>
                 </div>
+                <!-- 近一年（52 週）的價格範圍：黃色小標是現價落在哪裡 -->
                 <div v-if="item.summary.range52w" class="min-w-0">
-                  <div class="flex justify-between text-[11px] tabular-nums text-stone-500">
-                    <span>52 週低 {{ formatNumber(item.summary.range52w.low) }}</span>
-                    <span>距高點 {{ formatSigned(item.summary.range52w.fromHigh, '%') }}</span>
-                    <span>高 {{ formatNumber(item.summary.range52w.high) }}</span>
+                  <div class="flex flex-wrap items-center justify-between gap-x-3 text-body tabular-nums">
+                    <span class="flex items-center gap-1.5 text-stone-300">近一年的價格位置 <HelpTip term="range52w" /></span>
+                    <span :class="item.summary.range52w.fromHigh < 0 ? 'text-emerald-300' : 'text-rose-300'">
+                      {{ item.summary.range52w.fromHigh < 0 ? `比最高點低 ${formatNumber(Math.abs(item.summary.range52w.fromHigh))}%` : '在一年內的最高點' }}
+                    </span>
                   </div>
-                  <div class="relative mt-1 h-1.5 bg-white/10">
+                  <div class="relative mt-1.5 h-1.5 bg-white/10">
                     <div
                       class="absolute top-1/2 h-3 w-1 -translate-x-1/2 -translate-y-1/2 bg-amber-200"
                       :style="{ left: `${item.summary.range52w.position ?? 50}%` }"
                     />
+                  </div>
+                  <div class="mt-1 flex justify-between text-caption tabular-nums text-stone-300">
+                    <span>最低 {{ formatNumber(item.summary.range52w.low) }}</span>
+                    <span>最高 {{ formatNumber(item.summary.range52w.high) }}</span>
                   </div>
                 </div>
               </div>
@@ -1006,7 +1010,7 @@ const INPUT_CLASS =
                 <span
                   v-for="signal in item.summary.signals"
                   :key="signal.key"
-                  class="border px-2 py-0.5 text-[11px]"
+                  class="border px-2 py-0.5 text-body"
                   :class="TONE_STYLES[signal.tone]"
                 >
                   {{ signal.label }} {{ signal.value }}
@@ -1015,19 +1019,19 @@ const INPUT_CLASS =
                 <HelpTip class="self-center" :terms="signalGlossaryKeys(item.summary.signals)" />
               </div>
 
-              <p v-if="item.summary.supports.length || item.summary.resistances.length" class="mt-2 text-[11px] leading-5 text-stone-400">
+              <p v-if="item.summary.supports.length || item.summary.resistances.length" class="mt-2 text-body text-stone-300">
                 <HelpTip class="mr-1.5" term="supportResistance" />
                 <template v-if="item.summary.supports[0]">
                   支撐 <span class="tabular-nums text-emerald-200">{{ formatNumber(item.summary.supports[0].price) }}</span>（{{ item.summary.supports[0].label }}）
                 </template>
                 <template v-if="item.summary.resistances[0]">
-                  <span v-if="item.summary.supports[0]" class="mx-1 text-stone-600">／</span>
+                  <span v-if="item.summary.supports[0]" class="mx-1 text-stone-300">／</span>
                   壓力 <span class="tabular-nums text-rose-200">{{ formatNumber(item.summary.resistances[0].price) }}</span>（{{ item.summary.resistances[0].label }}）
                 </template>
               </p>
 
               <!-- 除權息與月營收（台股個股；資料來自證交所、櫃買中心） -->
-              <div v-if="item.summary.events?.exDividend || item.summary.events?.revenue" class="mt-2 space-y-0.5 text-[11px] leading-5 tabular-nums text-stone-400">
+              <div v-if="item.summary.events?.exDividend || item.summary.events?.revenue" class="mt-2 space-y-0.5 text-caption tabular-nums text-stone-300">
                 <p v-if="item.summary.events.exDividend">
                   <span class="text-amber-100">{{ item.summary.events.exDividend.date }} 除{{ item.summary.events.exDividend.type }}</span>
                   <template v-if="item.summary.events.exDividend.cashDividend">，每股現金 {{ formatNumber(item.summary.events.exDividend.cashDividend, 4) }} 元</template>
@@ -1038,22 +1042,22 @@ const INPUT_CLASS =
                   <span :class="trendClass(item.summary.events.revenue.yoy)">{{ formatSigned(item.summary.events.revenue.yoy, '%') }}</span>
                   ・月增 <span :class="trendClass(item.summary.events.revenue.mom)">{{ formatSigned(item.summary.events.revenue.mom, '%') }}</span>
                   ・累計年增 <span :class="trendClass(item.summary.events.revenue.cumYoy)">{{ formatSigned(item.summary.events.revenue.cumYoy, '%') }}</span>
-                  <span v-if="item.summary.events.revenue.note" class="block text-stone-500">{{ item.summary.events.revenue.note }}</span>
+                  <span v-if="item.summary.events.revenue.note" class="block text-stone-300">{{ item.summary.events.revenue.note }}</span>
                 </p>
               </div>
             </template>
 
             <!-- 重大訊息：最近 3 則 -->
             <div v-if="newsOf(item).length" class="mt-3 border-t border-white/10 pt-2">
-              <p class="text-xs text-stone-300">重大訊息<span class="ml-1 text-stone-500">（最近 30 天 {{ newsOf(item).length }} 則）</span></p>
+              <p class="text-body text-stone-300">重大訊息<span class="ml-1 text-stone-300">（最近 30 天 {{ newsOf(item).length }} 則）</span></p>
               <MarketNewsList class="mt-1" :news="newsOf(item).slice(0, 3)" />
             </div>
 
             <!-- K 線與籌碼：點開才載入 -->
             <details v-if="item.summary" class="mt-3 border-t border-white/10 pt-2" @toggle="onDetailToggle(item.id, $event)">
-              <summary class="cursor-pointer text-xs text-stone-300 marker:text-stone-200 hover:text-stone-100">
+              <summary class="cursor-pointer text-body text-stone-300 marker:text-stone-200 hover:text-stone-100">
                 走勢圖{{ item.target.market === 'tw' && item.target.kind === 'stock' ? '與籌碼' : '' }}
-                <span v-if="item.summary.chipsTag" class="ml-1 border px-1.5 text-[10px]" :class="TONE_STYLES[item.summary.chipsTag.tone]">{{ item.summary.chipsTag.text }}</span>
+                <span v-if="item.summary.chipsTag" class="ml-1 border px-1.5 text-caption" :class="TONE_STYLES[item.summary.chipsTag.tone]">{{ item.summary.chipsTag.text }}</span>
               </summary>
               <MarketWatchDetail v-if="detailOpened.has(item.id)" class="mt-3" :watch-id="item.id" :market="item.target.market" />
             </details>
@@ -1071,14 +1075,14 @@ const INPUT_CLASS =
               <button
                 v-if="item.target.kind === 'stock' && editingId !== item.id"
                 type="button"
-                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[14px] text-stone-300 transition hover:bg-white/10 font-pixel"
+                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-button text-stone-300 transition hover:bg-white/10 font-pixel"
                 @click="editingId = item.id"
               >
                 {{ item.trades.length || item.dividends.length ? '編輯持股' : '記錄持股' }}
               </button>
               <button
                 type="button"
-                class="cursor-pointer border-2 border-sky-200/40 bg-sky-200/10 px-2 py-0.5 text-[14px] text-sky-50 transition hover:bg-sky-200/20 font-pixel"
+                class="cursor-pointer border-2 border-sky-200/40 bg-sky-200/10 px-2 py-0.5 text-button text-sky-50 transition hover:bg-sky-200/20 font-pixel"
                 title="完整的行情、籌碼、回測與操作建議，也可以要求 AI 深度分析"
                 @click="openAnalysis(item)"
               >
@@ -1086,7 +1090,7 @@ const INPUT_CLASS =
               </button>
               <button
                 type="button"
-                class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/10 px-2 py-0.5 text-[14px] text-amber-50 transition hover:bg-amber-200/20 font-pixel"
+                class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/10 px-2 py-0.5 text-button text-amber-50 transition hover:bg-amber-200/20 font-pixel"
                 title="帶入這檔股票，用「股市諮詢」與「投資決策」牌陣占卜"
                 @click="quickReading(item)"
               >
@@ -1094,14 +1098,14 @@ const INPUT_CLASS =
               </button>
               <button
                 type="button"
-                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[14px] text-stone-300 transition hover:bg-white/10 font-pixel"
+                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-button text-stone-300 transition hover:bg-white/10 font-pixel"
                 @click="emit('alert', item.target, item.summary?.quote.price ?? null)"
               >
                 設價位提醒
               </button>
               <details v-if="groups.length" class="relative" data-dropdown>
                 <!-- 外觀和旁邊的按鈕一致 -->
-                <summary class="cursor-pointer list-none border-2 border-white/15 px-2 py-0.5 text-[14px] text-stone-300 transition hover:bg-white/10 font-pixel [&::-webkit-details-marker]:hidden">
+                <summary class="cursor-pointer list-none border-2 border-white/15 px-2 py-0.5 text-button text-stone-300 transition hover:bg-white/10 font-pixel [&::-webkit-details-marker]:hidden">
                   移到清單（{{ groupName(item.group) }}）
                 </summary>
                 <div class="absolute left-0 top-full z-20 mt-1 flex min-w-[9rem] flex-col border-2 border-white/15 bg-[#0f1526] py-1 shadow-xl shadow-black/40">
@@ -1109,7 +1113,7 @@ const INPUT_CLASS =
                     v-for="option in [...groups, { id: null, name: '未分類', order: 0 }]"
                     :key="option.id ?? 'none'"
                     type="button"
-                    class="cursor-pointer px-3 py-1.5 text-left text-[14px] transition hover:bg-white/10 disabled:opacity-40"
+                    class="cursor-pointer px-3 py-1.5 text-left text-button transition hover:bg-white/10 disabled:opacity-40"
                     :class="(item.group ?? null) === option.id ? 'text-amber-100' : 'text-stone-300'"
                     :disabled="moving === item.id || (item.group ?? null) === option.id"
                     @click="moveToGroup(item, option.id)"
@@ -1120,7 +1124,7 @@ const INPUT_CLASS =
               </details>
               <button
                 type="button"
-                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-[14px] text-stone-400 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
+                class="cursor-pointer border-2 border-white/15 px-2 py-0.5 text-button text-stone-300 transition hover:bg-white/10 disabled:opacity-60 font-pixel"
                 :disabled="removing === item.id"
                 @click="remove(item)"
               >
@@ -1131,7 +1135,7 @@ const INPUT_CLASS =
           </li>
         </ul>
 
-        <p class="text-[11px] leading-5 text-stone-500">
+        <p class="text-caption text-stone-300">
           損益只用目前報價計算，不含手續費與交易稅；台股報價來自證交所（約延遲 20 秒），美股來自 Yahoo（可能延遲約 15 分鐘）。
         </p>
       </template>

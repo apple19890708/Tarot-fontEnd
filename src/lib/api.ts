@@ -151,6 +151,34 @@ export function loginRequest(payload: { email: string; password: string }) {
   })
 }
 
+// Google 登入／註冊（v17 規格 I）：credential 是 Google 給的 ID token，後端驗證後回和一般登入一樣的 token＋user
+export function googleLoginRequest(credential: string) {
+  return request<AuthResponse & { created?: boolean }>('/api/auth/google', {
+    method: 'POST',
+    body: JSON.stringify({ credential }),
+  })
+}
+
+// 忘記密碼：信箱沒註冊時後端回 404（訊息直接顯示），有註冊才寄信
+export function forgotPasswordRequest(email: string) {
+  return request<{ sent: true; email: string }>('/api/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
+}
+
+// 重設頁打開時確認連結還能不能用；email 是遮罩過的（a***@gmail.com）
+export function checkResetToken(token: string) {
+  return request<{ valid: boolean; email?: string }>(`/api/auth/reset-password/${encodeURIComponent(token)}`)
+}
+
+export function resetPasswordRequest(token: string, password: string) {
+  return request<{ ok: true }>('/api/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, password }),
+  })
+}
+
 export function fetchMe() {
   return request<{ user: AuthUser }>('/api/auth/me')
 }

@@ -60,7 +60,7 @@ const idle = computed(() => !props.loading && !cooling.value && !props.disabled)
 const toneClass = computed(() => {
   if (props.loading) return 'border-amber-200/50 bg-amber-200/20 text-amber-50'
   if (justDone.value) return 'border-emerald-300/50 bg-emerald-300/15 text-emerald-100'
-  if (cooling.value || props.disabled) return 'border-white/10 bg-white/[0.03] text-stone-500'
+  if (cooling.value || props.disabled) return 'border-white/10 bg-white/[0.03] text-stone-300'
   return props.tone === 'danger'
     ? 'border-rose-200/40 bg-rose-300/10 text-rose-50 hover:bg-rose-300/20 active:bg-rose-300/30'
     : 'border-amber-200/40 bg-amber-200/10 text-amber-50 hover:bg-amber-200/20 active:bg-amber-200/30'
@@ -71,7 +71,7 @@ const toneClass = computed(() => {
   <!-- @touchstart：iOS Safari 要有觸控事件，:active 的按下效果才會出現 -->
   <button
     type="button"
-    class="relative inline-flex shrink-0 cursor-pointer touch-manipulation select-none items-center gap-1.5 overflow-hidden border-2 px-3 py-1 text-[14px] transition-[background-color,border-color,color,transform,box-shadow] duration-100 disabled:cursor-not-allowed font-pixel"
+    class="relative inline-flex shrink-0 cursor-pointer touch-manipulation select-none items-center gap-1.5 overflow-hidden border-2 px-3 py-1 text-button transition-[background-color,border-color,color,transform,box-shadow] duration-100 disabled:cursor-not-allowed font-pixel"
     :class="[
       toneClass,
       idle

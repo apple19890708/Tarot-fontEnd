@@ -141,8 +141,8 @@ onBeforeUnmount(() => {
       @pointerleave="onLeave"
     >
       <div v-for="entry in entries" :key="entry.title" class="space-y-1 [&+&]:mt-3 [&+&]:border-t [&+&]:border-white/10 [&+&]:pt-3">
-        <p class="text-xs font-semibold text-amber-100">{{ entry.title }}</p>
-        <p class="text-xs leading-5 text-stone-300">{{ entry.body }}</p>
+        <p class="text-body font-semibold text-amber-100">{{ entry.title }}</p>
+        <p class="text-body text-stone-300">{{ entry.body }}</p>
       </div>
     </div>
   </Teleport>

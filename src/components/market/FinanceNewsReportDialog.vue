@@ -68,9 +68,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       >
         <div class="flex items-start justify-between gap-3 border-b-2 border-[#3b2618] px-4 py-3">
           <div class="min-w-0">
-            <p class="text-[10px] uppercase tracking-[0.2em] text-stone-400">Impact Report</p>
+            <p class="text-caption uppercase tracking-[0.2em] text-stone-300">Impact Report</p>
             <p class="font-pixel text-[12px] text-amber-100">AI 影響分析</p>
-            <p class="mt-1 text-[11px] text-stone-400">
+            <p class="mt-1 text-caption text-stone-300">
               範圍：{{ scopeText }}
               <template v-if="newsCount !== null"> · {{ newsCount }} 則新聞</template>
               <template v-if="createdAt && status !== 'streaming'"> · {{ dateTime(createdAt) }} 產生</template>
@@ -80,14 +80,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
             <button
               v-if="status === 'streaming'"
               type="button"
-              class="cursor-pointer border-2 border-white/15 px-3 py-1.5 font-pixel text-[14px] text-stone-200 transition hover:bg-white/10"
+              class="cursor-pointer border-2 border-white/15 px-3 py-1.5 font-pixel text-button text-stone-200 transition hover:bg-white/10"
               @click="emit('stop')"
             >
               停止
             </button>
             <button
               type="button"
-              class="-mr-1 cursor-pointer border-2 border-white/10 px-3 py-1.5 font-pixel text-[14px] text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px]"
+              class="-mr-1 cursor-pointer border-2 border-white/10 px-3 py-1.5 font-pixel text-button text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px]"
               @click="emit('close')"
             >
               關閉
@@ -96,17 +96,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         </div>
 
         <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6" aria-live="polite">
-          <p v-if="status === 'streaming' && !text" class="text-sm text-stone-400">AI 正在讀新聞，通常要 30 秒到 1 分鐘…</p>
-          <p v-if="status === 'streaming'" class="mb-3 text-[11px] text-stone-500">關閉視窗不會停止分析，完成後可以從分頁上再打開。</p>
+          <p v-if="status === 'streaming' && !text" class="text-body text-stone-300">AI 正在讀新聞，通常要 30 秒到 1 分鐘…</p>
+          <p v-if="status === 'streaming'" class="mb-3 text-caption text-stone-300">關閉視窗不會停止分析，完成後可以從分頁上再打開。</p>
 
           <StockAiText v-if="text" :text="text" citations @cite="showCited" />
 
-          <p v-if="status === 'stopped'" class="mt-4 text-xs text-amber-100/80">已停止，這份分析沒有完成，不會存進紀錄，但會算進今天的次數。</p>
-          <p v-if="status === 'error' && error" class="mt-4 border-2 border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">{{ error }}</p>
-          <p v-if="status === 'done' && saveFailed" class="mt-4 text-xs text-rose-200">這份分析沒有存進紀錄，重新整理後就看不到了。</p>
+          <p v-if="status === 'stopped'" class="mt-4 text-body text-amber-100/80">已停止，這份分析沒有完成，不會存進紀錄，但會算進今天的次數。</p>
+          <p v-if="status === 'error' && error" class="mt-4 border-2 border-rose-200/20 bg-rose-300/10 px-3 py-2 text-body text-rose-100">{{ error }}</p>
+          <p v-if="status === 'done' && saveFailed" class="mt-4 text-body text-rose-200">這份分析沒有存進紀錄，重新整理後就看不到了。</p>
 
           <!-- AI 引用的 [n] 對應的新聞 -->
-          <details v-if="news.length && status !== 'streaming'" ref="citeList" class="mt-6 border-t border-white/10 pt-4 text-xs">
+          <details v-if="news.length && status !== 'streaming'" ref="citeList" class="mt-6 border-t border-white/10 pt-4 text-body">
             <summary class="cursor-pointer text-stone-300 hover:text-stone-100">引用的新聞（{{ news.length }}）</summary>
             <ol class="mt-2 space-y-1.5 pl-1">
               <li
@@ -116,16 +116,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
                 class="flex gap-2 px-1 leading-5 transition-colors duration-500"
                 :class="highlighted === index + 1 ? 'bg-sky-300/15' : ''"
               >
-                <span class="shrink-0 tabular-nums text-stone-500">[{{ index + 1 }}]</span>
+                <span class="shrink-0 tabular-nums text-stone-300">[{{ index + 1 }}]</span>
                 <span class="min-w-0">
                   <a :href="cited.url" target="_blank" rel="noopener noreferrer" class="text-stone-200 underline-offset-2 hover:text-amber-100 hover:underline">{{ cited.title }}</a>
-                  <span class="ml-1 text-stone-500">{{ cited.sourceLabel }}<template v-if="cited.publishedAt"> · {{ dateTime(cited.publishedAt) }}</template></span>
+                  <span class="ml-1 text-stone-300">{{ cited.sourceLabel }}<template v-if="cited.publishedAt"> · {{ dateTime(cited.publishedAt) }}</template></span>
                 </span>
               </li>
             </ol>
           </details>
 
-          <p class="mt-4 text-[11px] text-stone-500">AI 只根據新聞標題與摘要撰寫，族群與個股是依產業關聯推估，僅供參考，不是投資建議。</p>
+          <p class="mt-4 text-caption text-stone-300">AI 只根據新聞標題與摘要撰寫，族群與個股是依產業關聯推估，僅供參考，不是投資建議。</p>
         </div>
       </div>
     </div>

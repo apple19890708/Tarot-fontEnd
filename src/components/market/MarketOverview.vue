@@ -85,6 +85,19 @@ function breadthParts(b: MarketBreadth) {
 const sectorDate = computed(() => overview.value?.sectors[0]?.date ?? null)
 const priceDigits = (card: MarketIndexCard) => (card.symbol === 'TWD=X' ? 3 : 2)
 
+// 美股區塊分組；舊版後端沒有 group 時全部放在第一組
+const US_GROUPS: { key: NonNullable<MarketIndexCard['group']>; title: string }[] = [
+  { key: 'index', title: '美股主要指數' },
+  { key: 'tw', title: '和台股最相關' },
+  { key: 'mood', title: '市場情緒、利率與美元' },
+]
+const usGroups = computed(() =>
+  US_GROUPS.map((group, index) => ({
+    ...group,
+    cards: (overview.value?.us ?? []).filter((card) => (card.group ?? 'index') === group.key || (index === 0 && !card.group)),
+  })).filter((group) => group.cards.length),
+)
+
 function timeText(value: string) {
   return new Intl.DateTimeFormat('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value))
 }
@@ -94,9 +107,9 @@ function timeText(value: string) {
   <section class="space-y-5 border-2 border-white/10 bg-[#0f1526] p-4 sm:p-6">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Market Overview</p>
-        <h2 class="mt-1 text-lg font-semibold text-stone-50">大盤概況</h2>
-        <p class="mt-1 text-xs leading-5 text-stone-400">
+        <p class="text-caption uppercase tracking-[0.2em] text-stone-300 sm:tracking-[0.3em]">Market Overview</p>
+        <h2 class="mt-1 text-title font-semibold text-stone-50">大盤概況</h2>
+        <p class="mt-1 text-body text-stone-300">
           主要指數有盤中報價；漲跌家數、類股與三大法人是最新一個交易日的收盤資料（證交所、櫃買中心公開資料）。
         </p>
       </div>
@@ -115,18 +128,22 @@ function timeText(value: string) {
         <SkeletonBlock v-for="n in 18" :key="n" class="h-12 w-full rounded-none" />
       </div>
       <SkeletonBlock class="h-48 w-full rounded-none" />
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <SkeletonBlock v-for="n in 5" :key="n" class="h-16 w-full rounded-none" />
+      <!-- 美股三組（4／3／3 張卡片），每組一行標題 -->
+      <div v-for="(count, g) in [4, 3, 3]" :key="g" class="space-y-2">
+        <SkeletonBlock class="h-5 w-32 rounded-none" />
+        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <SkeletonBlock v-for="n in count" :key="n" class="h-36 w-full rounded-none" />
+        </div>
       </div>
     </div>
 
-    <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+    <div v-else-if="status === 'error'" class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">
       <span>{{ error }}</span>
       <RefreshButton label="重試" loading-label="重試中…" tone="danger" :loading="refreshing" :failed="!!error" :cooldown="cooldown" @click="refresh" />
     </div>
 
     <template v-else-if="overview">
-      <p class="text-[11px] text-stone-500">
+      <p class="text-caption text-stone-300">
         更新於 {{ timeText(overview.asOf) }}<template v-if="error">｜{{ error }}</template>
       </p>
 
@@ -134,12 +151,12 @@ function timeText(value: string) {
       <div class="grid gap-3 sm:grid-cols-2">
         <div v-for="card in overview.tw" :key="card.name" class="flex items-center justify-between gap-3 border-2 border-white/10 bg-white/[0.03] p-3">
           <div class="min-w-0">
-            <p class="flex items-center gap-2 text-sm text-stone-300">
+            <p class="flex items-center gap-2 text-body text-stone-300">
               {{ card.name }}
-              <span v-if="card.session === 'intraday'" class="border border-rose-300/30 px-1.5 text-[10px] text-rose-200">盤中</span>
+              <span v-if="card.session === 'intraday'" class="border border-rose-300/30 px-1.5 text-caption text-rose-200">盤中</span>
             </p>
-            <p class="mt-1 text-2xl font-semibold tabular-nums text-stone-50">{{ formatNumber(card.price) }}</p>
-            <p class="text-sm tabular-nums" :class="trendClass(card.change)">{{ formatSigned(card.change) }}（{{ formatSigned(card.changePct, '%') }}）</p>
+            <p class="mt-1 text-display font-semibold tabular-nums text-stone-50">{{ formatNumber(card.price) }}</p>
+            <p class="text-body tabular-nums" :class="trendClass(card.change)">{{ formatSigned(card.change) }}（{{ formatSigned(card.changePct, '%') }}）</p>
           </div>
           <div v-if="card.spark.length > 1" class="w-32 shrink-0 sm:w-40">
             <MarketSparkline :values="card.spark" />
@@ -149,10 +166,10 @@ function timeText(value: string) {
 
       <!-- ── 漲跌家數 ── -->
       <div v-if="overview.breadth" class="grid gap-3 sm:grid-cols-2">
-        <div v-for="exchange in (['tse', 'otc'] as const)" :key="exchange" class="space-y-1.5 border-2 border-white/10 bg-white/[0.03] p-3 text-xs">
-          <p class="flex justify-between text-stone-400">
+        <div v-for="exchange in (['tse', 'otc'] as const)" :key="exchange" class="space-y-1.5 border-2 border-white/10 bg-white/[0.03] p-3 text-body">
+          <p class="flex justify-between text-stone-300">
             <span>{{ BREADTH_LABELS[exchange] }}漲跌家數</span>
-            <span v-if="overview.breadth[exchange]?.date" class="text-stone-500">{{ overview.breadth[exchange]!.date }}</span>
+            <span v-if="overview.breadth[exchange]?.date" class="text-stone-300">{{ overview.breadth[exchange]!.date }}</span>
           </p>
           <template v-if="overview.breadth[exchange]">
             <div class="flex h-2.5 w-full overflow-hidden bg-white/5" role="img" :aria-label="`${BREADTH_LABELS[exchange]}上漲 ${overview.breadth[exchange]!.up} 家、下跌 ${overview.breadth[exchange]!.down} 家`">
@@ -162,14 +179,14 @@ function timeText(value: string) {
               <span v-for="part in breadthParts(overview.breadth[exchange]!)" :key="part.key" :class="part.text">{{ part.label }} {{ part.count }}</span>
             </p>
           </template>
-          <p v-else class="text-stone-500">暫時取不到。</p>
+          <p v-else class="text-stone-300">暫時取不到。</p>
         </div>
       </div>
 
       <!-- ── 類股熱力圖 ── -->
       <div v-if="overview.sectors.length" class="space-y-2">
-        <p class="text-xs text-stone-400">
-          類股漲跌<span v-if="sectorDate" class="ml-1 text-stone-500">（{{ sectorDate }} 收盤）</span>
+        <p class="text-body text-stone-300">
+          類股漲跌<span v-if="sectorDate" class="ml-1 text-stone-300">（{{ sectorDate }} 收盤）</span>
         </p>
         <ul class="grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-6">
           <li
@@ -179,8 +196,8 @@ function timeText(value: string) {
             :class="heatClass(sector.changePct)"
             :title="`${sector.name} ${formatNumber(sector.close)}`"
           >
-            <span class="truncate text-[11px]">{{ sector.name }}</span>
-            <span class="text-xs font-semibold tabular-nums">{{ formatSigned(sector.changePct, '%') }}</span>
+            <span class="truncate text-caption">{{ sector.name }}</span>
+            <span class="text-body font-semibold tabular-nums">{{ formatSigned(sector.changePct, '%') }}</span>
           </li>
         </ul>
       </div>
@@ -188,19 +205,41 @@ function timeText(value: string) {
       <!-- ── 三大法人（沿用股市諮詢的籌碼元件）── -->
       <MarketChips v-if="overview.institutional" :chips="overview.institutional" />
 
-      <!-- ── 美股與匯率 ── -->
-      <div v-if="overview.us.length" class="space-y-2">
-        <p class="text-xs text-stone-400">美股指數與匯率</p>
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          <div v-for="card in overview.us" :key="card.name" class="border-2 border-white/10 bg-white/[0.03] p-2.5">
-            <p class="truncate text-[11px] text-stone-400">{{ card.name }}</p>
-            <p class="mt-0.5 font-semibold tabular-nums text-stone-50">{{ formatNumber(card.price, priceDigits(card)) }}</p>
-            <p class="text-xs tabular-nums" :class="trendClass(card.change)">{{ formatSigned(card.changePct, '%') }}</p>
+      <!-- ── 美股、匯率與市場情緒：分組，每張卡片有白話說明、小走勢圖、近 5／20 日漲跌 ── -->
+      <div v-if="overview.us.length" class="space-y-4">
+        <div v-for="group in usGroups" :key="group.key" class="space-y-2">
+          <p class="text-subtitle font-semibold text-stone-100">{{ group.title }}</p>
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div v-for="card in group.cards" :key="card.name" class="flex flex-col gap-1.5 border-2 border-white/10 bg-white/[0.03] p-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="flex items-center gap-2 text-body text-stone-100">
+                    {{ card.name }}
+                    <span v-if="card.session === 'intraday'" class="border border-rose-300/30 px-1.5 text-caption text-rose-200">盤中</span>
+                  </p>
+                  <p class="mt-0.5 text-title font-semibold tabular-nums text-stone-50">
+                    {{ formatNumber(card.price, priceDigits(card)) }}<span v-if="card.unit" class="ml-0.5 text-body">{{ card.unit }}</span>
+                  </p>
+                  <p class="text-body tabular-nums" :class="trendClass(card.change)">
+                    {{ formatSigned(card.change, card.unit ?? '') }}（{{ formatSigned(card.changePct, '%') }}）
+                  </p>
+                </div>
+                <div v-if="card.spark.length > 1" class="w-24 shrink-0 sm:w-28">
+                  <MarketSparkline :values="card.spark" />
+                </div>
+              </div>
+              <p v-if="card.changes" class="flex gap-3 text-caption tabular-nums text-stone-300">
+                <span>近 5 日 <span :class="trendClass(card.changes.d5)">{{ formatSigned(card.changes.d5, '%') }}</span></span>
+                <span>近 20 日 <span :class="trendClass(card.changes.d20)">{{ formatSigned(card.changes.d20, '%') }}</span></span>
+              </p>
+              <p v-if="card.note" class="text-caption text-stone-300">{{ card.note }}</p>
+            </div>
           </div>
         </div>
+        <p class="text-caption text-stone-300">美股與匯率報價來自 Yahoo，可能延遲約 15 分鐘；小走勢圖是最近約 60 個交易日。</p>
       </div>
 
-      <p v-for="note in overview.notes" :key="note" class="text-xs text-stone-400">{{ note }}</p>
+      <p v-for="note in overview.notes" :key="note" class="text-body text-stone-300">{{ note }}</p>
     </template>
   </section>
 </template>

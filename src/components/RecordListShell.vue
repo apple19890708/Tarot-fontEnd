@@ -80,14 +80,14 @@ onBeforeUnmount(() => {
       <div v-if="showRail" key="rail" class="flex flex-col items-center">
         <button
           type="button"
-          class="cursor-pointer border-2 border-[#f1e7cf]/30 px-1.5 py-0.5 font-pixel text-[14px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px]"
+          class="cursor-pointer border-2 border-[#f1e7cf]/30 px-1.5 py-0.5 font-pixel text-button text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px]"
           :title="`展開${label}`"
           :aria-label="`展開${label}`"
           @click="toggleCollapsed"
         >
           »
         </button>
-        <span class="mt-3 text-xs text-[#f1e7cf]/60 [writing-mode:vertical-rl]">共 {{ count }} 筆</span>
+        <span class="mt-3 text-caption text-[#f1e7cf]/85 [writing-mode:vertical-rl]">共 {{ count }} 筆</span>
       </div>
 
       <!-- 寬度＝展開時 w-72 扣掉左邊框與 pl-2（右側不留，標籤才貼得到菜單），收合途中內容不會重新排版 -->
@@ -96,14 +96,14 @@ onBeforeUnmount(() => {
           <p class="font-pixel text-[12px] tracking-[0.2em] text-amber-200">{{ label }}</p>
           <button
             type="button"
-            class="hidden cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-[14px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px] lg:block"
+            class="hidden cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-button text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px] lg:block"
             @click="toggleCollapsed"
           >
             « 收合
           </button>
           <button
             type="button"
-            class="cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-[14px] text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px] lg:hidden"
+            class="cursor-pointer border-2 border-[#f1e7cf]/30 px-2 py-0.5 font-pixel text-button text-[#f1e7cf]/85 transition hover:border-amber-200/60 hover:text-amber-200 active:translate-x-[2px] active:translate-y-[2px] lg:hidden"
             @click="open = false"
           >
             關閉

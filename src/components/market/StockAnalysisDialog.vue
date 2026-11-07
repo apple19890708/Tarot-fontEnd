@@ -244,12 +244,12 @@ onBeforeUnmount(() => {
       >
         <div class="flex items-start justify-between gap-3 border-b-2 border-[#3b2618] px-4 py-3">
           <div class="min-w-0">
-            <p class="text-[10px] uppercase tracking-[0.2em] text-stone-400">Stock Analysis</p>
+            <p class="text-caption uppercase tracking-[0.2em] text-stone-300">Stock Analysis</p>
             <p class="truncate font-pixel text-[12px] text-amber-100">{{ name }} · 個股分析</p>
           </div>
           <button
             type="button"
-            class="-mr-1 shrink-0 cursor-pointer border-2 border-white/10 px-3 py-1.5 font-pixel text-[14px] text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px]"
+            class="-mr-1 shrink-0 cursor-pointer border-2 border-white/10 px-3 py-1.5 font-pixel text-button text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px]"
             @click="close"
           >
             關閉
@@ -262,7 +262,7 @@ onBeforeUnmount(() => {
         <div ref="bodyEl" class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
           <!-- 行情、走勢、籌碼、回測、操作建議：和股市諮詢結果頁同一個元件 -->
           <!-- 第一列（標題與更新報價）右邊留空間，不要被浮在右上角的水晶球蓋住 -->
-          <MarketPanel class="[&>div:first-child]:pr-12" :snapshot="snapshot" :status="status" :error="error" @refresh="load" />
+          <MarketPanel class="[&>div:first-child]:pr-12" tabs :snapshot="snapshot" :status="status" :error="error" @refresh="load" />
 
           <template v-if="view">
             <!-- 我的持股 -->
@@ -275,7 +275,7 @@ onBeforeUnmount(() => {
             <section
               v-if="view.events?.exDividend || view.events?.revenue || view.news.length"
               ref="eventsEl"
-              class="space-y-2 border-2 border-white/10 bg-white/5 p-4 text-xs leading-5"
+              class="space-y-2 border-2 border-white/10 bg-white/5 p-4 text-body"
             >
               <p class="font-pixel text-[12px] text-stone-200">近期事件</p>
               <p v-if="view.events?.exDividend" class="tabular-nums text-stone-300">
@@ -290,7 +290,7 @@ onBeforeUnmount(() => {
                 ・累計年增 <span :class="trendClass(view.events.revenue.cumYoy)">{{ formatSigned(view.events.revenue.cumYoy, '%') }}</span>
               </p>
               <div v-if="view.news.length" class="border-t border-white/10 pt-2">
-                <p class="text-stone-400">重大訊息（最近 {{ view.news.length }} 則）</p>
+                <p class="text-stone-300">重大訊息（最近 {{ view.news.length }} 則）</p>
                 <MarketNewsList class="mt-1" :news="view.news" />
               </div>
             </section>
@@ -301,7 +301,7 @@ onBeforeUnmount(() => {
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="min-w-0">
                 <p class="font-pixel text-[12px] text-amber-100">AI 深度分析</p>
-                <p class="mt-1 text-[11px] text-stone-400">
+                <p class="mt-1 text-caption text-stone-300">
                   <template v-if="!canUseAi">AI 分析需要管理者開通，請聯絡管理者。</template>
                   <template v-else-if="quota && quota.dailyLimit !== null">今天已用 {{ quota.usedToday }}／{{ quota.dailyLimit }} 次</template>
                   <template v-else-if="quota">今天已用 {{ quota.usedToday }} 次</template>
@@ -312,14 +312,14 @@ onBeforeUnmount(() => {
                 <button
                   v-if="aiStatus === 'streaming'"
                   type="button"
-                  class="cursor-pointer border-2 border-white/15 px-3 py-1 font-pixel text-[14px] text-stone-200 transition hover:bg-white/10"
+                  class="cursor-pointer border-2 border-white/15 px-3 py-1 font-pixel text-button text-stone-200 transition hover:bg-white/10"
                   @click="stopAi"
                 >
                   停止
                 </button>
                 <button
                   type="button"
-                  class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/10 px-3 py-1 font-pixel text-[14px] text-amber-50 transition hover:bg-amber-200/20 disabled:cursor-not-allowed disabled:opacity-50 active:translate-x-[2px] active:translate-y-[2px]"
+                  class="cursor-pointer border-2 border-amber-200/40 bg-amber-200/10 px-3 py-1 font-pixel text-button text-amber-50 transition hover:bg-amber-200/20 disabled:cursor-not-allowed disabled:opacity-50 active:translate-x-[2px] active:translate-y-[2px]"
                   :disabled="!canRun"
                   @click="runAi"
                 >
@@ -328,44 +328,44 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <p v-if="canUseAi && usedUp && aiStatus !== 'streaming'" class="mt-3 text-xs text-amber-100/80">今天的 AI 分析已用完，明天再試。</p>
-            <p v-if="aiError" class="mt-3 border-2 border-rose-200/20 bg-rose-300/10 px-3 py-2 text-sm text-rose-100">{{ aiError }}</p>
-            <p v-if="aiStatus === 'stopped'" class="mt-3 text-xs text-amber-100/80">已停止，這份分析沒有完成，不會存進紀錄，但會算進今天的次數。</p>
-            <p v-if="aiStatus === 'streaming' && !aiText" class="mt-3 text-xs text-stone-400">AI 正在讀資料，通常要 30 秒到 1 分鐘…</p>
+            <p v-if="canUseAi && usedUp && aiStatus !== 'streaming'" class="mt-3 text-body text-amber-100/80">今天的 AI 分析已用完，明天再試。</p>
+            <p v-if="aiError" class="mt-3 border-2 border-rose-200/20 bg-rose-300/10 px-3 py-2 text-body text-rose-100">{{ aiError }}</p>
+            <p v-if="aiStatus === 'stopped'" class="mt-3 text-body text-amber-100/80">已停止，這份分析沒有完成，不會存進紀錄，但會算進今天的次數。</p>
+            <p v-if="aiStatus === 'streaming' && !aiText" class="mt-3 text-body text-stone-300">AI 正在讀資料，通常要 30 秒到 1 分鐘…</p>
 
             <!-- 之前產生的分析：收成一列歷史紀錄，點了才展開（行情已經變了，不要一打開就當成現在的判斷） -->
             <div v-if="isOldAnalysis" class="mt-4 border border-white/10 bg-black/20">
               <button
                 type="button"
-                class="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs text-stone-300 hover:bg-white/5"
+                class="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-body text-stone-300 hover:bg-white/5"
                 :aria-expanded="oldAnalysisOpen"
                 @click="oldAnalysisOpen = !oldAnalysisOpen"
               >
                 <span class="transition" :class="oldAnalysisOpen ? 'rotate-90' : ''">›</span>
                 <span class="min-w-0 flex-1">上次分析：{{ aiTimeText }}（{{ oldAnalysisAge }}）</span>
-                <span class="shrink-0 text-stone-500">{{ oldAnalysisOpen ? '收合' : '查看' }}</span>
+                <span class="shrink-0 text-stone-300">{{ oldAnalysisOpen ? '收合' : '查看' }}</span>
               </button>
               <div v-if="oldAnalysisOpen" class="border-t border-white/10 px-3 pb-3">
-                <p class="mt-3 text-[11px] text-amber-100/70">這是 {{ aiTimeText }} 當時的行情寫的，現在的價格與指標可能已經不同。</p>
+                <p class="mt-3 text-caption text-amber-100/70">這是 {{ aiTimeText }} 當時的行情寫的，現在的價格與指標可能已經不同。</p>
                 <StockAiText class="mt-3" :text="aiText" />
               </div>
             </div>
             <StockAiText v-else-if="aiText" class="mt-4" :text="aiText" />
-            <p v-if="isOldAnalysis" class="mt-3 text-[11px] text-stone-500">
+            <p v-if="isOldAnalysis" class="mt-3 text-caption text-stone-300">
               所有分析都在
               <router-link :to="{ name: 'history', query: { tab: 'stock' } }" class="text-amber-200 underline underline-offset-2 hover:text-amber-100" @click="close">
                 我的紀錄 › 股票分析
               </router-link>
             </p>
 
-            <p v-if="aiStatus === 'done' && aiRecordId" class="mt-4 text-xs text-stone-400">
+            <p v-if="aiStatus === 'done' && aiRecordId" class="mt-4 text-body text-stone-300">
               已存到
               <router-link :to="{ name: 'history', query: { tab: 'stock', id: aiRecordId } }" @click="close" class="text-amber-200 underline underline-offset-2 hover:text-amber-100">
                 我的紀錄 › 股票分析
               </router-link>
             </p>
-            <p v-if="aiStatus === 'done' && aiSaveFailed" class="mt-4 text-xs text-rose-200">這份分析沒有存進紀錄，關掉彈窗就看不到了。</p>
-            <p v-if="!canUseAi || (aiText && !isOldAnalysis)" class="mt-3 text-[11px] text-stone-500">AI 只根據上面的資料撰寫，僅供參考，不是投資建議。</p>
+            <p v-if="aiStatus === 'done' && aiSaveFailed" class="mt-4 text-body text-rose-200">這份分析沒有存進紀錄，關掉彈窗就看不到了。</p>
+            <p v-if="!canUseAi || (aiText && !isOldAnalysis)" class="mt-3 text-caption text-stone-300">AI 只根據上面的資料撰寫，僅供參考，不是投資建議。</p>
           </section>
         </div>
         </div>

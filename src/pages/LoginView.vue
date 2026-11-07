@@ -2,7 +2,8 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { login } from '../lib/auth'
+import GoogleSignInButton from '../components/GoogleSignInButton.vue'
+import { login, loginWithGoogle } from '../lib/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -16,6 +17,23 @@ const error = ref('')
 function afterLogin() {
   const redirect = route.query.redirect
   router.replace(typeof redirect === 'string' && redirect.startsWith('/') ? redirect : '/')
+}
+
+// 從重設密碼頁回來時提示一句
+const justReset = route.query.reset === '1'
+
+async function googleSignIn(credential: string) {
+  if (loading.value) return
+  loading.value = true
+  error.value = ''
+  try {
+    await loginWithGoogle(credential)
+    afterLogin()
+  } catch (requestError) {
+    error.value = requestError instanceof Error ? requestError.message : 'Google 登入失敗，請稍後再試。'
+  } finally {
+    loading.value = false
+  }
 }
 
 async function submit() {
@@ -70,6 +88,14 @@ async function submit() {
         />
       </label>
 
+      <p v-if="justReset && !error" class="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100">
+        密碼已經更新，請用新密碼登入。
+      </p>
+
+      <p class="-mt-2 text-right text-sm">
+        <router-link to="/forgot-password" class="text-amber-200 hover:underline">忘記密碼？</router-link>
+      </p>
+
       <p v-if="error" class="rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">
         {{ error }}
       </p>
@@ -81,6 +107,8 @@ async function submit() {
       >
         {{ loading ? '登入中…' : '登入' }}
       </button>
+
+      <GoogleSignInButton @credential="googleSignIn" />
 
       <p class="text-center text-sm text-stone-300/70">
         還沒有帳號？

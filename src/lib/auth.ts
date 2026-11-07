@@ -1,5 +1,5 @@
 // 登入狀態的進入點。元件只 import 這個檔案，不直接碰 session.ts 或 api.ts。
-import { fetchMe, loginRequest, registerRequest } from './api'
+import { fetchMe, googleLoginRequest, loginRequest, registerRequest } from './api'
 import { clearResultSnapshot } from './resultSnapshot'
 import {
   clearSession,
@@ -36,6 +36,15 @@ onUnauthorized(() => {
 
 export async function login(email: string, password: string) {
   const { token, user } = await loginRequest({ email, password })
+  setToken(token)
+  setSession(user)
+  session.ready = true
+  return user
+}
+
+// Google 登入或註冊（後端用信箱找帳號，沒有就建立）
+export async function loginWithGoogle(credential: string) {
+  const { token, user } = await googleLoginRequest(credential)
   setToken(token)
   setSession(user)
   session.ready = true

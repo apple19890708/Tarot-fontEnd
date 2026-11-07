@@ -108,7 +108,7 @@ function navClass(name: string, tier: 'public' | keyof typeof NAV_TIER_STYLES = 
 const navRoutes = computed(() =>
   router
     .getRoutes()
-    .filter((route) => route.name && !route.meta?.guest)
+    .filter((route) => route.name && !route.meta?.guest && !route.meta?.hidden)
     // 要登入才進得去的頁面（例如我的紀錄），沒登入就不列出來
     .filter((route) => !route.meta?.auth || isLoggedIn.value)
     .filter((route) => !route.meta?.role || route.meta.role === currentUser.value?.role)

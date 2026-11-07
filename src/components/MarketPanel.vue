@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import HelpTip from './HelpTip.vue'
 import { signalGlossaryKeys } from '../lib/marketGlossary'
 
@@ -22,6 +22,8 @@ const props = defineProps<{
   isSaved?: boolean
   // 不顯示「更新報價」（例如「我的紀錄」的股票分析只看當時的資料）
   hideRefresh?: boolean
+  // 操作建議、籌碼與估值、歷史回測與模型改成分頁籤（個股分析彈窗用；結果頁與紀錄維持一段接一段）
+  tabs?: boolean
 }>()
 
 const emit = defineEmits<{ refresh: [] }>()
@@ -63,6 +65,22 @@ function signed(value: number | null | undefined, suffix = '') {
 }
 
 // 台灣習慣：漲紅跌綠
+function ohlcCells(item: MarketItem) {
+  const { open, high, low, prevClose } = item.quote
+  return [
+    { label: '開盤', value: open, cls: vsPrevClass(open, prevClose) },
+    { label: '最高', value: high, cls: vsPrevClass(high, prevClose) },
+    { label: '最低', value: low, cls: vsPrevClass(low, prevClose) },
+    { label: '昨收', value: prevClose, cls: 'text-stone-50' },
+  ]
+}
+
+// 價格和昨收比的顏色（開、高、低用）
+function vsPrevClass(value: number | null | undefined, prevClose: number | null | undefined) {
+  if (value === null || value === undefined || prevClose === null || prevClose === undefined || value === prevClose) return 'text-stone-50'
+  return value > prevClose ? 'text-rose-300' : 'text-emerald-300'
+}
+
 function trendClass(value: number | null | undefined) {
   if (!value) {
     return 'text-stone-300'
@@ -86,6 +104,43 @@ function sessionLabel(item: MarketItem) {
     return item.market === 'tw' ? '盤中 · 約延遲 20 秒' : '盤中'
   }
   return item.quote.date ? `收盤 · ${item.quote.date.slice(5).replace('-', '/')}` : '收盤'
+}
+
+// ---- 分頁籤（tabs 模式）：操作建議放第一個，沒有資料的分頁不顯示 ----
+type PanelTab = 'advice' | 'chips' | 'research'
+
+const itemKey = (item: MarketItem) => item.symbol || item.code || item.name
+// 每一檔各自記住選到哪一頁
+const chosenTab = ref<Record<string, PanelTab>>({})
+
+function tabsOf(item: MarketItem) {
+  const list: { key: PanelTab; label: string }[] = []
+  if (item.advice) list.push({ key: 'advice', label: '操作建議' })
+  if (item.chips || item.valuation) list.push({ key: 'chips', label: '籌碼與估值' })
+  if (item.research) list.push({ key: 'research', label: '歷史回測與模型' })
+  return list
+}
+
+function currentTab(item: MarketItem) {
+  const list = tabsOf(item)
+  const chosen = chosenTab.value[itemKey(item)]
+  return list.some((tab) => tab.key === chosen) ? chosen : list[0]?.key
+}
+
+function selectTab(item: MarketItem, key: PanelTab) {
+  chosenTab.value = { ...chosenTab.value, [itemKey(item)]: key }
+}
+
+// 左右方向鍵切換分頁（和股市追蹤頁的分頁籤一樣）
+function onTabKeydown(event: KeyboardEvent, item: MarketItem, index: number) {
+  if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
+  event.preventDefault()
+  const list = tabsOf(item)
+  const next = list[(index + (event.key === 'ArrowRight' ? 1 : list.length - 1)) % list.length]
+  if (!next) return
+  selectTab(item, next.key)
+  const tablist = (event.currentTarget as HTMLElement).parentElement
+  tablist?.querySelectorAll<HTMLElement>('[role="tab"]')[list.indexOf(next)]?.focus()
 }
 
 function indicatorRows(item: MarketItem) {
@@ -115,9 +170,9 @@ function indicatorRows(item: MarketItem) {
     <!-- data-panel-section：彈窗與紀錄頁「跳到段落」的目標（StockAnalysisDialog、StockAnalysisHistory）。註解放在裡面，根元素才只有一個 -->
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div class="min-w-0">
-        <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Market Data</p>
-        <h2 class="mt-1.5 text-lg font-semibold text-stone-50 sm:text-xl">行情與技術指標</h2>
-        <p v-if="snapshot" class="mt-1 text-xs text-stone-400">
+        <p class="text-caption uppercase tracking-[0.2em] text-stone-300 sm:tracking-[0.3em]">Market Data</p>
+        <h2 class="mt-1.5 text-title font-semibold text-stone-50">行情與技術指標</h2>
+        <p v-if="snapshot" class="mt-1 text-caption text-stone-300">
           {{ isSaved ? '當時查詢於' : '查詢時間' }} {{ asOfText }}
         </p>
       </div>
@@ -140,12 +195,12 @@ function indicatorRows(item: MarketItem) {
       </div>
     </div>
 
-    <p v-if="status === 'error'" class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+    <p v-if="status === 'error'" class="border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">
       {{ error || '行情暫時查不到，請稍後再試。' }}
     </p>
 
     <template v-if="snapshot">
-      <p v-if="snapshot.items.length === 0" class="text-sm text-stone-300/80">這次沒有查到報價。</p>
+      <p v-if="snapshot.items.length === 0" class="text-body text-stone-300">這次沒有查到報價。</p>
 
       <article
         v-for="item in snapshot.items"
@@ -154,24 +209,28 @@ function indicatorRows(item: MarketItem) {
       >
         <div class="flex flex-wrap items-start justify-between gap-2">
           <div class="min-w-0">
-            <h3 class="truncate text-base font-semibold text-stone-50 sm:text-lg">
+            <h3 class="truncate text-subtitle font-semibold text-stone-50">
               {{ item.name }}
-              <span v-if="idOf(item)" class="ml-1 text-xs font-normal text-stone-400">{{ idOf(item) }}</span>
+              <span v-if="idOf(item)" class="ml-1 text-caption font-normal text-stone-300">{{ idOf(item) }}</span>
             </h3>
-            <p class="mt-0.5 text-xs text-stone-400">{{ sessionLabel(item) }} · {{ item.currency }}</p>
+            <p class="mt-0.5 text-caption text-stone-300">{{ sessionLabel(item) }} · {{ item.currency }}</p>
           </div>
           <div class="text-right">
-            <p class="text-2xl font-semibold tabular-nums text-stone-50">{{ num(item.quote.price) }}</p>
-            <p class="text-sm tabular-nums" :class="trendClass(item.quote.change)">
+            <p class="text-display font-semibold tabular-nums text-stone-50">{{ num(item.quote.price) }}</p>
+            <p class="text-body tabular-nums" :class="trendClass(item.quote.change)">
               {{ signed(item.quote.change) }}（{{ signed(item.quote.changePct, '%') }}）
             </p>
           </div>
         </div>
 
-        <p class="text-xs tabular-nums text-stone-400">
-          開 {{ num(item.quote.open) }} · 高 {{ num(item.quote.high) }} · 低 {{ num(item.quote.low) }} · 昨收
-          {{ num(item.quote.prevClose) }}
-        </p>
+        <!-- 開高低和昨收：四格，數字和昨收比，高紅、低綠、一樣白（台灣看盤習慣）；昨收是基準，用白色 -->
+        <dl class="grid grid-cols-2 gap-2 tabular-nums sm:grid-cols-4">
+          <div v-for="cell in ohlcCells(item)" :key="cell.label" class="border border-white/10 bg-white/[0.03] px-2 py-1.5">
+            <dt class="text-caption text-stone-300">{{ cell.label }}</dt>
+            <dd class="text-subtitle font-semibold" :class="cell.cls">{{ num(cell.value) }}</dd>
+          </div>
+        </dl>
+
 
         <!-- 價格走勢（最近約半年） -->
         <MarketPriceChart v-if="item.chart" :chart="item.chart" :analysis="item.analysis" />
@@ -181,7 +240,7 @@ function indicatorRows(item: MarketItem) {
           <span
             v-for="signal in item.analysis.signals"
             :key="signal.key"
-            class="border-2 px-2.5 py-1 text-xs"
+            class="border-2 px-2.5 py-1 text-body"
             :class="TONE_STYLES[signal.tone]"
           >
             <span class="opacity-70">{{ signal.label }}</span>
@@ -194,64 +253,103 @@ function indicatorRows(item: MarketItem) {
         <!-- 支撐與壓力 -->
         <div v-if="item.analysis" class="grid gap-3 sm:grid-cols-2">
           <div class="border-2 border-rose-300/15 bg-rose-300/5 p-3">
-            <p class="flex items-center gap-1.5 text-xs font-medium text-rose-200/80">上方壓力 <HelpTip term="supportResistance" /></p>
-            <ul v-if="item.analysis.resistances.length" class="mt-2 space-y-1 text-sm">
+            <p class="flex items-center gap-1.5 text-body font-medium text-rose-200/80">上方壓力 <HelpTip term="supportResistance" /></p>
+            <ul v-if="item.analysis.resistances.length" class="mt-2 space-y-1 text-body">
               <li v-for="level in item.analysis.resistances" :key="level.price" class="flex justify-between gap-3">
                 <span class="tabular-nums text-stone-100">{{ num(level.price) }}</span>
-                <span class="text-right text-xs text-stone-400">{{ level.label }}</span>
+                <span class="text-right text-caption text-stone-300">{{ level.label }}</span>
               </li>
             </ul>
-            <p v-else class="mt-2 text-xs text-stone-400">現價在近 60 日的參考價位之上</p>
+            <p v-else class="mt-2 text-body text-stone-300">現價在近 60 日的參考價位之上</p>
           </div>
           <div class="border-2 border-emerald-300/15 bg-emerald-300/5 p-3">
-            <p class="flex items-center gap-1.5 text-xs font-medium text-emerald-200/80">下方支撐 <HelpTip term="supportResistance" /></p>
-            <ul v-if="item.analysis.supports.length" class="mt-2 space-y-1 text-sm">
+            <p class="flex items-center gap-1.5 text-body font-medium text-emerald-200/80">下方支撐 <HelpTip term="supportResistance" /></p>
+            <ul v-if="item.analysis.supports.length" class="mt-2 space-y-1 text-body">
               <li v-for="level in item.analysis.supports" :key="level.price" class="flex justify-between gap-3">
                 <span class="tabular-nums text-stone-100">{{ num(level.price) }}</span>
-                <span class="text-right text-xs text-stone-400">{{ level.label }}</span>
+                <span class="text-right text-caption text-stone-300">{{ level.label }}</span>
               </li>
             </ul>
-            <p v-else class="mt-2 text-xs text-stone-400">現價在近 60 日的參考價位之下</p>
+            <p v-else class="mt-2 text-body text-stone-300">現價在近 60 日的參考價位之下</p>
           </div>
         </div>
 
-        <dl v-if="item.indicators" class="grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-white/10 pt-3 text-xs sm:grid-cols-3">
+        <dl v-if="item.indicators" class="grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-white/10 pt-3 text-body sm:grid-cols-3">
           <div v-for="row in indicatorRows(item)" :key="row.label" class="flex justify-between gap-2">
-            <dt class="text-stone-400">{{ row.label }}</dt>
+            <dt class="text-stone-300">{{ row.label }}</dt>
             <dd class="tabular-nums" :class="row.tone === undefined ? 'text-stone-200' : trendClass(row.tone)">{{ row.value }}</dd>
           </div>
         </dl>
-        <p v-else class="border-t border-white/10 pt-3 text-xs text-stone-400">歷史資料不足，沒有技術指標。</p>
+        <p v-else class="border-t border-white/10 pt-3 text-body text-stone-300">歷史資料不足，沒有技術指標。</p>
 
-        <!-- 籌碼面與估值（台股） -->
-        <div v-if="item.chips || item.valuation" class="border-t border-white/10 pt-4" data-panel-section="籌碼與估值">
-          <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Chips &amp; Valuation</p>
-          <h3 class="mt-1 text-base font-semibold text-stone-50">籌碼與估值</h3>
-          <MarketChips class="mt-4" :chips="item.chips" :valuation="item.valuation" />
+        <!-- 分頁籤模式：操作建議、籌碼與估值、歷史回測與模型 -->
+        <div v-if="tabs && tabsOf(item).length" class="border-t-2 border-amber-200/20 pt-4" data-panel-section="操作建議・籌碼・回測">
+          <div role="tablist" aria-label="分析分頁" class="flex overflow-x-auto border-b-2 border-white/10">
+            <button
+              v-for="(tab, index) in tabsOf(item)"
+              :id="`panel-tab-${itemKey(item)}-${tab.key}`"
+              :key="tab.key"
+              type="button"
+              role="tab"
+              :aria-selected="currentTab(item) === tab.key"
+              :aria-controls="`panel-tabpanel-${itemKey(item)}`"
+              :tabindex="currentTab(item) === tab.key ? 0 : -1"
+              class="-mb-[2px] shrink-0 cursor-pointer whitespace-nowrap border-b-2 px-4 py-2.5 text-button transition font-pixel sm:px-5"
+              :class="
+                currentTab(item) === tab.key
+                  ? 'border-amber-200 bg-amber-200/10 text-amber-50'
+                  : 'border-transparent text-stone-300 hover:bg-white/5 hover:text-stone-100'
+              "
+              @click="selectTab(item, tab.key)"
+              @keydown="onTabKeydown($event, item, index)"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+          <div
+            :id="`panel-tabpanel-${itemKey(item)}`"
+            role="tabpanel"
+            :aria-labelledby="`panel-tab-${itemKey(item)}-${currentTab(item)}`"
+            class="pt-4"
+          >
+            <MarketAdvice v-if="currentTab(item) === 'advice' && item.advice" :advice="item.advice" :item="item" />
+            <MarketChips v-else-if="currentTab(item) === 'chips'" :chips="item.chips" :valuation="item.valuation" />
+            <MarketResearch v-else-if="currentTab(item) === 'research' && item.research" :research="item.research" />
+          </div>
         </div>
+        <p v-if="tabs && !item.research && item.indicators" class="text-body text-stone-300">歷史資料不足一年，沒有回測與模型預測。</p>
 
-        <!-- 歷史回測、策略比較、機器學習 -->
-        <div v-if="item.research" class="border-t border-white/10 pt-4" data-panel-section="歷史回測與模型">
-          <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Backtest &amp; Model</p>
-          <h3 class="mt-1 text-base font-semibold text-stone-50">歷史回測與模型</h3>
-          <MarketResearch class="mt-4" :research="item.research" />
-        </div>
-        <p v-else-if="item.indicators" class="text-xs text-stone-400">歷史資料不足一年，沒有回測與模型預測。</p>
+        <template v-if="!tabs">
+          <!-- 籌碼面與估值（台股） -->
+          <div v-if="item.chips || item.valuation" class="border-t border-white/10 pt-4" data-panel-section="籌碼與估值">
+            <p class="text-caption uppercase tracking-[0.2em] text-stone-300 sm:tracking-[0.3em]">Chips &amp; Valuation</p>
+            <h3 class="mt-1 text-subtitle font-semibold text-stone-50">籌碼與估值</h3>
+            <MarketChips class="mt-4" :chips="item.chips" :valuation="item.valuation" />
+          </div>
 
-        <!-- 操作建議：整理上面全部資料的結論，放在最後 -->
-        <div v-if="item.advice" class="border-t-2 border-amber-200/20 pt-4" data-panel-section="操作建議">
-          <p class="text-[10px] uppercase tracking-[0.2em] text-stone-300/60 sm:text-xs sm:tracking-[0.3em]">Trading Plan</p>
-          <h3 class="mt-1 text-base font-semibold text-stone-50">操作建議</h3>
-          <MarketAdvice class="mt-4" :advice="item.advice" :item="item" />
-        </div>
+          <!-- 歷史回測、策略比較、機器學習 -->
+          <div v-if="item.research" class="border-t border-white/10 pt-4" data-panel-section="歷史回測與模型">
+            <p class="text-caption uppercase tracking-[0.2em] text-stone-300 sm:tracking-[0.3em]">Backtest &amp; Model</p>
+            <h3 class="mt-1 text-subtitle font-semibold text-stone-50">歷史回測與模型</h3>
+            <MarketResearch class="mt-4" :research="item.research" />
+          </div>
+          <p v-else-if="item.indicators" class="text-body text-stone-300">歷史資料不足一年，沒有回測與模型預測。</p>
+
+          <!-- 操作建議：整理上面全部資料的結論，放在最後 -->
+          <div v-if="item.advice" class="border-t-2 border-amber-200/20 pt-4" data-panel-section="操作建議">
+            <p class="text-caption uppercase tracking-[0.2em] text-stone-300 sm:tracking-[0.3em]">Trading Plan</p>
+            <h3 class="mt-1 text-subtitle font-semibold text-stone-50">操作建議</h3>
+            <MarketAdvice class="mt-4" :advice="item.advice" :item="item" />
+          </div>
+        </template>
       </article>
 
-      <ul v-if="snapshot.notes.length > 0" class="space-y-1 text-xs leading-5 text-amber-100/80">
+      <ul v-if="snapshot.notes.length > 0" class="space-y-1 text-body text-amber-100/80">
         <li v-for="note in snapshot.notes" :key="note">{{ note }}</li>
       </ul>
     </template>
 
-    <p class="text-[11px] leading-5 text-stone-500">
+    <p class="text-caption text-stone-300">
       資料來源：證交所即時報價、Yahoo Finance。技術指標以日 K 計算，盤中的數字收盤前還會變動。
     </p>
   </section>

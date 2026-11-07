@@ -2,7 +2,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { register } from '../lib/auth'
+import GoogleSignInButton from '../components/GoogleSignInButton.vue'
+import { loginWithGoogle, register } from '../lib/auth'
 
 const PASSWORD_MIN = 8
 
@@ -14,6 +15,21 @@ const confirm = ref('')
 const displayName = ref('')
 const loading = ref(false)
 const error = ref('')
+
+// 用 Google 註冊：後端有同信箱的帳號就直接登入，沒有就建立
+async function googleSignUp(credential: string) {
+  if (loading.value) return
+  loading.value = true
+  error.value = ''
+  try {
+    await loginWithGoogle(credential)
+    void router.replace('/')
+  } catch (requestError) {
+    error.value = requestError instanceof Error ? requestError.message : 'Google 註冊失敗，請稍後再試。'
+  } finally {
+    loading.value = false
+  }
+}
 
 async function submit() {
   if (loading.value) {
@@ -110,6 +126,8 @@ async function submit() {
       >
         {{ loading ? '註冊中…' : '建立帳號' }}
       </button>
+
+      <GoogleSignInButton mode="signup" @credential="googleSignUp" />
 
       <p class="text-center text-sm text-stone-300/70">
         已經有帳號了？

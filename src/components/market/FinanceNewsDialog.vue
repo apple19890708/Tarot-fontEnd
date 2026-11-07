@@ -115,12 +115,12 @@ onBeforeUnmount(() => {
       >
         <div class="flex items-start justify-between gap-3 border-b-2 border-[#3b2618] px-4 py-3">
           <div class="min-w-0">
-            <p class="text-[10px] uppercase tracking-[0.2em] text-stone-400">News Digest</p>
+            <p class="text-caption uppercase tracking-[0.2em] text-stone-300">News Digest</p>
             <p class="font-pixel text-[12px] text-amber-100">新聞重點</p>
           </div>
           <button
             type="button"
-            class="-mr-1 shrink-0 cursor-pointer border-2 border-white/10 px-3 py-1.5 font-pixel text-[14px] text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px]"
+            class="-mr-1 shrink-0 cursor-pointer border-2 border-white/10 px-3 py-1.5 font-pixel text-button text-stone-200 transition hover:bg-white/10 active:translate-x-[2px] active:translate-y-[2px]"
             @click="close"
           >
             關閉
@@ -130,14 +130,14 @@ onBeforeUnmount(() => {
         <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
           <!-- 標題與來源 -->
           <div>
-            <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-stone-400">
+            <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-stone-300">
               <span class="border px-1.5" :class="item.region === 'tw' ? 'border-amber-200/30 text-amber-100' : 'border-sky-200/30 text-sky-100'">
                 {{ item.region === 'tw' ? '國內' : '國外' }}
               </span>
               <span>{{ item.sourceLabel }}</span>
               <time :datetime="item.publishedAt">{{ publishedText }}</time>
             </p>
-            <h3 class="mt-2 text-base font-semibold leading-7 text-stone-50" :lang="lang">{{ item.title }}</h3>
+            <h3 class="mt-2 text-subtitle font-semibold text-stone-50" :lang="lang">{{ item.title }}</h3>
           </div>
 
           <!-- 載入中：標籤列、三句重點、族群、按鈕 -->
@@ -156,21 +156,21 @@ onBeforeUnmount(() => {
                 <SkeletonBlock v-for="n in 5" :key="n" class="h-6 w-24 rounded-none" />
               </div>
             </div>
-            <p class="text-[11px] text-stone-500">第一次打開這則新聞時要讀原文，約需幾秒鐘…</p>
+            <p class="text-caption text-stone-300">第一次打開這則新聞時要讀原文，約需幾秒鐘…</p>
           </div>
 
           <!-- 失敗：至少顯示來源摘要 -->
           <div v-else-if="status === 'error'" class="space-y-3">
-            <div class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+            <div class="flex flex-wrap items-center gap-3 border-2 border-rose-200/20 bg-rose-300/10 px-4 py-3 text-body text-rose-100">
               <span>{{ error }}</span>
-              <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-[14px] font-pixel" @click="load">重試</button>
+              <button type="button" class="cursor-pointer border-2 border-rose-200/30 px-3 py-1 text-button font-pixel" @click="load">重試</button>
             </div>
-            <p v-if="item.summary" class="text-sm leading-7 text-stone-300" :lang="lang">{{ item.summary }}</p>
+            <p v-if="item.summary" class="text-body text-stone-300" :lang="lang">{{ item.summary }}</p>
           </div>
 
           <template v-else-if="digest">
             <!-- 標籤：語氣、提及個股 -->
-            <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <div class="flex flex-wrap items-center gap-1.5 text-caption">
               <span class="border px-2 py-0.5" :class="TONES[digest.tone].class">{{ TONES[digest.tone].label }}</span>
               <span
                 v-for="stock in visibleStocks"
@@ -182,29 +182,29 @@ onBeforeUnmount(() => {
                 <!-- 名稱、代號、市場之間用 margin 分開（模板裡的空白會被壓掉） -->
                 <span>{{ stock.name }}</span>
                 <span v-if="stock.name !== (stock.code ?? stock.symbol)" class="ml-1">{{ stock.code ?? stock.symbol }}</span>
-                <span class="ml-1 text-stone-500">{{ stock.market === 'tw' ? '台股' : '美股' }}</span>
+                <span class="ml-1 text-stone-300">{{ stock.market === 'tw' ? '台股' : '美股' }}</span>
                 <span v-if="stock.watched" class="ml-1">★</span>
               </span>
               <button
                 v-if="hiddenStockCount"
                 type="button"
-                class="cursor-pointer border border-white/15 px-2 py-0.5 text-[11px] text-stone-400 transition hover:bg-white/10 hover:text-stone-200"
+                class="cursor-pointer border border-white/15 px-2 py-0.5 text-caption text-stone-300 transition hover:bg-white/10 hover:text-stone-200"
                 :aria-expanded="showAllStocks"
                 @click="showAllStocks = !showAllStocks"
               >
                 {{ showAllStocks ? '收合' : `更多（+${hiddenStockCount}）` }}
               </button>
-              <span v-if="!digest.stocks.length" class="text-stone-500">沒有比對到特定個股</span>
+              <span v-if="!digest.stocks.length" class="text-stone-300">沒有比對到特定個股</span>
             </div>
 
             <!-- 重點摘要（原文節錄） -->
             <section class="border-2 border-white/10 bg-white/5 p-4">
               <p class="font-pixel text-[12px] text-stone-200">重點摘要</p>
-              <ul v-if="digest.points.length" class="mt-2 list-disc space-y-2 pl-5 text-sm leading-7 text-stone-100/90 marker:text-amber-200/60" :lang="lang">
+              <ul v-if="digest.points.length" class="mt-2 list-disc space-y-2 pl-5 text-body text-stone-100/90 marker:text-amber-200/60" :lang="lang">
                 <li v-for="(point, index) in digest.points" :key="index">{{ point }}</li>
               </ul>
-              <p v-else class="mt-2 text-sm text-stone-400">這則新聞是表格或公告，沒有可以節錄的句子，請看原文。</p>
-              <p class="mt-3 text-[11px] leading-5 text-stone-500">
+              <p v-else class="mt-2 text-body text-stone-300">這則新聞是表格或公告，沒有可以節錄的句子，請看原文。</p>
+              <p class="mt-3 text-caption text-stone-300">
                 <template v-if="digest.basis === 'article'">從原文節錄的句子，未經改寫。</template>
                 <template v-else-if="digest.articleRead">原文主要是表格，挑不出完整的句子<template v-if="digest.points.length">，以上是來源提供的摘要</template>。</template>
                 <template v-else>原文網站不開放讀取<template v-if="digest.points.length">，以上是來源提供的摘要</template>。</template>
@@ -213,28 +213,28 @@ onBeforeUnmount(() => {
             </section>
 
             <!-- 可能影響族群（依主題對照） -->
-            <section v-if="twGroups.length || usGroups.length" class="space-y-2 border-2 border-white/10 bg-white/5 p-4 text-[11px]">
+            <section v-if="twGroups.length || usGroups.length" class="space-y-2 border-2 border-white/10 bg-white/5 p-4 text-caption">
               <p class="font-pixel text-[12px] text-stone-200">可能影響族群</p>
               <p v-if="twGroups.length" class="flex flex-wrap items-center gap-1.5">
-                <span class="mr-1 text-stone-400">台股</span>
+                <span class="mr-1 text-stone-300">台股</span>
                 <span v-for="group in twGroups" :key="group" class="border border-amber-200/25 px-2 py-0.5 text-amber-50/90">{{ group }}</span>
               </p>
               <p v-if="usGroups.length" class="flex flex-wrap items-center gap-1.5">
-                <span class="mr-1 text-stone-400">美股</span>
+                <span class="mr-1 text-stone-300">美股</span>
                 <span v-for="group in usGroups" :key="group" class="border border-sky-200/25 px-2 py-0.5 text-sky-50/90">{{ group }}</span>
               </p>
-              <p class="text-stone-500">依新聞主題（{{ themeLabels.join('、') }}）對照的參考族群，不代表新聞寫到這些族群；要看因果推論請用「AI 影響分析」。</p>
+              <p class="text-stone-300">依新聞主題（{{ themeLabels.join('、') }}）對照的參考族群，不代表新聞寫到這些族群；要看因果推論請用「AI 影響分析」。</p>
             </section>
           </template>
 
           <!-- 原文連結 -->
           <div class="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-            <p class="text-[11px] text-stone-500">標籤是規則比對的結果，僅供參考，不是投資建議。</p>
+            <p class="text-caption text-stone-300">標籤是規則比對的結果，僅供參考，不是投資建議。</p>
             <a
               :href="item.url"
               target="_blank"
               rel="noopener noreferrer"
-              class="shrink-0 border-2 border-amber-200/40 bg-amber-200/10 px-3 py-1 font-pixel text-[14px] text-amber-50 transition hover:bg-amber-200/20"
+              class="shrink-0 border-2 border-amber-200/40 bg-amber-200/10 px-3 py-1 font-pixel text-button text-amber-50 transition hover:bg-amber-200/20"
             >
               閱讀原文 ↗
             </a>

@@ -17,11 +17,29 @@ description: 畫面改動的交付前自檢。改到 src/pages、src/components 
 - **移除、刪除一律先確認**：用 `src/lib/confirm.ts` 的 `await confirmDialog({ title, message, confirmText, danger: true })`（畫面是 `ConfirmDialog.vue`，掛在 `App.vue`），不要用 `window.confirm`，也不要自己做「再按一次確定」。只刪表單裡還沒儲存的一列不用確認。
 - **指標旁放說明**：股市指標名稱旁用 `src/components/HelpTip.vue`（圓圈「?」），說明文字集中在 `src/lib/marketGlossary.ts`；新增指標時一起補說明。
 - **彈窗開著時背景不能捲動**：彈窗元件呼叫 `src/lib/useScrollLock.ts` 的 `useScrollLock()`。
-- **按鈕字級**：按鈕統一 `text-[14px]`。`style.css` 的全域元素樣式一律放進 `@layer base`，否則會蓋掉 Tailwind 的 class。
+- **按鈕字級**：新按鈕用 `text-button`（見下方 RWD 字級規範）；既有的 `text-[14px]` 改到時再換。`style.css` 的全域元素樣式一律放進 `@layer base`，否則會蓋掉 Tailwind 的 class。
 - **下拉選單一律用 `SelectField.vue`**，不要用原生 `<select>`：原生的展開清單是作業系統畫的，樣式和游標都改不了（深底深字看不見、滑過是箭頭不是手指）。依位置選 `variant`：占卜頁 `glass`、我的紀錄 `washi`、股市頁 `pixel`；旁邊已有說明文字時加 `hide-label`。
 - **整頁捲動一律用 `src/lib/motion.ts` 的 `smoothScrollTo(top)`**（回到頂端、跳到段落、捲到某一列），不要用 `window.scrollTo({ behavior: 'smooth' })`：原生的平滑捲動在長頁面幾乎瞬間到頂，看起來沒有動畫。彈窗內部自己的捲動區可以用 `scrollIntoView`。
 - **我的紀錄的清單**一律用 `RecordListShell`（外框）＋`RecordIndex`（索引標籤清單），新的紀錄類別照塔羅、股票分析、財經新聞的寫法接上。
 - **更新類按鈕的樣子**：股市頁的「更新」「重試」一律用 `src/components/RefreshButton.vue`（按下、更新中、已更新、冷卻進度條都做好了）；其他會打 API 的按鈕至少要有 `active:` 按下效果。
+- **文字不要用暗灰色**：深色底上的說明文字、欄位標籤最暗用 `text-stone-300`，不要用 `text-stone-400`／`500`／`600`（看不清楚）。要和數值區分就靠顏色而不是調暗，例如持股的「均價」用 `text-amber-200`。字級照下面的「RWD 字級規範」。
+- **股市文字要白話**：使用者多半沒學過技術分析。畫面上的標題、欄位名稱、說明一律用白話（年化→平均每年、最大回落→最慘時從高點跌了、勝率→幾成有賺、買進持有→買了一直抱著、樣本少→次數太少），專有名詞（均線、RSI、KD…）旁放 `HelpTip`。後端產生的規則文字太專業時，請後端另外給白話欄位（例如策略的 `plain`），前端不自己改寫。
+- **RWD 字級規範**：字級一律用下面的語意 class，大小由 `src/style.css` 的 `--fs-*` 變數依螢幕寬度自動切換，不要再寫 `text-[11px]`、`text-xs`、`md:text-base` 這類固定或加前綴的字級。三級斷點：**m** 600px 以下（手機）、**l** 601～1919px（以 1440 為設計基準，平板也算這級）、**xl** 1920px 以上。
+
+  | class | 用途 | m | l | xl |
+  |---|---|---|---|---|
+  | `text-display` | 頁面大標、主要價格大字 | 24 | 32 | 40 |
+  | `text-title` | 區塊標題 | 18 | 22 | 26 |
+  | `text-subtitle` | 卡片標題、股票名稱、彈窗標題 | 16 | 18 | 20 |
+  | `text-body` | 內文、資訊欄位、數字、標籤、AI 文字 | 14 | 16 | 18 |
+  | `text-caption` | 註腳、日期、圖表說明、免責聲明 | 13 | 14 | 16 |
+  | `text-button` | 按鈕 | 14 | 14 | 16 |
+
+  - 最小字級 13px（`text-caption` 的手機值）；不再新增 12px 以下的文字。
+  - 行高已內建在 class 裡，一般不用另外加 `leading-*`。
+  - 例外：`font-pixel` 的像素小標（`text-[12px]` 這類，要用 12 的倍數才方正）維持原本寫法；像素字型的按鈕照樣用 `text-button`。
+  - 固定寬度的文字欄（標籤、日期這類短字）寬度用 `em`（例如 `w-[2.5em]`）＋`whitespace-nowrap`，才會跟著字級變寬；寫死 `w-8` 會讓「偏空」在 16px 以上斷成兩行（判斷依據曾經這樣）。數字欄（例如追蹤清單一列裡的現價、漲跌、損益）字放大後也要確認放得下，1920 以上不夠就加 `min-[1920px]:w-*`；Tailwind 內建的 `xl:` 是 1280，不是這裡的 xl。
+  - 既有畫面還有很多 `text-xs`／`text-sm`／`text-[11px]`，改到哪一塊就順手換成語意 class；範例見 `MarketHoldings.vue` 的持股區塊。已換完：股市追蹤頁外框、自訂追蹤（含持股、群組、事件、新聞）、個股分析彈窗與 `MarketPanel` 全套（行情、籌碼估值、回測、操作建議）、大盤概況、財經新聞（含新聞重點與 AI 影響分析彈窗）、選股、參考命中、價位提醒（含推播設定）、我的紀錄（外框、和紙清單 `RecordIndex`／`RecordListShell`、股票分析、財經新聞分析；塔羅紀錄內容是 `StepResult`，跟占卜頁一起換），以及共用的 `HelpTip`、`RefreshButton`、`SectionJumpMenu`。
 
 ## 1. 每個操作都有看得到的回饋（手機沒有 hover）
 

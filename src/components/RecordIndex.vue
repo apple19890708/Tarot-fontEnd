@@ -145,14 +145,14 @@ const TONE_CLASS = { up: 'text-[#a8322a]', down: 'text-[#3d6b2e]' } as const
         v-model="keyword"
         type="search"
         :placeholder="placeholder"
-        class="w-full border-2 border-[#3b2618] bg-[#f1e7cf] px-2 py-1.5 text-sm text-[#2a1a14] shadow-[3px_3px_0_rgba(0,0,0,0.35)] placeholder:text-[#2a1a14]/45 focus:border-[#a8322a] focus:outline-none"
+        class="w-full border-2 border-[#3b2618] bg-[#f1e7cf] px-2 py-1.5 text-body text-[#2a1a14] shadow-[3px_3px_0_rgba(0,0,0,0.35)] placeholder:text-[#2a1a14]/45 focus:border-[#a8322a] focus:outline-none"
       />
       <div class="flex flex-wrap items-center gap-2">
         <button
           v-for="option in filterOptions"
           :key="option.value"
           type="button"
-          class="cursor-pointer border-2 px-3 py-1 font-pixel text-[14px] transition active:translate-x-[2px] active:translate-y-[2px]"
+          class="cursor-pointer border-2 px-3 py-1 font-pixel text-button transition active:translate-x-[2px] active:translate-y-[2px]"
           :class="
             filter === option.value
               ? 'border-[#3b2618] bg-[#a8322a] text-[#f1e7cf]'
@@ -162,7 +162,7 @@ const TONE_CLASS = { up: 'text-[#a8322a]', down: 'text-[#3d6b2e]' } as const
         >
           {{ option.label }}
         </button>
-        <span class="ml-auto text-xs text-[#f1e7cf]/60">
+        <span class="ml-auto text-caption text-[#f1e7cf]/85">
           <template v-if="hasCondition">符合 {{ items.length }} 筆／</template>共 {{ total }} 筆
         </span>
       </div>
@@ -170,11 +170,11 @@ const TONE_CLASS = { up: 'text-[#a8322a]', down: 'text-[#3d6b2e]' } as const
       <slot name="controls" />
     </div>
 
-    <div v-if="items.length === 0" class="border-2 border-[#3b2618] bg-[#f1e7cf] px-4 py-6 text-center text-sm text-[#2a1a14]/70">
+    <div v-if="items.length === 0" class="border-2 border-[#3b2618] bg-[#f1e7cf] px-4 py-6 text-center text-body text-[#2a1a14]/85">
       <p>沒有符合條件的紀錄</p>
       <button
         type="button"
-        class="mt-3 cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-4 py-1.5 font-pixel text-[14px] text-[#2a1a14] transition hover:bg-[#f1e7cf] active:translate-x-[2px] active:translate-y-[2px]"
+        class="mt-3 cursor-pointer border-2 border-[#3b2618] bg-[#e9dcc0] px-4 py-1.5 font-pixel text-button text-[#2a1a14] transition hover:bg-[#f1e7cf] active:translate-x-[2px] active:translate-y-[2px]"
         @click="clearConditions"
       >
         清除條件
@@ -212,11 +212,11 @@ const TONE_CLASS = { up: 'text-[#a8322a]', down: 'text-[#3d6b2e]' } as const
                 line-clamp 要靠 display:-webkit-box，不能再加 block，否則整段完全不截斷。
                 桌機左欄窄，截成一行；手機清單是滿版，留兩行比較讀得到重點。
               -->
-              <span data-title class="line-clamp-2 text-sm leading-6 text-[#2a1a14] lg:line-clamp-1">{{ item.title }}</span>
-              <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#2a1a14]/60">
+              <span data-title class="line-clamp-2 text-body text-[#2a1a14] lg:line-clamp-1">{{ item.title }}</span>
+              <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-[#2a1a14]/85">
                 <span class="tabular-nums">{{ formatShortDate(item.createdAt) }}</span>
                 <span v-for="(meta, m) in item.meta ?? []" :key="m" class="tabular-nums" :class="meta.tone ? TONE_CLASS[meta.tone] : ''">{{ meta.text }}</span>
-                <span v-if="item.badge" class="border border-[#a8322a] px-1.5 py-0.5 text-[11px] leading-none text-[#a8322a]">{{ item.badge }}</span>
+                <span v-if="item.badge" class="border border-[#a8322a] px-1.5 py-0.5 text-caption leading-none text-[#a8322a]">{{ item.badge }}</span>
               </span>
             </button>
           </li>
@@ -228,7 +228,7 @@ const TONE_CLASS = { up: 'text-[#a8322a]', down: 'text-[#3d6b2e]' } as const
     <Teleport to="body">
       <div
         v-if="tip"
-        class="pointer-events-none fixed z-50 w-72 rounded-md border border-white/10 bg-neutral-800 px-3 py-2 text-xs leading-5 text-stone-100 shadow-lg shadow-black/50"
+        class="pointer-events-none fixed z-50 w-72 rounded-md border border-white/10 bg-neutral-800 px-3 py-2 text-body text-stone-100 shadow-lg shadow-black/50"
         :style="{ left: `${tip.left}px`, top: `${tip.top}px` }"
         role="tooltip"
       >

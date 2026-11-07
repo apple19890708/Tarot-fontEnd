@@ -17,10 +17,10 @@ const factors = computed(() =>
 )
 
 const data = computed(() => ({
-  labels: factors.value.map((factor) => factor.label),
+  labels: factors.value.map((factor) => factor.plain || factor.label),
   datasets: [
     {
-      label: '今天的影響（正值偏漲、負值偏跌）',
+      label: '今天的影響（往右偏漲、往左偏跌）',
       data: factors.value.map((factor) => factor.contribution),
       backgroundColor: factors.value.map((factor) => ((factor.contribution ?? 0) >= 0 ? CHART_COLORS.up : CHART_COLORS.down)),
       borderRadius: 2,
