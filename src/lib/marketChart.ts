@@ -63,6 +63,12 @@ export function formatNumber(value: number | null | undefined, digits = 2) {
   return value.toLocaleString('en-US', { maximumFractionDigits: digits })
 }
 
+// 開、高、低和昨收比的顏色（台灣看盤習慣：比昨收高紅、低綠、一樣白）。個股分析與股市總覽的股票卡片共用
+export function vsPrevClass(value: number | null | undefined, prevClose: number | null | undefined) {
+  if (value === null || value === undefined || prevClose === null || prevClose === undefined || value === prevClose) return 'text-ink'
+  return value > prevClose ? 'text-up' : 'text-down'
+}
+
 export function formatSigned(value: number | null | undefined, suffix = '') {
   if (value === null || value === undefined) {
     return '—'

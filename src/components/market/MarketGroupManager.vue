@@ -5,7 +5,7 @@ import { confirmDialog } from '../../lib/confirm'
 import { createWatchGroup, deleteWatchGroup, renameWatchGroup, reorderWatchGroups } from '../../lib/api'
 import type { MarketWatchGroup } from '../../types'
 
-// 管理自選清單：新增、改名、調整順序、刪除（刪除時裡面的股票移到「未分類」）
+// 管理自選清單：新增、改名、調整順序、刪除（刪除時只從各檔拿掉這個清單，一檔可以同時在好幾個清單）
 const props = defineProps<{ groups: MarketWatchGroup[] }>()
 const emit = defineEmits<{ changed: [groups: MarketWatchGroup[]]; removed: [id: string] }>()
 
@@ -71,7 +71,7 @@ async function remove(group: MarketWatchGroup) {
   const ok = await confirmDialog({
     title: '刪除清單',
     message: `刪除清單「${group.name}」？
-裡面的股票會移到「未分類」，不會被刪掉。`,
+股票不會被刪掉，只是從這個清單拿掉；沒有放在其他清單的會變成「未分類」。`,
     confirmText: '刪除',
     danger: true,
   })

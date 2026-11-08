@@ -32,7 +32,7 @@
 
 ## 開發準則（每次開發都要照做）
 
-1. **先找既有作法再動手**：同類需求先找專案裡已有的共用元件與函式（例如 `RefreshButton`、`confirmDialog`、`useCooldown`、`useScrollLock`、`HelpTip`、`SectionJumpMenu`、`SkeletonBlock`），沒有才新做；同一個問題在多處出現時一次改完，並抽成共用的，不要只修使用者截圖的那一處。
+1. **先找既有作法再動手**：同類需求先找專案裡已有的共用元件與函式（例如 `RefreshButton`、`confirmDialog`、`useCooldown`、`useScrollLock`、`HelpTip`、`SectionJumpMenu`、`SkeletonBlock`、編輯開關 `EditToggleButton`（筆 → 勾勾）、拖曳排序 `usePointerReorder`（滑鼠與手指都能拖）），沒有才新做；同一個問題在多處出現時一次改完，並抽成共用的，不要只修使用者截圖的那一處。
 2. **修 bug 先找根本原因**：回報時說明原因，而不只是症狀怎麼消失（例如「更新按鈕沒反應」的原因是已有資料時 `load()` 不會進入 loading，不是樣式太淡）。
 3. **交付前跑檢查**：`verify`，以及它要求的 `ui-check`（改到畫面或互動時）；改到後端時另外照 `../Tbackend` 的規範。檢查清單的每一類都要交代：檢查了、不適用、或這裡無法驗證。
 4. **誠實回報**：沒驗證到的（需要真機、實際畫面、開盤時段、真實外部資料）明確列出，並告訴使用者怎麼確認；不要說「好了」。

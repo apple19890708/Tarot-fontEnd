@@ -221,7 +221,7 @@ const CHECK = 'h-3.5 w-3.5 accent-amber-300'
             :key="option.value"
             type="button"
             class="cursor-pointer border px-2 py-0.5 text-button transition"
-            :class="sort === option.value ? 'border-accent-hue/40 text-accent' : 'border-tint/10 text-ink-muted hover:bg-tint/10'"
+            :class="sort === option.value ? 'border-ink-soft/60 bg-tint/10 text-ink' : 'border-tint/10 text-ink-muted hover:bg-tint/10'"
             @click="sort = option.value"
           >
             {{ option.label }}

@@ -735,7 +735,8 @@ onBeforeUnmount(resetSceneBus)
     <div class="mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col gap-4 px-0 py-2 sm:gap-6 sm:px-5 md:px-8">
 
       <!-- 其他頁各自有 h1，只有首頁沒有：訪客第一眼要知道這是什麼、會拿到什麼 -->
-      <header class="text-center">
+      <!-- 標題與步驟列直接疊在夜景上（沒有面板當底）：on-scene 讓它們白天也用黑夜的顏色 -->
+      <header class="on-scene text-center">
         <h1 class="font-pixel text-[24px] text-ink">塔羅占卜</h1>
         <p class="mt-1 text-xs leading-6 text-ink-muted sm:text-sm">
           寫下問題、選一個牌陣，抽完牌會得到每張牌的牌義與整組牌的組合分析，也可以請 AI 解讀。
@@ -743,7 +744,7 @@ onBeforeUnmount(resetSceneBus)
       </header>
 
       <!-- 步驟指示只顯示目前走到哪，不能點。要回到前面一律用「重新開始」 -->
-      <ol class="flex flex-wrap items-center justify-center gap-1 sm:gap-2" aria-label="占卜步驟">
+      <ol class="on-scene flex flex-wrap items-center justify-center gap-1 sm:gap-2" aria-label="占卜步驟">
         <template v-for="(item, index) in STEPS" :key="item.value">
           <li
             class="flex items-center gap-1.5 whitespace-nowrap border-2 px-2.5 py-1 font-pixel text-[12px] select-none sm:gap-2 sm:px-4 sm:py-1.5"

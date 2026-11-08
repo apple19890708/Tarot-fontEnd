@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
+import { isLoggedIn, logoutEverywhere } from '../lib/auth'
 import { cardStyle, setCardStyle, type CardStyle } from '../lib/cardStyle'
+import { confirmDialog } from '../lib/confirm'
 import { setTheme, theme, type Theme } from '../lib/theme'
 import CrystalBallIcon from './CrystalBallIcon.vue'
 import { sectionNav, type SectionNavItem } from '../lib/sectionNav'
@@ -44,6 +46,32 @@ watch(
   () => route.fullPath,
   () => (open.value = false),
 )
+
+// ---- 帳號：登出所有裝置（懷疑帳號被盜、或在別人電腦忘了登出）----
+const router = useRouter()
+const loggingOutAll = ref(false)
+const logoutAllError = ref('')
+async function onLogoutAll() {
+  const ok = await confirmDialog({
+    title: '登出所有裝置',
+    message:
+      '所有登入中的手機、電腦（包含這一台）都會被登出，要重新輸入密碼才能再用。\n懷疑帳號被別人用了，可以先按這個，再用「忘記密碼」換一組新密碼。',
+    confirmText: '全部登出',
+    danger: true,
+  })
+  if (!ok) return
+  loggingOutAll.value = true
+  logoutAllError.value = ''
+  try {
+    await logoutEverywhere()
+    open.value = false
+    void router.push('/')
+  } catch (error) {
+    logoutAllError.value = error instanceof Error ? error.message : '暫時登出不了，請稍後再試。'
+  } finally {
+    loggingOutAll.value = false
+  }
+}
 
 const showCardStyle = computed(() => props.cards && sectionNav.value?.cardStyle !== false)
 
@@ -141,6 +169,20 @@ onBeforeUnmount(() => {
               {{ option.label }}
             </button>
           </div>
+        </section>
+
+        <!-- 帳號：登入時才出現 -->
+        <section v-if="isLoggedIn" class="mt-3 border-t-2 border-line pt-3">
+          <p class="text-xs text-accent">帳號</p>
+          <button
+            type="button"
+            class="mt-2 w-full cursor-pointer border-2 border-danger-hue/40 px-2 py-1 text-sm text-danger transition hover:bg-danger-hue/10 active:translate-x-[2px] active:translate-y-[2px] disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="loggingOutAll"
+            @click="onLogoutAll"
+          >
+            {{ loggingOutAll ? '登出中…' : '登出所有裝置' }}
+          </button>
+          <p v-if="logoutAllError" class="mt-1.5 text-xs text-danger">{{ logoutAllError }}</p>
         </section>
 
         <!-- 只有結果頁會登記段落，其他頁面這區不出現 -->

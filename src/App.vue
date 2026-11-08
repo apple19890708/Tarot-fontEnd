@@ -133,7 +133,8 @@ function signOut() {
 	<!-- 全站都有像素世界（PixelWorld）墊在後面，外層不上底色才看得到 -->
 	<div class="grid min-h-screen grid-rows-[auto_1fr] text-ink">
 		<PixelWorld :scene="scene" :dim="sceneDim" />
-		<header class="relative border-b-2 border-frame bg-surface/85">
+		<!-- 頁首半透明、貼著夜景：白天也用黑夜的顏色（on-scene）。白天的米白 85% 疊在深藍夜景上會混成灰米色（2026-11-08 使用者回報） -->
+		<header class="on-scene relative border-b-2 border-frame bg-surface/85">
 			<div class="mx-auto flex min-w-0 items-center justify-between gap-4 px-5 py-3">
 				<div class="min-w-0 leading-tight">
 					<p class="text-[10px] uppercase tracking-[0.3em] text-accent">Tarot Divination Studio</p>

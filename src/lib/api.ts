@@ -23,6 +23,11 @@ import type {
   MarketSnapshot,
   MarketTrackSummary,
   MarketDividend,
+  DailyPicks,
+  DailyPickType,
+  StockCardData,
+  StockSubject,
+  MarketDashboard,
   MarketFees,
   MarketNewsItem,
   MarketNotifyStatus,
@@ -186,6 +191,11 @@ export function fetchMe() {
   return request<{ user: AuthUser }>('/api/auth/me')
 }
 
+// 登出所有裝置：後端把帳號的憑證版本號加 1，所有已登入的裝置（含這一台）都要重新登入
+export function logoutAllRequest() {
+  return request<{ ok: true }>('/api/auth/logout-all', { method: 'POST' })
+}
+
 // 開通／收回某個會員的 AI 解析權限（admin 專用）
 export function setUserAiAccess(userId: string, allowed: boolean) {
   return request<{ user: AuthUser }>(`/api/admin/users/${userId}/ai-access`, {
@@ -327,7 +337,11 @@ export function createWatch(payload: {
   // 放進哪個清單；不帶就是未分類
   group?: string | null
 }) {
-  return request<{ item: MarketWatchItem }>('/api/market/watchlist', { method: 'POST', body: JSON.stringify(payload) })
+  // existing：已經在追蹤，這次只是把選的清單加上去（持股不動，有填第一筆時 tradesIgnored）；舊版後端沒有，會直接回 409
+  return request<{ item: MarketWatchItem; existing?: boolean; tradesIgnored?: boolean }>('/api/market/watchlist', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 // 買賣紀錄、股利各自整批替換（可以只送其中一個，空陣列代表清除）；回傳含報價與重算後的損益
@@ -375,8 +389,8 @@ export function fetchWatchDetail(id: string) {
 
 // ===== 個股分析（v17 規格 F）=====
 // 彈窗資料：完整分析、持股、事件與 AI 額度（不呼叫 AI）
-export function fetchStockAnalysis(watchId: string) {
-  return request<{ analysis: StockAnalysisView }>(`/api/market/watchlist/${watchId}/analysis`)
+export function fetchStockAnalysis(subject: StockSubject) {
+  return request<{ analysis: StockAnalysisView }>(`${subjectPath(subject)}/analysis`)
 }
 
 // 「我的紀錄」的股票分析
@@ -395,10 +409,10 @@ export function deleteStockAnalysis(id: string) {
 // 以串流接收個股 AI 分析（會計費）。完整產生後後端會存成一筆紀錄，done 帶回它的摘要。
 // signal 中斷時後端會跟著停止 AI 生成，這裡會丟出 AbortError
 export function streamStockAnalysis(
-  watchId: string,
+  subject: StockSubject,
   options: { signal: AbortSignal; onDelta: (text: string) => void },
 ): Promise<{ model: string; analysis: StockAnalysisSummary | null }> {
-  return streamAnalysis<StockAnalysisSummary>(`/api/market/watchlist/${watchId}/analysis/ai`, undefined, options)
+  return streamAnalysis<StockAnalysisSummary>(`${subjectPath(subject)}/analysis/ai`, undefined, options)
 }
 
 // 股市 AI 分析共用的 NDJSON 串流：delta 逐段回呼、done 回傳結果、error 丟出錯誤
@@ -474,7 +488,27 @@ export function deleteFinanceNewsAnalysis(id: string) {
 
 // 交易成本設定
 export function fetchMarketSettings() {
-  return request<{ fees: MarketFees }>('/api/market/settings')
+  // dashboard：股市總覽的版面；沒自訂過是 null，舊版後端沒有這個欄位
+  return request<{ fees: MarketFees; dashboard?: MarketDashboard | null }>('/api/market/settings')
+}
+
+// 當日推薦個股（股市總覽的區塊）：所有人共用一份，跟著全市場收盤資料更新
+export function fetchDailyPicks(type?: DailyPickType) {
+  return request<{ picks: DailyPicks }>(`/api/market/daily-picks${type ? `?type=${type}` : ''}`)
+}
+
+// 任何一檔台股的卡片（推薦／熱門股票）
+export function fetchStockCard(code: string) {
+  return request<{ card: StockCardData }>(`/api/market/stock/${encodeURIComponent(code)}/card`)
+}
+
+// 個股分析的網址：追蹤項目或任何一檔台股的代號
+const subjectPath = (subject: StockSubject) =>
+  'watchId' in subject ? `/api/market/watchlist/${subject.watchId}` : `/api/market/stock/${encodeURIComponent(subject.code)}`
+
+// 股市總覽的版面：整份替換；null＝恢復預設
+export function saveMarketDashboard(dashboard: Pick<MarketDashboard, 'blocks'> | null) {
+  return request<{ dashboard: MarketDashboard | null }>('/api/market/dashboard', { method: 'PUT', body: JSON.stringify({ dashboard }) })
 }
 
 export function saveMarketSettings(fees: MarketFees) {
@@ -509,9 +543,9 @@ export function sendTestNotify() {
   return request<{ push: number; discord: boolean; errors?: string[] }>('/api/market/notify/test', { method: 'POST', body: JSON.stringify({}) })
 }
 
-// 換清單（null＝未分類）
-export function moveWatchToGroup(id: string, group: string | null) {
-  return request<{ item: MarketWatchItem }>(`/api/market/watchlist/${id}`, { method: 'PATCH', body: JSON.stringify({ group }) })
+// 設定這一檔所在的清單（可以好幾個，空陣列＝未分類），整批替換
+export function setWatchGroups(id: string, groups: string[]) {
+  return request<{ item: MarketWatchItem }>(`/api/market/watchlist/${id}`, { method: 'PATCH', body: JSON.stringify({ groups }) })
 }
 
 // 自訂順序：依序傳入 id

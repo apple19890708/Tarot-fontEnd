@@ -15,6 +15,10 @@ import type { MarketAnalysis, MarketChart, MarketChartSeries, MarketLevel } from
 const props = defineProps<{
   chart: MarketChart
   analysis?: MarketAnalysis | null
+  // 只看日線、不顯示日／週／月切換
+  dailyOnly?: boolean
+  // 精簡（股市總覽約 350×350 的股票卡片）：只看日線、不放工具列與圖例、不能縮放（總覽頁上下捲動時滑過卡片才不會變成縮放 K 線），圖矮一點
+  compact?: boolean
 }>()
 
 // 縮放外掛只有這張圖用到，跟著這個元件載入（options 沒設 zoom 的圖不受影響）
@@ -293,16 +297,17 @@ const options = computed(() => {
     plugins: {
       legend: {
         ...legend,
+        display: !props.compact,
         // 影線和 K 棒算同一個東西，圖例只列一次
         labels: { ...legend.labels, filter: (item: { text: string }) => !LEGEND_HIDDEN.includes(item.text) },
       },
       zoom: {
         // 可以拖到第一根到最後一根；最少看 7 根，避免縮到只剩一兩點
         limits: { x: { min: 0, max: lastIndex.value, minRange: 7 } },
-        pan: { enabled: true, mode: 'x' as const, onPanComplete: markZoomed },
+        pan: { enabled: !props.compact, mode: 'x' as const, onPanComplete: markZoomed },
         zoom: {
-          wheel: { enabled: true, speed: 0.15 },
-          pinch: { enabled: true },
+          wheel: { enabled: !props.compact, speed: 0.15 },
+          pinch: { enabled: !props.compact },
           mode: 'x' as const,
           onZoomComplete: markZoomed,
         },
@@ -351,8 +356,8 @@ const options = computed(() => {
 
 <template>
   <div class="space-y-2">
-    <div class="flex flex-wrap items-center gap-2">
-      <div v-if="periods.length > 1" class="flex gap-1.5" role="group" aria-label="走勢圖的時間單位">
+    <div v-if="!compact" class="flex flex-wrap items-center gap-2">
+      <div v-if="!dailyOnly && !compact && periods.length > 1" class="flex gap-1.5" role="group" aria-label="走勢圖的時間單位">
         <button
           v-for="option in periods"
           :key="option.key"
@@ -396,7 +401,7 @@ const options = computed(() => {
       </button>
     </div>
     <!-- touch-pan-y：hammerjs 預設攔下畫布上所有手勢（手指在圖上就捲不動頁面），保留上下捲動給瀏覽器，左右平移與兩指縮放才交給縮放外掛 -->
-    <div class="relative h-72 w-full min-w-0 sm:h-80 [&_canvas]:touch-pan-y!">
+    <div class="relative w-full min-w-0 [&_canvas]:touch-pan-y!" :class="compact ? 'h-40' : 'h-72 sm:h-80'">
       <!-- 價格線與成交量混合：用 Bar 元件，價格的 dataset 指定 type: 'line' -->
       <Bar :key="period" ref="chartRef" :data="data as never" :options="options as never" :plugins="[levelPlugin] as never" />
     </div>

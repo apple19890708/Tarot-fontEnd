@@ -422,6 +422,8 @@ export interface MarketQuote {
   time: string | null
   // 這筆報價所屬的交易日（YYYY-MM-DD）
   date: string | null
+  // 最新一根的成交量（股；台股畫面上換成張）；舊版後端沒有
+  volume?: number | null
 }
 
 export interface MarketIndicators {
@@ -1031,6 +1033,72 @@ export interface MarketDividend {
   date: string | null
 }
 
+// 股市總覽的版面（v19）：使用者排的區塊與卡片，存在帳號裡。新版後端才有，舊版後端沒有時前端用預設版面
+export type DashboardBlockType =
+  | 'highlights'
+  | 'macro'
+  | 'breadth'
+  | 'sectors'
+  | 'institutional'
+  | 'us'
+  // 第二批（使用者自己的資料）：自選清單（沒有清單時改顯示推薦）、推薦／熱門股票、今日財經新聞
+  // （持股總覽、價位提醒 2026-11-08 使用者決定拿掉；存過的版面讀取時略過）
+  | 'watchGroup'
+  | 'picks'
+  | 'news'
+export interface DashboardBlock {
+  type: DashboardBlockType
+  visible: boolean
+  // cards：區塊裡的卡片與順序（階段 2）；top：熱力圖只看前幾個；group：自選清單區塊要看的清單（沒有＝第一個）
+  // pickType：推薦類型（自選清單沒有清單時、當日推薦區塊用）；view：卡片或表格（推薦／熱門、自選清單）
+  options: { cards?: string[]; top?: number; group?: string; pickType?: DailyPickType; view?: 'card' | 'table' }
+}
+// 推薦類型：法人連買成長股、高殖利率存股、營收爆發股、低本益比價值股、熱門股（漲幅最大）
+export type DailyPickType = 'growth' | 'dividend' | 'revenue' | 'value' | 'hot'
+
+// 當日推薦個股（後端用固定規則挑的，不是投資建議）：reasons 是白話的入選理由，rule 是挑選規則的說明
+export interface DailyPick {
+  code: string
+  name: string
+  exchange: 'tse' | 'otc'
+  close: number | null
+  changePct: number | null
+  // 漲跌、開高低與成交量（張）；舊版後端沒有
+  change?: number | null
+  open?: number | null
+  high?: number | null
+  low?: number | null
+  volume?: number | null
+  reasons: string[]
+}
+export interface DailyPicks {
+  asOf: string
+  quoteDate: string | null
+  items: DailyPick[]
+  rule: string
+  notes: string[]
+  // 這次的類型與名稱、可以選的類型（舊版後端沒有，只有一種）
+  type?: DailyPickType
+  label?: string
+  types?: { type: DailyPickType; label: string }[]
+}
+
+// 任何一檔台股的卡片資料（推薦／熱門股票）：報價摘要＋日 K 與判讀
+export interface StockCardData {
+  target: MarketAlertTarget
+  summary: MarketWatchSummary | null
+  chart: MarketChart | null
+  analysis: MarketAnalysis | null
+}
+
+// 個股分析的對象：追蹤項目，或任何一檔台股的代號（v19）
+export type StockSubject = { watchId: string } | { code: string }
+
+export interface MarketDashboard {
+  version: number
+  blocks: DashboardBlock[]
+}
+
 // 交易成本設定：台股手續費折扣（1 = 不打折、0.28 = 2.8 折）、最低手續費；美股每筆手續費
 export interface MarketFees {
   twDiscount: number
@@ -1184,6 +1252,8 @@ export interface MarketWatchItem {
   id: string
   target: MarketAlertTarget
   // 所屬清單的 id，null 是未分類；order 是自訂順序（舊版後端沒有這兩欄）
+  // 所在的清單（一檔可以放進好幾個，空陣列＝未分類）；舊版後端沒有，改看 group
+  groups?: string[]
   group?: string | null
   order?: number
   // 買賣紀錄（依順序先進先出）與股利；空陣列代表沒有
@@ -1256,6 +1326,8 @@ export interface StockAnalysisView {
   events: MarketCorporateEvents | null
   news: MarketNewsItem[]
   holding: StockHolding | null
+  // 有在追蹤時是追蹤項目的 id（用代號打開、其實有追蹤的也會帶）；舊版後端沒有
+  watchId?: string | null
   quota: StockAnalysisQuota
   // 這檔最近一次的 AI 分析
   latest: (StockAnalysisSummary & { text: string }) | null

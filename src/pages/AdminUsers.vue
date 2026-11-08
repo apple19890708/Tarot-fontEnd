@@ -98,8 +98,6 @@ onMounted(() => load(1))
       <h1 class="font-pixel text-[24px] text-[#2a1a14]">會員列表</h1>
       <p class="text-sm leading-7 text-[#2a1a14]/75">
         共 {{ total }} 位會員。AI 解析與金融股市（股市諮詢、股市追蹤）預設關閉，要分別逐一開通；管理者一律可用。
-        要把某個帳號升為管理者，在後端執行
-        <code class="bg-frame px-1.5 py-0.5 text-xs text-[#f1e7cf]">npm run user:promote -- &lt;email&gt;</code>。
       </p>
     </div>
 

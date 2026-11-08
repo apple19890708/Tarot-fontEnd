@@ -1,5 +1,5 @@
 // 登入狀態的進入點。元件只 import 這個檔案，不直接碰 session.ts 或 api.ts。
-import { fetchMe, googleLoginRequest, loginRequest, registerRequest } from './api'
+import { fetchMe, googleLoginRequest, loginRequest, logoutAllRequest, registerRequest } from './api'
 import { clearResultSnapshot } from './resultSnapshot'
 import {
   clearSession,
@@ -75,6 +75,12 @@ export function logout() {
   clearResultSnapshot()
   session.ready = true
   logoutListeners.forEach((listener) => listener())
+}
+
+// 登出所有裝置：後端成功後這台也登出；失敗就丟出錯誤、維持登入（由呼叫端顯示原因）
+export async function logoutEverywhere() {
+  await logoutAllRequest()
+  logout()
 }
 
 // 重新整理後用 token 向後端換回使用者。沒有這一步，守衛會把已登入的 admin 誤判成未登入。

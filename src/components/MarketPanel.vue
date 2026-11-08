@@ -7,6 +7,7 @@ import MarketAdvice from './market/MarketAdvice.vue'
 import MarketChips from './market/MarketChips.vue'
 import MarketPriceChart from './market/MarketPriceChart.vue'
 import MarketResearch from './market/MarketResearch.vue'
+import { vsPrevClass } from '../lib/marketChart'
 import { useCooldown } from '../lib/useCooldown'
 import RefreshButton from './RefreshButton.vue'
 import SkeletonBlock from './SkeletonBlock.vue'
@@ -75,11 +76,6 @@ function ohlcCells(item: MarketItem) {
   ]
 }
 
-// 價格和昨收比的顏色（開、高、低用）
-function vsPrevClass(value: number | null | undefined, prevClose: number | null | undefined) {
-  if (value === null || value === undefined || prevClose === null || prevClose === undefined || value === prevClose) return 'text-ink'
-  return value > prevClose ? 'text-up' : 'text-down'
-}
 
 function trendClass(value: number | null | undefined) {
   if (!value) {

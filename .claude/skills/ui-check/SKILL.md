@@ -11,7 +11,8 @@ description: 畫面改動的交付前自檢。改到 src/pages、src/components 
 
 這些是固定作法，新畫面直接照用；下面 1～7 是交付前要逐類確認的事。
 
-- **顏色用語意色（日夜模式）**：新寫或改到的畫面，顏色用 `style.css` 的語意色（`bg-surface`、`bg-raised`、`border-line`、`border-frame`、`text-ink`／`ink-soft`／`ink-muted`、`text-accent`、`text-up`／`down`、`text-info`／`warn`／`danger`……），不要再直接寫 `bg-[#0f1526]`、`text-stone-300`、`border-white/10`、`text-amber-100`。要透明度時用色相：`bg-tint/5`（取代 `bg-white/5`）、`border-accent-hue/40`（取代 `border-amber-200/40`）、`danger-hue`、`ok-hue`、`info-hue`。陰影用 `var(--c-shade)`。漲跌用 `up`／`down`（`text-up`、`bg-up-hue/10`、`text-up-ink`），錯誤用 `danger`，往下壓暗用 `bg-sink/20`（取代 `bg-black/20`）。**圖表顏色**一律從 `CHART_COLORS`（`src/lib/chartPalette.ts`）拿、寫在 computed 或函式裡，不要存成模組層級常數，否則切換日夜模式時圖表不會換色（例：`MarketAssetHistory` 的大盤色原本是常數）。黑夜的值＝原本的顏色，白天模式（水晶球選單切換）才看得出差別；交付前兩種模式都要看。計畫與色票見 `doc/v18-day-mode-plan.md`（例：水晶球選單 `FloatingMenu`）。
+- **分頁和篩選的「選中」用不同顏色**：換頁的分頁列（清單、股市各分頁、時間範圍）選中用金色（`border-accent-hue bg-selected text-on-selected`）；同一頁裡的篩選、排序、開關按鈕選中用中性色（`border-ink-soft/60 bg-tint/10 text-ink`），不要也用金色。兩排上下疊在一起時都用金色，分不出哪一排是換頁、哪一排是篩選（例：自訂股票追蹤的「清單」分頁和下面的「市場／排序」，2026-11-08）。
+- **顏色用語意色（日夜模式）**：新寫或改到的畫面，顏色用 `style.css` 的語意色（`bg-surface`、`bg-raised`、`border-line`、`border-frame`、`text-ink`／`ink-soft`／`ink-muted`、`text-accent`、`text-up`／`down`、`text-info`／`warn`／`danger`……），不要再直接寫 `bg-[#0f1526]`、`text-stone-300`、`border-white/10`、`text-amber-100`。要透明度時用色相：`bg-tint/5`（取代 `bg-white/5`）、`border-accent-hue/40`（取代 `border-amber-200/40`）、`danger-hue`、`ok-hue`、`info-hue`。陰影用 `var(--c-shade)`。漲跌用 `up`／`down`（`text-up`、`bg-up-hue/10`、`text-up-ink`），錯誤用 `danger`，往下壓暗用 `bg-sink/20`（取代 `bg-black/20`）。**圖表顏色**一律從 `CHART_COLORS`（`src/lib/chartPalette.ts`）拿、寫在 computed 或函式裡，不要存成模組層級常數，否則切換日夜模式時圖表不會換色（例：`MarketAssetHistory` 的大盤色原本是常數）。**沒有面板當底、直接疊在像素夜景上的字**（首頁標題與步驟列）要加 `on-scene`：夜景不分日夜，這些區塊固定用黑夜的顏色，否則白天會變成深字壓在夜空上。黑夜的值＝原本的顏色，白天模式（水晶球選單切換）才看得出差別；交付前兩種模式都要看。計畫與色票見 `doc/v18-day-mode-plan.md`（例：水晶球選單 `FloatingMenu`）。
 
 - **載入中一律用 Skeleton**：新頁面、新分頁、新區塊只要會載入資料，載入中都要用 `SkeletonBlock` 畫出和載入後版面同形狀的骨架（卡片數、欄數、列數、按鈕列對得上），不要只放一兩條通用長條或只寫「載入中…」。要等資料才出現的元素（例如期間切換按鈕）也要先放同尺寸的佔位，避免版面跳動。範例見 `src/components/market/MarketHitRate.vue`。
 - **更新按鈕要防呆**：股票相關頁面的「更新」「重新查詢」「開始篩選」「送測試通知」這類會打 API 的按鈕，載入中要停用，按完後還要冷卻一段時間（用 `src/lib/useCooldown.ts`，按鈕上顯示剩餘秒數），避免使用者一直按。`useCooldown(秒數, key)` 一定要給 key，冷卻會記在 localStorage，重新整理頁面也接著倒數。目前冷卻：大盤概況與更新報價 30 秒、選股 6 秒、測試通知 15 秒。
@@ -57,6 +58,7 @@ description: 畫面改動的交付前自檢。改到 src/pages、src/components 
 - 數字、金額欄固定寬度或靠右＋`tabular-nums`，**不能因為某欄沒有值就位移**（沒設張數時數字跑位）。
 - 篩選列的勾選框、開關換行後不能孤零零掉在奇怪的位置（「只看與我追蹤相關」的位置）。
 - 點擊目標高度約 32px 以上；並排的同類按鈕寬高一致（移動清單按鈕大小不一）。
+- **格線裡放圖表、表格這類會撐寬的東西**：手機那一級要明寫 `grid-cols-1`（只寫 `xl:grid-cols-2` 時，手機的欄寬照內容撐開），卡片本身加 `min-w-0`。否則整張卡片比螢幕寬、右邊被切掉（股市總覽的股票卡片，K 線圖把欄撐開，價格與「最高」被切掉，2026-11-08）。
 
 ## 3. 彈出層（下拉、說明框、彈窗、浮動選單）
 

@@ -12,11 +12,13 @@ import SectionJumpMenu from '../SectionJumpMenu.vue'
 import MarketNewsList from './MarketNewsList.vue'
 import StockAiText from './StockAiText.vue'
 import StockHoldingSummary from './StockHoldingSummary.vue'
-import type { MarketSnapshot, MarketStatus, StockAnalysisQuota, StockAnalysisView } from '../../types'
+import type { MarketSnapshot, MarketStatus, StockAnalysisQuota, StockAnalysisView, StockSubject } from '../../types'
 
 // 個股分析彈窗（v17 規格 F）：一次看完這檔的完整分析（沿用股市諮詢的 MarketPanel），
 // 有 AI 權限的人可以再要求 AI 深度分析。AI 只在按下按鈕時執行，放行與次數限制在後端
-const props = defineProps<{ watchId: string; name: string }>()
+// watchId：追蹤項目；code：任何一檔台股（股市總覽的推薦／熱門卡片，v19；沒追蹤的沒有持股）。兩個給一個
+const props = defineProps<{ watchId?: string; code?: string; name: string }>()
+const subject = computed<StockSubject>(() => (props.watchId ? { watchId: props.watchId } : { code: props.code ?? '' }))
 const emit = defineEmits<{ close: [] }>()
 // 彈窗開著時背後頁面不能捲動
 useScrollLock()
@@ -32,7 +34,7 @@ async function load() {
   status.value = 'loading'
   error.value = ''
   try {
-    const result = await fetchStockAnalysis(props.watchId)
+    const result = await fetchStockAnalysis(subject.value)
     if (id !== requestId) return
     view.value = result.analysis
     quota.value = result.analysis.quota
@@ -99,7 +101,7 @@ async function runAi() {
   aiRecordId.value = ''
   aiSaveFailed.value = false
   try {
-    const result = await streamStockAnalysis(props.watchId, {
+    const result = await streamStockAnalysis(subject.value, {
       signal: ownController.signal,
       onDelta: (text) => {
         if (controller === ownController) aiText.value += text
@@ -132,7 +134,7 @@ function stopAi() {
 
 async function refreshQuota() {
   try {
-    const result = await fetchStockAnalysis(props.watchId)
+    const result = await fetchStockAnalysis(subject.value)
     quota.value = result.analysis.quota
   } catch {
     // 額度只是提示，讀不到不影響畫面
@@ -209,7 +211,7 @@ onMounted(() => {
 
 // 換另一檔：舊的請求與 AI 串流一律作廢
 watch(
-  () => props.watchId,
+  () => props.watchId ?? props.code,
   () => {
     controller?.abort()
     controller = null

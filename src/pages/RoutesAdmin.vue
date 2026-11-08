@@ -50,7 +50,8 @@ async function removeRoute(rname: string) {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <!-- 沒有面板當底、直接在夜景上：白天也用黑夜的顏色 -->
+  <div class="on-scene space-y-4">
     <h1 class="text-2xl font-semibold">路由管理</h1>
     <p class="text-sm text-ink-muted">在此你可以新增或移除前端路由（僅限自訂路由）。</p>
 
