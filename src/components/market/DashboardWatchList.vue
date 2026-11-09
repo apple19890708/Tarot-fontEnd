@@ -11,10 +11,16 @@ import type { MarketWatchItem } from '../../types'
 // 股市總覽的「自選清單」區塊：一個自訂清單裡的股票，每檔一張卡片（和個股分析同樣的行情區＋日 K）。
 // 挑哪個清單由父元件決定；點卡片開個股分析彈窗
 // view：卡片或表格（父元件存進版面）
-const props = defineProps<{ items: MarketWatchItem[]; view?: 'card' | 'table' }>()
+// selectable：點了不開個股分析，改發 select 給父元件（自訂股票追蹤頁用：開自己的詳細彈窗，持股、清單、刪除都在裡面）
+const props = defineProps<{ items: MarketWatchItem[]; view?: 'card' | 'table'; selectable?: boolean }>()
+const emit = defineEmits<{ select: [item: MarketWatchItem] }>()
 
 const analysisFor = ref<{ id: string; name: string } | null>(null)
 function open(item: MarketWatchItem) {
+  if (props.selectable) {
+    emit('select', item)
+    return
+  }
   analysisFor.value = { id: item.id, name: item.summary?.name || item.target.name }
 }
 

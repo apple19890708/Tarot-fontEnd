@@ -21,6 +21,8 @@ import MarketGroupManager from './MarketGroupManager.vue'
 import MarketNewsList from './MarketNewsList.vue'
 import StockAnalysisDialog from './StockAnalysisDialog.vue'
 import StockSearchInput from './StockSearchInput.vue'
+import DashboardWatchList from './DashboardWatchList.vue'
+import WatchItemDialog from './WatchItemDialog.vue'
 import SelectField from '../SelectField.vue'
 import EditToggleButton from '../EditToggleButton.vue'
 import type { MarketAlertTarget, MarketFees, MarketSearchResult, MarketSignal, MarketNewsItem, MarketTrade, MarketWatchGroup, MarketWatchItem } from '../../types'
@@ -115,14 +117,6 @@ const newsByCode = computed(() => {
   return map
 })
 const newsOf = (item: MarketWatchItem) => (item.target.code ? newsByCode.value.get(item.target.code) ?? [] : [])
-// 3 天內有新訊息就在那一行標「重訊」（以這檔報價的日期為準）
-const NEWS_RECENT_DAYS = 3
-function hasRecentNews(item: MarketWatchItem) {
-  const latest = newsOf(item)[0]
-  const today = item.summary?.quote.date
-  if (!latest || !today) return false
-  return (Date.parse(today) - Date.parse(latest.date)) / 86400000 <= NEWS_RECENT_DAYS
-}
 
 onMounted(async () => {
   startTimer()
@@ -297,14 +291,33 @@ function openAnalysis(item: MarketWatchItem) {
   analysisFor.value = { id: item.id, name: item.summary?.name || item.target.name }
 }
 
-// ---- 卡片展開 ----
-// 預設每檔只顯示一行，點了才展開完整資訊；重新整理報價不會收回
-const expandedIds = ref<Set<string>>(new Set())
-function toggleExpanded(id: string) {
-  const next = new Set(expandedIds.value)
-  if (next.has(id)) next.delete(id)
-  else next.add(id)
-  expandedIds.value = next
+// ---- 清單呈現：和股市總覽的自選清單一樣，卡片或表格（使用者決定，2026-11-09）----
+// 選擇記在這台瀏覽器（只是顯示偏好）；讀寫不了（無痕、被封鎖）就用卡片
+const VIEW_KEY = 'market-watchlist-view'
+function readView(): 'card' | 'table' {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'table' ? 'table' : 'card'
+  } catch {
+    return 'card'
+  }
+}
+const listView = ref<'card' | 'table'>(readView())
+function toggleListView() {
+  listView.value = listView.value === 'table' ? 'card' : 'table'
+  try {
+    localStorage.setItem(VIEW_KEY, listView.value)
+  } catch {
+    // 存不了就只在這次有效
+  }
+}
+
+// ---- 詳細彈窗：卡片／表格點一檔就開，內容是原本展開後的全部（摘要、走勢籌碼、持股編輯、清單、提醒、移除）----
+// 存 id、從清單找：更新報價時彈窗跟著換新資料；移除後找不到就自動關閉
+const selectedId = ref('')
+const selectedItem = computed(() => items.value.find((item) => item.id === selectedId.value) ?? null)
+function closeSelected() {
+  selectedId.value = ''
+  if (editingId.value) editingId.value = ''
 }
 
 // ---- 移除 ----
@@ -333,18 +346,6 @@ async function remove(item: MarketWatchItem) {
 // 每檔的損益由後端算好（item.position）；加總和股市總覽的「我的持股總覽」共用 holdingTotals
 const totals = computed(() => holdingTotals(items.value))
 
-const holdingPnl = (item: MarketWatchItem) => (item.position && item.position.quantity > 0 ? item.position.unrealized : null)
-
-// 兩週內要除權息的才在那一行標出來（除息日 − 今天，台北日期由後端給的報價日期為準）
-const EX_SOON_DAYS = 14
-function exSoon(item: MarketWatchItem) {
-  const event = item.summary?.events?.exDividend
-  const today = item.summary?.quote.date
-  if (!event || !today) return null
-  const days = Math.round((Date.parse(event.date) - Date.parse(today)) / 86400000)
-  return days >= 0 && days <= EX_SOON_DAYS ? event : null
-}
-const shortDate = (date: string) => date.slice(5).replace('-', '/')
 const monthText = (month: string) => `${Number(month.slice(5))} 月`
 const hasTwStock = computed(() => items.value.some((item) => item.target.market === 'tw' && item.target.kind === 'stock'))
 
@@ -863,31 +864,53 @@ const INPUT_CLASS =
           排序模式：桌機可以直接拖曳，手機用 ↑ ↓。只調整目前畫面上的這些股票{{ savingOrder ? '（儲存中…）' : '' }}。
         </p>
 
-        <p v-if="asOf" class="text-caption text-ink-muted">報價更新於 {{ timeText(asOf) }}</p>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <p class="text-caption text-ink-muted">{{ asOf ? `報價更新於 ${timeText(asOf)}` : '' }}</p>
+          <!-- 卡片／表格切換：和股市總覽同一個樣子，圖示是「按了會變成的樣子」 -->
+          <button
+            v-if="!sortMode && visibleItems.length"
+            type="button"
+            class="flex h-7 w-8 shrink-0 cursor-pointer items-center justify-center border border-tint/15 text-ink-muted transition hover:bg-tint/10 hover:text-ink active:translate-x-[1px] active:translate-y-[1px]"
+            :aria-label="listView === 'table' ? '改成卡片檢視' : '改成表格檢視'"
+            :title="listView === 'table' ? '改成卡片檢視' : '改成表格檢視'"
+            @click="toggleListView"
+          >
+            <svg v-if="listView === 'table'" class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <rect x="2" y="2" width="5" height="5" /><rect x="9" y="2" width="5" height="5" />
+              <rect x="2" y="9" width="5" height="5" /><rect x="9" y="9" width="5" height="5" />
+            </svg>
+            <svg v-else class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <rect x="2" y="3" width="12" height="2" /><rect x="2" y="7" width="12" height="2" /><rect x="2" y="11" width="12" height="2" />
+            </svg>
+          </button>
+        </div>
 
         <p v-if="visibleItems.length === 0" class="text-body text-ink-muted">這個分類還沒有股票。</p>
 
-        <!-- ── 清單 ── -->
-        <ul class="space-y-3">
+        <!-- ── 清單：卡片或表格（和股市總覽的自選清單同一個元件），點一檔開詳細彈窗 ── -->
+        <DashboardWatchList
+          v-if="!sortMode && visibleItems.length"
+          :items="visibleItems"
+          :view="listView"
+          selectable
+          @select="selectedId = $event.id"
+        />
+
+        <!-- ── 排序模式：精簡一列，可拖曳或用 ↑ ↓ ── -->
+        <ul v-if="sortMode" class="space-y-2">
           <li
             v-for="(item, index) in visibleItems"
             :key="item.id"
             class="border-2 bg-tint/[0.03]"
-            :class="
-              dragId === item.id
-                ? 'border-info-hue/50 opacity-60'
-                : expandedIds.has(item.id) && !sortMode
-                  ? 'border-accent-hue/60'
-                  : 'border-tint/10'
-            "
-            :draggable="sortMode"
+            :class="dragId === item.id ? 'border-info-hue/50 opacity-60' : 'border-tint/10'"
+            draggable="true"
             @dragstart="dragId = item.id"
             @dragend="dragId = ''"
             @dragover.prevent
             @drop.prevent="dropOn(item.id)"
           >
             <!-- 排序模式：精簡一列＋上移下移 -->
-            <div v-if="sortMode" class="flex cursor-grab items-center gap-2 px-3 py-2 text-body active:cursor-grabbing">
+            <div class="flex cursor-grab items-center gap-2 px-3 py-2 text-body active:cursor-grabbing">
               <span class="shrink-0 select-none text-ink-muted" aria-hidden="true">⋮⋮</span>
               <span class="min-w-0 flex-1 truncate text-ink">
                 {{ item.summary?.name || item.target.name }}
@@ -896,67 +919,26 @@ const INPUT_CLASS =
               <button type="button" class="cursor-pointer border border-tint/15 px-2 py-0.5 text-button text-ink-muted hover:bg-tint/10 disabled:opacity-30" :disabled="index === 0" :aria-label="`把${item.target.name}往上移`" @click="moveBy(item.id, -1)">↑</button>
               <button type="button" class="cursor-pointer border border-tint/15 px-2 py-0.5 text-button text-ink-muted hover:bg-tint/10 disabled:opacity-30" :disabled="index === visibleItems.length - 1" :aria-label="`把${item.target.name}往下移`" @click="moveBy(item.id, 1)">↓</button>
             </div>
+          </li>
+        </ul>
 
-            <!-- 收合時：一行（名稱、現價、今日漲跌、持股損益） -->
-            <button
-              v-else-if="!expandedIds.has(item.id)"
-              type="button"
-              class="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left text-body transition hover:bg-tint/5 sm:gap-3 sm:px-4"
-              :aria-expanded="false"
-              @click="toggleExpanded(item.id)"
-            >
-              <span class="w-3 shrink-0 text-ink-soft">›</span>
-              <span class="min-w-0 flex-1 truncate">
-                <span class="font-semibold text-ink">{{ item.summary?.name || item.target.name }}</span>
-                <span class="ml-1.5 text-caption tabular-nums text-ink-muted">{{ idOf(item.target) }}</span>
-                <span v-if="marketFilter === 'all'" class="ml-1.5 text-caption text-ink-muted">{{ MARKET_LABELS[item.target.market] }}</span>
-                <span v-if="groupFilter === 'all' && groupIdsOf(item).length" class="ml-1.5 text-caption text-info">{{ groupNamesOf(item) }}</span>
-              </span>
-              <!-- 名稱以外每一欄都固定寬度（現價、漲跌、標籤、損益），沒有標籤或沒有持股時留空，數字上下才對得齊 -->
-              <template v-if="item.summary">
-                <span class="w-20 shrink-0 text-right tabular-nums text-ink min-[1920px]:w-24">{{ formatNumber(item.summary.quote.price) }}</span>
-                <span class="w-16 shrink-0 text-right text-caption tabular-nums min-[1920px]:w-20" :class="trendClass(item.summary.quote.change)">
-                  {{ formatSigned(item.summary.quote.changePct, '%') }}
-                </span>
-              </template>
-              <span v-else class="w-36 shrink-0 text-right text-caption text-ink-muted min-[1920px]:w-44">無報價</span>
-              <!-- 標籤欄：手機只放「重訊」，平板以上再放除權息與籌碼 -->
-              <span class="flex w-11 shrink-0 items-center justify-end gap-1 overflow-hidden md:w-56">
-                <span v-if="hasRecentNews(item)" class="shrink-0 border border-info-hue/40 px-1.5 text-caption text-info-ink">重訊</span>
-                <span v-if="exSoon(item)" class="hidden shrink-0 border border-accent-hue/40 px-1.5 text-caption text-accent md:inline">
-                  除{{ exSoon(item)!.type }} {{ shortDate(exSoon(item)!.date) }}
-                </span>
-                <span
-                  v-if="item.summary?.chipsTag"
-                  class="hidden shrink-0 border px-1.5 text-caption md:inline"
-                  :class="TONE_STYLES[item.summary.chipsTag.tone]"
-                >
-                  {{ item.summary.chipsTag.text }}
-                </span>
-              </span>
-              <span
-                class="hidden w-24 shrink-0 text-right text-caption tabular-nums sm:inline min-[1920px]:w-28"
-                :class="holdingPnl(item) !== null ? trendClass(holdingPnl(item)) : ''"
-                :title="holdingPnl(item) !== null ? '未實現損益' : undefined"
-              >
-                {{ holdingPnl(item) !== null ? formatSigned(Math.round(holdingPnl(item)!)) : '' }}
-              </span>
-            </button>
+        <p class="text-caption text-ink-muted">
+          損益只用目前報價計算，不含手續費與交易稅；台股報價來自證交所（約延遲 20 秒），美股來自 Yahoo（可能延遲約 15 分鐘）。
+        </p>
+      </template>
+    </template>
 
-            <div v-else class="p-3 sm:p-4">
-            <div
-              class="-m-1 flex cursor-pointer flex-wrap items-start justify-between gap-x-4 gap-y-2 p-1 hover:bg-tint/[0.03]"
-              role="button"
-              tabindex="0"
-              :aria-expanded="true"
-              title="點一下收合"
-              @click="toggleExpanded(item.id)"
-              @keydown.enter.prevent="toggleExpanded(item.id)"
-              @keydown.space.prevent="toggleExpanded(item.id)"
-            >
+    <!-- 詳細彈窗：原本展開後的內容（摘要、走勢籌碼、持股編輯、個股分析、快速占卜、提醒、清單、移除） -->
+    <WatchItemDialog
+      v-if="selectedItem"
+      :title="`${selectedItem.summary?.name || selectedItem.target.name} · 詳細`"
+      :esc-disabled="!!analysisFor"
+      @close="closeSelected"
+    >
+      <template v-for="item in [selectedItem]" :key="item.id">
+            <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
               <div class="min-w-0">
                 <p class="flex flex-wrap items-center gap-2">
-                  <span class="w-3 rotate-90 text-ink-soft">›</span>
                   <span class="font-semibold text-ink">{{ item.summary?.name || item.target.name }}</span>
                   <span class="text-caption tabular-nums text-ink-muted">{{ idOf(item.target) }}</span>
                   <span class="border border-tint/15 px-1.5 text-caption text-ink-muted">{{ MARKET_LABELS[item.target.market] }}</span>
@@ -1101,7 +1083,7 @@ const INPUT_CLASS =
               <button
                 type="button"
                 class="cursor-pointer border-2 border-tint/15 px-2 py-0.5 text-button text-ink-muted transition hover:bg-tint/10 font-pixel"
-                @click="emit('alert', item.target, item.summary?.quote.price ?? null)"
+                @click="(closeSelected(), emit('alert', item.target, item.summary?.quote.price ?? null))"
               >
                 設價位提醒
               </button>
@@ -1139,15 +1121,8 @@ const INPUT_CLASS =
                 移除
               </button>
             </div>
-            </div>
-          </li>
-        </ul>
-
-        <p class="text-caption text-ink-muted">
-          損益只用目前報價計算，不含手續費與交易稅；台股報價來自證交所（約延遲 20 秒），美股來自 Yahoo（可能延遲約 15 分鐘）。
-        </p>
       </template>
-    </template>
+    </WatchItemDialog>
 
     <StockAnalysisDialog v-if="analysisFor" :watch-id="analysisFor.id" :name="analysisFor.name" @close="analysisFor = null" />
   </section>
