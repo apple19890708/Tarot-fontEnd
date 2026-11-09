@@ -48,6 +48,9 @@ watch(
 )
 
 // ---- 帳號：登出所有裝置（懷疑帳號被盜、或在別人電腦忘了登出）----
+// 2026-11-09 使用者決定先關閉（之後有需要再開）：改成 true 就會出現在選單裡。
+// 後端 POST /api/auth/logout-all 照常保留；重設密碼仍會讓所有裝置登出
+const SHOW_LOGOUT_ALL = false
 const router = useRouter()
 const loggingOutAll = ref(false)
 const logoutAllError = ref('')
@@ -171,8 +174,8 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <!-- 帳號：登入時才出現 -->
-        <section v-if="isLoggedIn" class="mt-3 border-t-2 border-line pt-3">
+        <!-- 帳號：登入時才出現（目前關閉，見 SHOW_LOGOUT_ALL） -->
+        <section v-if="SHOW_LOGOUT_ALL && isLoggedIn" class="mt-3 border-t-2 border-line pt-3">
           <p class="text-xs text-accent">帳號</p>
           <button
             type="button"

@@ -7,7 +7,8 @@ import { usePointerReorder } from '../../lib/usePointerReorder'
 // pool 是這個區塊所有能選的卡片；modelValue 是已選的 id（順序就是顯示順序）
 const props = defineProps<{
   modelValue: string[]
-  pool: { id: string; label: string; hint?: string }[]
+  // group：還沒選的卡片照這個分組列出（例如重點卡分台股、美股），順序照第一次出現；都沒有就不分組
+  pool: { id: string; label: string; hint?: string; group?: string }[]
   max?: number
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
@@ -17,6 +18,16 @@ const labelOf = (id: string) => props.pool.find((card) => card.id === id)?.label
 const selected = computed(() => props.modelValue.filter((id) => props.pool.some((card) => card.id === id)))
 const unselected = computed(() => props.pool.filter((card) => !selected.value.includes(card.id)))
 const full = computed(() => props.max !== undefined && selected.value.length >= props.max)
+const unselectedGroups = computed(() => {
+  const groups: { title: string; cards: typeof props.pool }[] = []
+  for (const card of unselected.value) {
+    const title = card.group ?? ''
+    const group = groups.find((item) => item.title === title)
+    if (group) group.cards.push(card)
+    else groups.push({ title, cards: [card] })
+  }
+  return groups
+})
 
 function move(from: number, to: number) {
   const list = [...selected.value]
@@ -85,18 +96,21 @@ const reorder = usePointerReorder(listEl, move, () => selected.value.length, 'wr
 
     <div v-if="unselected.length" class="space-y-1.5 border-t border-tint/10 pt-2">
       <p class="text-caption text-ink-muted">{{ full ? `已經放滿 ${max} 張，先拿掉一張才能再加` : '點一下加到最後' }}</p>
-      <div class="flex flex-wrap gap-1.5">
-        <button
-          v-for="card in unselected"
-          :key="card.id"
-          type="button"
-          class="cursor-pointer border-2 border-dashed border-tint/20 px-2 py-0.5 text-button text-ink-muted transition hover:border-ink-soft/60 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="full"
-          :title="card.hint"
-          @click="add(card.id)"
-        >
-          ＋ {{ card.label }}<span v-if="card.hint" class="ml-1 text-caption">{{ card.hint }}</span>
-        </button>
+      <div v-for="group in unselectedGroups" :key="group.title" class="space-y-1">
+        <p v-if="group.title" class="text-caption font-semibold text-ink-soft">{{ group.title }}</p>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="card in group.cards"
+            :key="card.id"
+            type="button"
+            class="cursor-pointer border-2 border-dashed border-tint/20 px-2 py-0.5 text-button text-ink-muted transition hover:border-ink-soft/60 hover:text-ink active:translate-x-[1px] active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="full"
+            :title="card.hint"
+            @click="add(card.id)"
+          >
+            ＋ {{ card.label }}<span v-if="card.hint" class="ml-1 text-caption">{{ card.hint }}</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

@@ -57,6 +57,20 @@ const progress = computed(() =>
 )
 const idle = computed(() => !props.loading && !cooling.value && !props.disabled)
 
+// 所有狀態會出現的文字。疊在同一格、只顯示目前那個，按鈕寬度固定取最寬的，
+// 切換「更新 → 更新中… → 已更新 → 更新（29）」時才不會伸縮、擠動旁邊的按鈕
+const labelVariants = computed(() => {
+  const current = props.loading
+    ? props.loadingLabel
+    : justDone.value
+      ? '已更新'
+      : cooling.value
+        ? `${props.label}（${props.cooldown.remaining.value}）`
+        : props.label
+  const widest = `${props.label}（${props.cooldown.seconds}）`
+  return { current, sizers: [props.label, props.loadingLabel, '已更新', widest] }
+})
+
 const toneClass = computed(() => {
   if (props.loading) return 'border-accent-hue/50 bg-accent-hue/20 text-accent'
   if (justDone.value) return 'border-ok-hue/50 bg-ok-hue/15 text-ok'
@@ -71,12 +85,12 @@ const toneClass = computed(() => {
   <!-- @touchstart：iOS Safari 要有觸控事件，:active 的按下效果才會出現 -->
   <button
     type="button"
-    class="relative inline-flex shrink-0 cursor-pointer touch-manipulation select-none items-center gap-1.5 overflow-hidden border-2 px-3 py-1 text-button transition-[background-color,border-color,color,transform,box-shadow] duration-100 disabled:cursor-not-allowed font-pixel"
+    class="relative inline-flex h-8 shrink-0 cursor-pointer touch-manipulation select-none items-center gap-1.5 overflow-hidden whitespace-nowrap border-2 px-3 text-button transition-[background-color,border-color,color,transform,box-shadow] duration-100 disabled:cursor-not-allowed font-pixel"
     :class="[
       toneClass,
-      idle
-        ? 'shadow-[3px_3px_0_var(--c-shade)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none'
-        : 'translate-x-[3px] translate-y-[3px] shadow-none',
+      // 按下時往右下沉（按住的那一下）；載入、冷卻時只拿掉陰影、不位移，
+      // 否則放在其他按鈕旁邊（例如「客製化區塊」）會一直錯開 3px，看起來跑版
+      idle ? 'shadow-[3px_3px_0_var(--c-shade)] active:translate-x-[3px] active:translate-y-[3px] active:shadow-none' : 'shadow-none',
     ]"
     :disabled="loading || cooling || disabled"
     :aria-busy="loading"
@@ -100,11 +114,9 @@ const toneClass = computed(() => {
       <path d="M13.5 8A5.5 5.5 0 1 1 11.6 3.8" stroke-linecap="square" />
       <path d="M11 1.5v3h3" stroke-linecap="square" />
     </svg>
-    <span>
-      <template v-if="loading">{{ loadingLabel }}</template>
-      <template v-else-if="justDone">已更新</template>
-      <template v-else-if="cooling">{{ label }}（{{ cooldown.remaining.value }}）</template>
-      <template v-else>{{ label }}</template>
+    <span class="grid justify-items-center">
+      <span v-for="(text, index) in labelVariants.sizers" :key="index" class="invisible [grid-area:1/1]" aria-hidden="true">{{ text }}</span>
+      <span class="[grid-area:1/1]">{{ labelVariants.current }}</span>
     </span>
     <!-- 冷卻剩餘時間：越來越短，0 秒時消失 -->
     <span

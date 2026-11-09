@@ -15,7 +15,7 @@ export const BLOCK_LABELS: Record<DashboardBlockType, string> = {
 }
 
 // 區塊裡的卡片（v19 階段 2）：沒設定（options.cards 是 undefined）時用這裡的預設；id 和後端回傳的資料對應
-// 重點卡：加權、櫃買、台指期夜盤、那斯達克、費半、美元兌台幣（改版前的六張）；個股是 watch:<追蹤 id>
+// 重點卡：加權、櫃買、台指期夜盤、那斯達克、費半、美元兌台幣（改版前的六張）。追蹤的個股不放重點卡（看「自選清單」區塊）
 export const DEFAULT_HIGHLIGHTS = ['^TWII', 'TPEX', 'txf-night', '^IXIC', '^SOX', 'TWD=X']
 export const HIGHLIGHT_MAX = 8
 export const MACRO_KEYS = ['cpi', 'coreCpi', 'pce', 'corePce', 'nfp']

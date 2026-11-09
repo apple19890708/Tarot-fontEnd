@@ -219,6 +219,9 @@ const watchItems = ref<MarketWatchItem[]>([])
 const watchGroups = ref<MarketWatchGroup[]>([])
 // 追蹤清單還沒抓到（自選清單、持股總覽先放骨架）
 const watchReady = ref(false)
+// 抓失敗的原因：沒有資料時在自選清單區塊顯示＋重試（以前失敗只重設旗標，骨架會永遠轉下去）
+const watchError = ref('')
+const watchRetrying = ref(false)
 let watchLoaded = false
 async function loadWatch() {
   if (watchLoaded) return
@@ -228,25 +231,32 @@ async function loadWatch() {
     watchItems.value = result.items
     watchGroups.value = result.groups ?? []
     watchReady.value = true
-  } catch {
-    // 抓不到就沒有個股卡片可用，下次需要時再試
+    watchError.value = ''
+  } catch (error) {
     watchLoaded = false
+    watchError.value = error instanceof Error ? error.message : '自選清單暫時讀不到。'
   }
 }
+// 重試也有短冷卻，避免後端還在重啟時被連續按
+const watchRetryCooldown = useCooldown(5)
+const retryWatch = () =>
+  watchRetryCooldown.run(async () => {
+    watchRetrying.value = true
+    try {
+      await loadWatch()
+    } finally {
+      watchRetrying.value = false
+    }
+  })
 const needWatch = computed(
   () =>
     editing.value ||
     blockEditing.value !== null ||
-    blocks.value.some(
-      (block) =>
-        block.visible &&
-        (block.type === 'watchGroup' ||
-          (block.type === 'highlights' && block.options.cards?.some((id) => id.startsWith('watch:')))),
-    ),
+    blocks.value.some((block) => block.visible && block.type === 'watchGroup'),
 )
 watch(needWatch, (need) => need && void loadWatch(), { immediate: true })
 
-// 卡片池：id → 卡片。指數與匯率用代號（櫃買指數用 chartSymbol），台指期夜盤 txf-night，個股 watch:<追蹤 id>
+// 卡片池：id → 卡片。指數與匯率用代號（櫃買指數用 chartSymbol），台指期夜盤 txf-night
 const highlightPool = computed(() => {
   const pool = new Map<string, Highlight>()
   const o = overview.value
@@ -279,24 +289,16 @@ const highlightPool = computed(() => {
     }
     for (const card of o.us) if (card.symbol) pool.set(card.symbol, fromCard(card, card.symbol))
   }
-  for (const item of watchItems.value) {
-    const quote = item.summary?.quote
-    if (!quote) continue
-    const key = `watch:${item.id}`
-    pool.set(key, {
-      key,
-      name: item.summary?.name || item.target.name,
-      price: quote.price,
-      digits: 2,
-      change: quote.change,
-      changePct: quote.changePct,
-      note: item.summary?.session === 'intraday' ? '盤中・我的追蹤' : `收盤 ${shortDay(quote.date)}・我的追蹤`,
-      symbol: item.target.symbol,
-      futures: null,
-    })
-  }
+  // 追蹤的個股不放進重點卡（使用者決定：和下面的「自選清單」區塊重複）。
+  // 以前存過的 watch:<id> 在這裡找不到，畫面上不顯示，下次儲存重點卡時一起拿掉
   return pool
 })
+// 挑卡片時的分組：台股（加權、櫃買、台指期夜盤，加上和台股資金最相關的美元兌台幣），其他都是美股
+const TW_HIGHLIGHT_EXTRA = new Set(['txf-night', 'TWD=X'])
+function highlightGroup(key: string) {
+  const tw = overview.value?.tw.some((card) => (card.symbol ?? card.chartSymbol ?? card.name) === key)
+  return tw || TW_HIGHLIGHT_EXTRA.has(key) ? '台股' : '美股'
+}
 const highlightsOf = (block: DashboardBlock) =>
   (block.options.cards ?? DEFAULT_HIGHLIGHTS).map((id) => highlightPool.value.get(id)).filter((item): item is Highlight => !!item)
 // 重點卡的欄數跟著張數：桌機一排排滿（最多 8），手機兩欄
@@ -366,11 +368,10 @@ const usGroupsOf = (block: DashboardBlock) => {
 function poolOf(type: DashboardBlock['type']) {
   const o = overview.value
   if (type === 'highlights')
-    return [...highlightPool.value.values()].map((item) => ({
-      id: item.key,
-      label: item.name,
-      hint: item.key.startsWith('watch:') ? '我的追蹤' : undefined,
-    }))
+    // 台股排在前面，各組裡照原本的順序
+    return [...highlightPool.value.values()]
+      .map((item) => ({ id: item.key, label: item.name, group: highlightGroup(item.key) }))
+      .sort((a, b) => Number(a.group !== '台股') - Number(b.group !== '台股'))
   if (type === 'macro') return (o?.macro ?? []).map((item) => ({ id: item.key, label: item.name }))
   if (type === 'breadth') return BREADTH_KEYS.map((key) => ({ id: key, label: `${BREADTH_LABELS[key]}漲跌家數` }))
   if (type === 'us') return (o?.us ?? []).filter((card) => card.symbol).map((card) => ({ id: card.symbol as string, label: card.name }))
@@ -673,10 +674,15 @@ function timeText(value: string) {
           <button
             v-if="isBlockEditing(block)"
             type="button"
-            class="cursor-pointer border px-2 py-0.5 text-button text-ink-muted transition hover:bg-tint/10 hover:text-ink"
+            class="flex h-7 w-8 shrink-0 cursor-pointer items-center justify-center border border-danger-hue/40 bg-danger-hue/10 text-danger transition hover:bg-danger-hue/20 active:translate-x-[1px] active:translate-y-[1px] active:bg-danger-hue/30"
+            :aria-label="`取消${BLOCK_LABELS[block.type]}的設定`"
+            :title="`取消${BLOCK_LABELS[block.type]}的設定`"
             @click="cancelBlockEdit"
           >
-            取消
+            <!-- 和右邊儲存的勾勾成對：紅 × 取消、綠 ✓ 儲存 -->
+            <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" stroke-linecap="square" />
+            </svg>
           </button>
           <!-- 筆：推薦／熱門沒有設定（類型在區塊裡直接切）；自選清單有兩個以上清單時才能挑 -->
           <EditToggleButton
@@ -730,7 +736,6 @@ function timeText(value: string) {
           :max="block.type === 'highlights' ? HIGHLIGHT_MAX : undefined"
           @update:model-value="setCards($event)"
         />
-        <p v-if="block.type === 'highlights' && !watchItems.length" class="mt-1.5 text-caption text-ink-muted">在「自訂股票追蹤」加入股票後，這裡就能挑個股。</p>
       <p v-if="blockError" class="text-body text-danger">{{ blockError }}</p>
       </div>
       <!-- ── 重點卡：最常看的六個，數字放大（6 張在手機 2×3、平板 3×2、桌機一排都剛好排滿） ── -->
@@ -820,7 +825,19 @@ function timeText(value: string) {
 
       <!-- ── 自選清單：第一個（或指定的）自訂清單；沒有清單或清單是空的就顯示當日推薦 ── -->
       <template v-if="block.type === 'watchGroup'">
-        <div v-if="!watchReady" class="space-y-1.5">
+        <div v-if="!watchReady && watchError" class="flex flex-wrap items-center justify-between gap-2 border-2 border-danger-hue/30 bg-danger-hue/[0.06] px-3 py-3">
+          <p class="text-body text-danger">自選清單讀取失敗：{{ watchError }}</p>
+          <RefreshButton
+            label="重試"
+            loading-label="重試中…"
+            tone="danger"
+            :loading="watchRetrying"
+            :failed="!!watchError"
+            :cooldown="watchRetryCooldown"
+            @click="retryWatch"
+          />
+        </div>
+        <div v-else-if="!watchReady" class="space-y-1.5">
           <SkeletonBlock v-for="n in 3" :key="n" class="h-10 w-full rounded-none" />
         </div>
         <DashboardWatchList v-else-if="watchGroupOf(block).items.length" :items="watchGroupOf(block).items" :view="block.options.view" />
