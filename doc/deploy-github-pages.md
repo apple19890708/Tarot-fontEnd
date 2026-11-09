@@ -3,7 +3,7 @@
 對象：`apple19890708/Tarot-fontEnd`，網址會是
 `https://apple19890708.github.io/Tarot-fontEnd/`
 
-前端是純靜態的，後端（API、牌卡圖片、AI 解讀）仍然跑在 Render，兩邊是分開的。
+前端是純靜態的，後端（API、牌卡圖片、AI 解讀）跑在 Google Cloud Run（us-west1，2026-11-09 從 Render 搬過去），兩邊是分開的。下面提到 Render 的步驟，現在對應的是 Cloud Run（見後端 `doc/deploy-cloud-run.md`）。
 
 ## 已經設定好的部分（程式碼裡）
 

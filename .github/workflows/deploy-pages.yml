@@ -34,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # VITE_API_BASE_URL 預設由版控中的 .env 提供（指向 Render 的後端）。
+      # VITE_API_BASE_URL 預設由版控中的 .env 提供（指向 Cloud Run us-west1 的後端）。
       # repo 若設了同名的 Variable 就以它為準；兩邊都空的話直接讓 build 失敗——
       # 空值會讓前端去打 github.io/api，整站的 API 都會 404，而且畫面上看不出原因。
       - name: Resolve API base URL
