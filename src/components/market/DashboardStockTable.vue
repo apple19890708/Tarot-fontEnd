@@ -52,9 +52,11 @@ const STICKY = 'sticky left-0 z-10 bg-surface shadow-[2px_0_0_var(--c-line)]'
           @click="emit('open', row.key)"
           @keydown.enter="emit('open', row.key)"
         >
-          <!-- 名稱一行不斷開，代號放第二行 -->
+          <!-- 名稱一行不斷開，代號放第二行。名稱限制寬度、超過用 … 截斷（滑過看全名）：
+               美股英文全名（Micron Technology, Inc.）會把固定的商品欄撐到半個手機寬，其他欄被擠出畫面。
+               手機 7.5em、平板 12em；桌機（lg 以上）表格夠寬，放到 20em 讓英文全名完整顯示。用 em 才會跟著字級變寬 -->
           <th scope="row" class="px-3 py-2 text-left font-normal group-hover:bg-[color-mix(in_oklab,var(--c-surface)_90%,var(--c-tint))]" :class="STICKY">
-            <span class="block whitespace-nowrap font-semibold text-ink">{{ row.name }}</span>
+            <span class="block max-w-[7.5em] truncate whitespace-nowrap font-semibold text-ink sm:max-w-[12em] lg:max-w-[20em]" :title="row.name">{{ row.name }}</span>
             <span class="block text-caption text-ink-muted">{{ row.code }}</span>
           </th>
           <td class="px-3 py-2 text-right" :class="tone(row.change)">{{ formatNumber(row.price) }}</td>
