@@ -1,7 +1,9 @@
 // 價位提醒的共用狀態：提醒清單、到價通知、定期檢查。
-// 伺服器沒有常駐排程，所以只有網頁開著時才會檢查（每 3 分鐘，分頁在背景時暫停）。
+// 網頁開著時每 3 分鐘檢查一次（分頁在背景時暫停），但只在「有啟用中的提醒、而且它的市場正在交易」時才打 API；
+// 收盤後價格不會變，由後端 market-cron 排程檢查並推播，前端不必一直問（Cloud Run 依請求時間計費）。
 import { ref } from 'vue'
 
+import { anyMarketOpen } from './marketHours'
 import { checkMarketAlerts, createMarketAlert, deleteMarketAlert, fetchMarketAlerts, reactivateMarketAlert } from './api'
 import type { MarketAlert, MarketAlertTarget } from '../types'
 
@@ -91,16 +93,23 @@ export function dismissTriggered(id: string) {
   triggeredAlerts.value = triggeredAlerts.value.filter((alert) => alert.id !== id)
 }
 
-// 由 App.vue 依「有沒有金融股市權限」開關；檢查失敗（例如 Render 剛喚醒）就等下一輪
+// 定期檢查要不要打：沒有啟用中的提醒、或提醒的市場都收盤了就跳過
+function shouldCheck(date = new Date()) {
+  const active = marketAlerts.value.filter((alert) => alert.active)
+  return active.length > 0 && anyMarketOpen(active.map((alert) => alert.target.market), date)
+}
+
+// 由 App.vue 依「有沒有金融股市權限」開關；檢查失敗（例如 Cloud Run 冷啟動逾時）就等下一輪。
+// 第一次一定檢查：要拿到提醒清單，也要帶回收盤後排程觸發、還沒看到的提醒
 export function startAlertWatcher() {
   if (timer) return
-  const tick = () => {
-    if (document.visibilityState === 'visible') {
+  const tick = (first = false) => {
+    if (document.visibilityState === 'visible' && (first || shouldCheck())) {
       checkAlertsNow().catch(() => undefined)
     }
   }
-  tick()
-  timer = setInterval(tick, CHECK_INTERVAL_MS)
+  tick(true)
+  timer = setInterval(() => tick(), CHECK_INTERVAL_MS)
 }
 
 export function stopAlertWatcher() {

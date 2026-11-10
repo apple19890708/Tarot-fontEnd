@@ -6,6 +6,7 @@ import { canUseAi } from '../../lib/auth'
 import { NEWS_TONES } from '../../lib/newsTone'
 import { useCooldown } from '../../lib/useCooldown'
 import RefreshButton from '../RefreshButton.vue'
+import CheckboxField from '../CheckboxField.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import FinanceNewsDialog from './FinanceNewsDialog.vue'
 import FinanceNewsReportDialog from './FinanceNewsReportDialog.vue'
@@ -345,10 +346,9 @@ function isTodayInTaipei(iso: string) {
             {{ option.label }}（{{ regionCount(option.key) }}）
           </button>
           <!-- 手機：自己一行、靠左和其他篩選對齊；桌機：同一行最右邊 -->
-          <label class="flex w-full cursor-pointer items-center gap-1.5 pt-1 text-caption text-ink-muted sm:ml-auto sm:w-auto sm:pt-0">
-            <input v-model="onlyWatched" type="checkbox" class="accent-amber-300" @change="limit = PAGE" />
+          <CheckboxField v-model="onlyWatched" class="w-full pt-1 text-caption sm:ml-auto sm:w-auto sm:pt-0" @update:model-value="limit = PAGE">
             只看與我追蹤相關（{{ watchedCount }}）
-          </label>
+          </CheckboxField>
         </div>
         <div v-if="themeOptions.length" class="flex flex-wrap gap-1.5" aria-label="主題">
           <button

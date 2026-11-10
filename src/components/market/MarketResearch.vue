@@ -24,8 +24,8 @@ function trendClass(value: number | null | undefined) {
   return value > 0 ? 'text-up' : 'text-down'
 }
 
-// ---- 訊號回測：每個訊號的 10 日上漲機率和「隨便挑一天買」比 ----
-// 門檻和名詞說明一致：差 5 個百分點以上才算有差（marketGlossary 的 backtest）
+// ---- 訊號回測：每個訊號的 10 日上漲機率和基準比 ----
+// 結論用後端的 verdict（依出現次數算合理範圍）；舊版後端沒有時，退回「差 5 個百分點」
 type Edge = 'better' | 'same' | 'worse'
 const EDGE_LABELS: Record<Edge, string> = { better: '比平常更常漲', same: '跟平常差不多', worse: '比平常更常跌' }
 const EDGE_STYLES: Record<Edge, string> = {
@@ -45,7 +45,12 @@ function diffOf(signal: MarketSignalBacktest) {
   return rate - baseline10.value
 }
 
+// null：不列入（次數太少、前後期相反，旁邊另有標籤）
 function edgeOf(signal: MarketSignalBacktest): Edge | null {
+  if (signal.verdict) {
+    if (!signal.verdict.counted) return null
+    return signal.verdict.direction > 0 ? 'better' : signal.verdict.direction < 0 ? 'worse' : 'same'
+  }
   const diff = diffOf(signal)
   if (diff === null) return null
   if (diff >= 5) return 'better'
@@ -53,12 +58,11 @@ function edgeOf(signal: MarketSignalBacktest): Edge | null {
   return 'same'
 }
 
-// 「高 3.2」「低 4」：和平常差幾個百分點
-function diffText(signal: MarketSignalBacktest) {
+// 10 天上漲機會的顏色：比平常高紅、低綠（台股慣例），一樣灰。只看高低；算不算有優勢由旁邊的標籤表達
+function winRateClass(signal: MarketSignalBacktest) {
   const diff = diffOf(signal)
-  if (diff === null) return ''
-  if (Math.abs(diff) < 0.05) return '一樣'
-  return `${diff > 0 ? '高' : '低'} ${formatNumber(Math.abs(diff), 1)}`
+  if (diff === null || Math.abs(diff) < 0.05) return 'text-ink'
+  return diff > 0 ? 'text-up' : 'text-down'
 }
 
 // 平均漲跌：正的寫「漲」、負的寫「跌」
@@ -74,7 +78,7 @@ const signalCounts = computed(() => {
   let few = 0
   for (const signal of props.research.backtest?.signals ?? []) {
     const edge = edgeOf(signal)
-    if (!signal.sufficient || !edge) few += 1
+    if (!signal.sufficient || !edge) few += 1 // 前後期相反的也算在「看不出來」
     else counts[edge] += 1
   }
   return { ...counts, few }
@@ -96,6 +100,19 @@ function beatsBuyHold(strategy: MarketStrategyResult): boolean | null {
 }
 
 const BEAT_LABELS = { true: '比一直抱著賺', false: '不如一直抱著' } as const
+
+// 停損列的白話說明：新版後端是「依波動調整」（ATR 倍數，帶今天換算的 %），舊版（Cloud Run 還沒更新時）是固定 %
+const stopRule = computed(() => {
+  const s = props.research.strategies
+  if (!s) return null
+  if (s.stopAtrMultiple) return s.stopNowPct ? `比買進價跌約 ${s.stopNowPct}% 就賣` : '跌太多就賣'
+  if (s.stopLossPct) return `比買進價跌 ${s.stopLossPct}% 就賣`
+  return null
+})
+
+// 小表的數字只留一位小數，手機上兩欄才不會擠在一起
+const signed1 = (value: number | null | undefined) =>
+  value === null || value === undefined ? '—' : `${value > 0 ? '+' : ''}${formatNumber(value, 1)}%`
 
 // ---- 電腦模型：分析成績差多少、今天把機率往上推／往下拉最多的因素 ----
 const accuracyGap = computed(() =>
@@ -160,17 +177,17 @@ const topFactors = computed(() => {
     <!-- ── 訊號回測 ── -->
     <section v-if="research.backtest" class="space-y-3">
       <div>
-        <h4 class="flex items-center gap-1.5 text-subtitle font-semibold text-ink">現象的歷史表現 <HelpTip term="backtest" /></h4>
+        <h4 class="flex items-center gap-1.5 text-subtitle font-semibold text-ink">特定現象出現後歷史表現 <HelpTip term="backtest" /></h4>
         <p class="mt-1 text-body text-ink-muted">
-          翻這檔股票過去 5 年的紀錄：每次出現下面這些現象之後，股價多半是漲還是跌？再和「隨便挑一天買」比，明顯比較常漲，這個現象才值得參考。
+          翻這檔股票近 5 年的日 K：每次出現下面這些現象（連續好幾天只算出現的第一天）之後，股價多半是漲還是跌？再和同一段期間「不看任何現象、每個交易日都買」的結果比，明顯比較常漲，這個現象才值得參考。
         </p>
       </div>
 
       <!-- 平常的上漲機率：所有現象的比較基準 -->
       <div class="space-y-1 border-2 border-tint/10 bg-tint/[0.03] px-3 py-2 text-body tabular-nums">
-        <p class="text-ink-muted">比較基準：隨便挑一天買，之後上漲的機會</p>
+        <p class="text-ink-muted">比較基準：同期間每個交易日都以收盤價買進，N 個交易日後收盤價比買進價高的比例</p>
         <p class="flex flex-wrap gap-x-4 gap-y-1 text-ink">
-          <span v-for="base in research.backtest.baseline" :key="base.days">{{ base.days }} 天後 {{ pct(base.winRate) }}</span>
+          <span v-for="base in research.backtest.baseline" :key="base.days">{{ base.days }} 個交易日後 {{ pct(base.winRate) }}</span>
         </p>
       </div>
 
@@ -189,6 +206,7 @@ const topFactors = computed(() => {
             </span>
             <span v-if="!signal.sufficient" class="border border-accent-hue/40 px-1.5 text-caption text-accent">次數太少，參考就好</span>
             <span v-if="signal.consistent === false" class="border border-accent-hue/40 px-1.5 text-caption text-accent">早期和近期結果相反</span>
+            <span v-if="signal.verdict?.reason === 'horizonConflict'" class="border border-accent-hue/40 px-1.5 text-caption text-accent">5／20 天方向相反</span>
             <span class="ml-auto text-caption tabular-nums text-ink-muted">5 年內出現 {{ signal.occurrences }} 次</span>
           </div>
 
@@ -197,25 +215,25 @@ const topFactors = computed(() => {
             <div class="flex flex-wrap items-baseline justify-between gap-x-3 text-body tabular-nums">
               <span class="text-ink-muted">
                 出現後 10 天，上漲的機會
-                <span class="ml-1 text-subtitle font-semibold text-ink">{{ pct(win10(signal)?.winRate) }}</span>
+                <span class="ml-1 text-subtitle font-semibold" :class="winRateClass(signal)">{{ pct(win10(signal)?.winRate) }}</span>
               </span>
-              <span class="text-ink-muted">
-                平常是 {{ pct(baseline10) }}
-                <span
-                  v-if="diffText(signal)"
-                  class="ml-1"
-                  :class="edgeOf(signal) === 'better' ? 'text-up' : edgeOf(signal) === 'worse' ? 'text-down' : 'text-ink-soft'"
-                >
-                  （{{ diffText(signal) }}）
-                </span>
-              </span>
+              <span class="text-ink-muted">平常是 {{ pct(baseline10) }}</span>
             </div>
-            <!-- 長條：這個現象之後的上漲機會；白線：平常 -->
+            <!-- 長條：這個現象之後的上漲機會；白線：平常；下方細條：依出現次數估的合理範圍 -->
             <div class="relative mt-1.5 h-2.5 bg-tint/10" aria-hidden="true">
               <div class="h-full bg-accent-hue/70" :style="{ width: `${win10(signal)?.winRate ?? 0}%` }" />
               <div v-if="baseline10 !== null" class="absolute -top-1 h-[calc(100%+0.5rem)] w-0.5 bg-ink" :style="{ left: `${baseline10}%` }" />
             </div>
-            <p class="mt-1 text-caption text-ink-muted">黃條是這個現象之後的上漲機會，白線是平常；黃條超過白線越多越好。</p>
+            <div v-if="signal.verdict?.interval" class="relative mt-1 h-1" aria-hidden="true">
+              <div
+                class="absolute h-full bg-ink-muted/60"
+                :style="{ left: `${signal.verdict.interval.low}%`, width: `${signal.verdict.interval.high - signal.verdict.interval.low}%` }"
+              />
+            </div>
+            <p v-if="signal.verdict?.interval" class="mt-1 text-caption tabular-nums text-ink-muted">
+              下面的細條是合理範圍 {{ pct(signal.verdict.interval.low) }}～{{ pct(signal.verdict.interval.high) }}：出現次數越少，範圍越寬。整段都在白線右邊才算「比平常更常漲」，整段在左邊才算「更常跌」。
+            </p>
+            <p v-else class="mt-1 text-caption text-ink-muted">黃條是這個現象之後的上漲機會，白線是平常；黃條超過白線越多越好。</p>
           </div>
 
           <!-- 5／10／20 天的細節 -->
@@ -231,7 +249,7 @@ const topFactors = computed(() => {
           </p>
           <p v-if="signal.consistent === false && signal.periods" class="text-caption tabular-nums text-accent">
             早期出現後 {{ pct(signal.periods.early.winRate) }} 會漲（當時平常 {{ pct(signal.periods.early.baseline) }}），
-            近期變成 {{ pct(signal.periods.late.winRate) }}（當時平常 {{ pct(signal.periods.late.baseline) }}），前後相反，可能只是剛好碰上，不太可靠。
+            近期變成 {{ pct(signal.periods.late.winRate) }}（當時平常 {{ pct(signal.periods.late.baseline) }}），前後相反，可能只是剛好碰上，僅供參考。
           </p>
         </li>
       </ul>
@@ -267,16 +285,19 @@ const topFactors = computed(() => {
 
       <ul class="space-y-2">
         <li v-for="s in activeStrategies" :key="s.key" class="space-y-2.5 border-2 border-tint/10 bg-tint/5 p-3">
+          <!-- 標題列：名稱＋白話說明放進「?」；標籤（含現在該持有或空手）一律同一排換行，手機上不會只剩一個靠右的孤字 -->
           <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span class="font-semibold text-ink">{{ s.label }}</span>
+            <span class="flex items-center gap-1.5 font-semibold text-ink">
+              {{ s.label }}
+              <HelpTip v-if="s.plain" :entry="{ title: s.label, body: s.plain }" />
+            </span>
             <span v-if="beatsBuyHold(s) !== null" class="border px-1.5 text-caption" :class="beatsBuyHold(s) ? EDGE_STYLES.better : EDGE_STYLES.worse">
               {{ BEAT_LABELS[`${beatsBuyHold(s)!}`] }}
             </span>
             <span v-if="s.robust === true" class="border border-accent-hue/40 px-1.5 text-caption text-accent">前後兩段都比抱著好</span>
-            <span class="ml-auto text-caption text-ink-muted">照這規則，現在{{ s.holdingNow ? '應該持有' : '應該空手' }}</span>
+            <span class="border border-tint/15 px-1.5 text-caption text-ink-soft">現在應該{{ s.holdingNow ? '持有' : '空手' }}</span>
           </div>
-          <p class="text-body text-ink-soft">{{ s.plain || s.description }}</p>
-          <p v-if="s.plain" class="text-caption text-info">規則：{{ s.description }}</p>
+          <p class="text-body text-info">規則：{{ s.description }}</p>
 
           <dl class="grid grid-cols-2 gap-2 text-body tabular-nums sm:grid-cols-4">
             <div class="border border-tint/10 px-2 py-1.5">
@@ -297,20 +318,55 @@ const topFactors = computed(() => {
             </div>
           </dl>
 
-          <div v-if="s.withStop || s.periods" class="space-y-0.5 text-caption tabular-nums text-ink-muted">
-            <p v-if="s.withStop && research.strategies.stopLossPct">
-              如果另外設「跌 {{ research.strategies.stopLossPct }}% 就認賠賣出」：總共
-              <span :class="trendClass(s.withStop.totalReturn)">{{ formatSigned(s.withStop.totalReturn, '%') }}</span>，最慘時從高點跌了
-              <span class="text-down">{{ pct(s.withStop.maxDrawdown === null ? null : Math.abs(s.withStop.maxDrawdown), 2) }}</span>
-            </p>
-            <p v-if="s.periods && research.strategies.splitDate">
-              分成兩段檢查是不是碰巧：{{ research.strategies.splitDate }} 以前
-              <span :class="trendClass(s.periods.early.totalReturn)">{{ formatSigned(s.periods.early.totalReturn, '%') }}</span>（一直抱著
-              {{ formatSigned(s.periods.early.buyHold, '%') }}），之後
-              <span :class="trendClass(s.periods.late.totalReturn)">{{ formatSigned(s.periods.late.totalReturn, '%') }}</span>（一直抱著
-              {{ formatSigned(s.periods.late.buyHold, '%') }}）
-            </p>
-          </div>
+          <!-- 停損版本與分段檢查：原本是一長串句子，手機上數字被拆行很難對照，改成「照規則／一直抱著」兩欄的小表。
+               列名只寫白話，細節放第二行小字；數字一位小數、不換行，兩欄之間留 pl-3 -->
+          <table class="w-full text-caption tabular-nums">
+            <thead>
+              <tr class="text-ink-muted">
+                <th class="py-1 text-left font-normal">總共賺</th>
+                <th class="whitespace-nowrap py-1 pl-3 text-right align-top font-normal">照規則</th>
+                <th class="whitespace-nowrap py-1 pl-3 text-right align-top font-normal">一直抱著</th>
+              </tr>
+            </thead>
+            <tbody class="text-ink-soft">
+              <!-- 全期間放第一列，下面的停損、分段都和它對照 -->
+              <tr class="border-t border-tint/10">
+                <td class="py-1">全期間</td>
+                <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.totalReturn)">{{ signed1(s.totalReturn) }}</td>
+                <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(buyHold?.totalReturn)">{{ signed1(buyHold?.totalReturn) }}</td>
+              </tr>
+              <tr v-if="s.withStop && stopRule" class="border-t border-tint/10">
+                <td class="py-1">
+                  <span class="inline-flex items-center gap-1">加上停損 <HelpTip term="strategyStopLoss" /></span>
+                  <span class="block text-ink-muted">
+                    {{ stopRule }}<template v-if="s.withStop.stops !== undefined">，賣過 {{ s.withStop.stops }} 次</template>，最慘從高點跌
+                    <span class="text-down">{{ pct(s.withStop.maxDrawdown === null ? null : Math.abs(s.withStop.maxDrawdown)) }}</span>
+                  </span>
+                </td>
+                <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.withStop.totalReturn)">{{ signed1(s.withStop.totalReturn) }}</td>
+                <!-- 一直抱著本來就不賣，加停損就變成「跌一次就永遠出場」，沒有可比的數字 -->
+                <td class="whitespace-nowrap py-1 pl-3 text-right align-top text-ink-muted">不適用</td>
+              </tr>
+              <template v-if="s.periods && research.strategies.splitDate">
+                <tr class="border-t border-tint/10">
+                  <td class="py-1">
+                    <span class="inline-flex items-center gap-1">前段 <HelpTip term="strategySplit" /></span>
+                    <span class="block text-ink-muted">{{ research.strategies.splitDate }} 以前</span>
+                  </td>
+                  <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.periods.early.totalReturn)">{{ signed1(s.periods.early.totalReturn) }}</td>
+                  <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.periods.early.buyHold)">{{ signed1(s.periods.early.buyHold) }}</td>
+                </tr>
+                <tr class="border-t border-tint/10">
+                  <td class="py-1">
+                    後段
+                    <span class="block text-ink-muted">{{ research.strategies.splitDate }} 以後</span>
+                  </td>
+                  <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.periods.late.totalReturn)">{{ signed1(s.periods.late.totalReturn) }}</td>
+                  <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.periods.late.buyHold)">{{ signed1(s.periods.late.buyHold) }}</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
         </li>
       </ul>
     </section>
@@ -374,6 +430,11 @@ const topFactors = computed(() => {
             :class="accuracyGap > 0 ? 'text-up-ink' : 'text-down-ink'"
           >
             電腦比每次預測同一邊{{ accuracyGap > 0 ? '多' : '少' }}預測對 {{ formatNumber(Math.abs(accuracyGap), 1) }} 個百分點<template v-if="!research.prediction.reliable">，這個機率不要參考</template>
+          </p>
+          <!-- 贏了一點但在誤差內：說明為什麼還是不可靠（後端給的合理範圍；舊版後端沒有） -->
+          <p v-if="research.prediction.accuracyInterval && research.prediction.effectiveSamples" class="mt-1 text-caption tabular-nums text-ink-muted">
+            預測的是 {{ research.prediction.horizon }} 天後的漲跌，相鄰幾天的答案幾乎一樣，獨立的測試只有約 {{ research.prediction.effectiveSamples }} 次；
+            準確率的合理範圍是 {{ pct(research.prediction.accuracyInterval.low) }}～{{ pct(research.prediction.accuracyInterval.high) }}，整段都高於「每次預測同一邊」才算可以參考。
           </p>
         </div>
       </div>

@@ -1,4 +1,11 @@
+import { watchlistMutation } from './watchlistSync'
 import type {
+  IncomeReport,
+  AdminLogsResponse,
+  AdminUser,
+  AdminUserDetail,
+  AdminUserFilter,
+  AdminUserSort,
   AdminUsersResponse,
   AuthResponse,
   AuthUser,
@@ -198,7 +205,7 @@ export function logoutAllRequest() {
 
 // 開通／收回某個會員的 AI 解析權限（admin 專用）
 export function setUserAiAccess(userId: string, allowed: boolean) {
-  return request<{ user: AuthUser }>(`/api/admin/users/${userId}/ai-access`, {
+  return request<{ user: AdminUser }>(`/api/admin/users/${userId}/ai-access`, {
     method: 'PATCH',
     body: JSON.stringify({ allowed }),
   })
@@ -206,22 +213,46 @@ export function setUserAiAccess(userId: string, allowed: boolean) {
 
 // 開通／收回某個會員的金融股市權限（admin 專用）
 export function setUserStockAccess(userId: string, allowed: boolean) {
-  return request<{ user: AuthUser }>(`/api/admin/users/${userId}/stock-access`, {
+  return request<{ user: AdminUser }>(`/api/admin/users/${userId}/stock-access`, {
     method: 'PATCH',
     body: JSON.stringify({ allowed }),
   })
 }
 
-export function fetchAdminUsers(params: { page?: number; pageSize?: number } = {}) {
+export function fetchAdminUsers(
+  params: { page?: number; pageSize?: number; q?: string; filter?: AdminUserFilter; sort?: AdminUserSort } = {},
+) {
   const query = new URLSearchParams()
-  if (params.page) {
-    query.set('page', String(params.page))
-  }
-  if (params.pageSize) {
-    query.set('pageSize', String(params.pageSize))
-  }
+  if (params.page) query.set('page', String(params.page))
+  if (params.pageSize) query.set('pageSize', String(params.pageSize))
+  if (params.q?.trim()) query.set('q', params.q.trim())
+  if (params.filter && params.filter !== 'all') query.set('filter', params.filter)
+  if (params.sort && params.sort !== 'created') query.set('sort', params.sort)
   const suffix = query.toString() ? `?${query}` : ''
   return request<AdminUsersResponse>(`/api/admin/users${suffix}`)
+}
+
+// 單一會員的詳細：使用量與最近的管理操作（admin 專用）
+export function fetchAdminUser(userId: string) {
+  return request<AdminUserDetail>(`/api/admin/users/${userId}`)
+}
+
+// 停用或恢復帳號；停用時該會員所有裝置立刻登出（admin 專用）
+export function setUserDisabled(userId: string, disabled: boolean) {
+  return request<{ user: AdminUser }>(`/api/admin/users/${userId}/disabled`, {
+    method: 'PATCH',
+    body: JSON.stringify({ disabled }),
+  })
+}
+
+// 強制登出某個會員的所有裝置（admin 專用）
+export function forceLogoutUser(userId: string) {
+  return request<{ user: AdminUser }>(`/api/admin/users/${userId}/logout-all`, { method: 'POST' })
+}
+
+// 管理操作紀錄（全部會員，新到舊）
+export function fetchAdminLogs(page = 1) {
+  return request<AdminLogsResponse>(`/api/admin/logs?page=${page}`)
 }
 
 export function fetchSpreads() {
@@ -264,8 +295,9 @@ export function fetchMarketSnapshot(question: string) {
 }
 
 // 建議追蹤：過去的操作建議和之後實際走勢的對照
-export function fetchMarketTrack() {
-  return request<MarketTrackSummary>('/api/market/track')
+// onlyCurrent：只統計目前規則版本的紀錄
+export function fetchMarketTrack(onlyCurrent = false) {
+  return request<MarketTrackSummary>(`/api/market/track${onlyCurrent ? '?version=current' : ''}`)
 }
 
 export function clearMarketTrack() {
@@ -338,18 +370,22 @@ export function createWatch(payload: {
   group?: string | null
 }) {
   // existing：已經在追蹤，這次只是把選的清單加上去（持股不動，有填第一筆時 tradesIgnored）；舊版後端沒有，會直接回 409
-  return request<{ item: MarketWatchItem; existing?: boolean; tradesIgnored?: boolean }>('/api/market/watchlist', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
+  return watchlistMutation(
+    request<{ item: MarketWatchItem; existing?: boolean; tradesIgnored?: boolean }>('/api/market/watchlist', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  )
 }
 
 // 買賣紀錄、股利各自整批替換（可以只送其中一個，空陣列代表清除）；回傳含報價與重算後的損益
 export function updateWatchHoldings(id: string, payload: { trades?: MarketTrade[]; dividends?: MarketDividend[] }) {
-  return request<{ item: MarketWatchItem }>(`/api/market/watchlist/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  })
+  return watchlistMutation(
+    request<{ item: MarketWatchItem }>(`/api/market/watchlist/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  )
 }
 
 // 追蹤清單裡台股公司最近 30 天的重大訊息（新的在前）
@@ -489,7 +525,21 @@ export function deleteFinanceNewsAnalysis(id: string) {
 // 交易成本設定
 export function fetchMarketSettings() {
   // dashboard：股市總覽的版面；沒自訂過是 null，舊版後端沒有這個欄位
-  return request<{ fees: MarketFees; dashboard?: MarketDashboard | null }>('/api/market/settings')
+  // reminders：提醒開關（v20，舊版後端沒有）
+  return request<{ fees: MarketFees; reminders?: { exDividend: boolean }; dashboard?: MarketDashboard | null }>('/api/market/settings')
+}
+
+// 除息前推播的開關（v20 階段 6）：只送 reminders，交易成本不動
+export function saveExDividendReminder(enabled: boolean) {
+  return request<{ reminders: { exDividend: boolean } }>('/api/market/settings', {
+    method: 'PUT',
+    body: JSON.stringify({ reminders: { exDividend: enabled } }),
+  })
+}
+
+// 股利獲利與預測（v20）：持股損益、應收股利、未來 12 個月股利預估。group 不給是全部追蹤
+export function fetchIncome(group: string | null = null) {
+  return request<IncomeReport>(`/api/market/income${group ? `?group=${encodeURIComponent(group)}` : ''}`)
 }
 
 // 當日推薦個股（股市總覽的區塊）：所有人共用一份，跟著全市場收盤資料更新
@@ -512,7 +562,9 @@ export function saveMarketDashboard(dashboard: Pick<MarketDashboard, 'blocks'> |
 }
 
 export function saveMarketSettings(fees: MarketFees) {
-  return request<{ fees: MarketFees }>('/api/market/settings', { method: 'PUT', body: JSON.stringify({ fees }) })
+  return watchlistMutation(
+    request<{ fees: MarketFees }>('/api/market/settings', { method: 'PUT', body: JSON.stringify({ fees }) }),
+  )
 }
 
 // ---- 到價推播：瀏覽器推播（所有人）、Discord Webhook（只有 admin）----
@@ -545,34 +597,48 @@ export function sendTestNotify() {
 
 // 設定這一檔所在的清單（可以好幾個，空陣列＝未分類），整批替換
 export function setWatchGroups(id: string, groups: string[]) {
-  return request<{ item: MarketWatchItem }>(`/api/market/watchlist/${id}`, { method: 'PATCH', body: JSON.stringify({ groups }) })
+  return watchlistMutation(
+    request<{ item: MarketWatchItem }>(`/api/market/watchlist/${id}`, { method: 'PATCH', body: JSON.stringify({ groups }) }),
+  )
 }
 
 // 自訂順序：依序傳入 id
 export function reorderWatchlist(ids: string[]) {
-  return request<{ ok: boolean }>('/api/market/watchlist/order', { method: 'PUT', body: JSON.stringify({ ids }) })
+  return watchlistMutation(
+    request<{ ok: boolean }>('/api/market/watchlist/order', { method: 'PUT', body: JSON.stringify({ ids }) }),
+  )
 }
 
 // ---- 自選清單 ----
 export function createWatchGroup(name: string) {
-  return request<{ group: MarketWatchGroup }>('/api/market/groups', { method: 'POST', body: JSON.stringify({ name }) })
+  return watchlistMutation(
+    request<{ group: MarketWatchGroup }>('/api/market/groups', { method: 'POST', body: JSON.stringify({ name }) }),
+  )
 }
 
 export function renameWatchGroup(id: string, name: string) {
-  return request<{ group: MarketWatchGroup }>(`/api/market/groups/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) })
+  return watchlistMutation(
+    request<{ group: MarketWatchGroup }>(`/api/market/groups/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  )
 }
 
 // 刪除清單：裡面的股票移到未分類；回傳剩下的清單
 export function deleteWatchGroup(id: string) {
-  return request<{ groups: MarketWatchGroup[] }>(`/api/market/groups/${id}`, { method: 'DELETE' })
+  return watchlistMutation(
+    request<{ groups: MarketWatchGroup[] }>(`/api/market/groups/${id}`, { method: 'DELETE' }),
+  )
 }
 
 export function reorderWatchGroups(ids: string[]) {
-  return request<{ groups: MarketWatchGroup[] }>('/api/market/groups/order', { method: 'PUT', body: JSON.stringify({ ids }) })
+  return watchlistMutation(
+    request<{ groups: MarketWatchGroup[] }>('/api/market/groups/order', { method: 'PUT', body: JSON.stringify({ ids }) }),
+  )
 }
 
 export function deleteWatch(id: string) {
-  return request<{ deleted: boolean }>(`/api/market/watchlist/${id}`, { method: 'DELETE' })
+  return watchlistMutation(
+    request<{ deleted: boolean }>(`/api/market/watchlist/${id}`, { method: 'DELETE' }),
+  )
 }
 
 // ===== 占卜紀錄（v13）=====

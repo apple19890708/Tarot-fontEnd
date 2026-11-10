@@ -5,6 +5,7 @@ import { createWatch, screenMarket } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { useCooldown } from '../../lib/useCooldown'
 import SkeletonBlock from '../SkeletonBlock.vue'
+import CheckboxField from '../CheckboxField.vue'
 import type { MarketScreenFilters, MarketScreenResult, MarketScreenRow, MarketScreenSort } from '../../types'
 
 // 選股：用估值、營收、籌碼、價量、技術面條件從全市場（上市＋上櫃）篩選。篩選與排序在後端做，
@@ -159,7 +160,6 @@ function trendClass(value: number | null | undefined) {
 const streakText = (value: number | null) => (value === null || value === 0 ? '—' : `${value > 0 ? '買' : '賣'} ${Math.abs(value)}`)
 
 const INPUT = 'w-20 min-w-0 border-2 border-tint/10 bg-tint/5 px-2 py-1 text-body tabular-nums text-ink outline-none placeholder:text-ink-muted/50 focus:border-accent-hue/40'
-const CHECK = 'h-3.5 w-3.5 accent-amber-300'
 </script>
 
 <template>
@@ -202,8 +202,8 @@ const CHECK = 'h-3.5 w-3.5 accent-amber-300'
       <fieldset class="space-y-1.5 border border-tint/10 p-2.5">
         <legend class="px-1 text-caption text-ink-muted">技術面（只檢查前 30 檔，會比較慢）</legend>
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-body text-ink-muted">
-          <label class="flex items-center gap-1.5"><input v-model="flags.aboveMa60" type="checkbox" :class="CHECK" />站上季線（MA60）</label>
-          <label class="flex items-center gap-1.5"><input v-model="flags.bullishMa" type="checkbox" :class="CHECK" />均線多頭排列</label>
+          <CheckboxField v-model="flags.aboveMa60">站上季線（MA60）</CheckboxField>
+          <CheckboxField v-model="flags.bullishMa">均線多頭排列</CheckboxField>
           <label class="flex items-center gap-1.5">
             RSI
             <input v-model="numbers.rsiMin" inputmode="decimal" :class="INPUT" class="w-14" placeholder="下限" aria-label="RSI 下限" />
@@ -213,7 +213,7 @@ const CHECK = 'h-3.5 w-3.5 accent-amber-300'
         </div>
       </fieldset>
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-button">
-        <label class="flex items-center gap-1.5 text-ink-muted"><input v-model="flags.includeEtf" type="checkbox" :class="CHECK" />包含 ETF</label>
+        <CheckboxField v-model="flags.includeEtf">包含 ETF</CheckboxField>
         <div class="flex flex-wrap items-center gap-1">
           <span class="text-ink-muted">排序</span>
           <button

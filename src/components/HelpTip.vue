@@ -4,14 +4,16 @@ import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { MARKET_GLOSSARY, type GlossaryKey } from '../lib/marketGlossary'
 
 // 圓圈小「?」：點一下（桌機滑鼠移上去也會）跳出名詞說明，再點一下、點外面或按 Esc 關閉。
-// term：單一名詞；terms：一次說明好幾個（例如一整排判讀標籤）
-const props = defineProps<{ term?: GlossaryKey; terms?: GlossaryKey[] }>()
+// term：單一名詞；terms：一次說明好幾個（例如一整排判讀標籤）；
+// entry：不在名詞表裡、由後端給的說明（例如每個策略的白話解釋），和 term／terms 一起給時排在最前面
+const props = defineProps<{ term?: GlossaryKey; terms?: GlossaryKey[]; entry?: { title: string; body: string } }>()
 // 元件有兩個根（按鈕＋傳送到 body 的說明框），外面給的 class 只套在按鈕上
 defineOptions({ inheritAttrs: false })
 
 const entries = computed(() => {
   const keys = props.terms?.length ? props.terms : props.term ? [props.term] : []
-  return keys.map((key) => MARKET_GLOSSARY[key])
+  const fromGlossary = keys.map((key) => MARKET_GLOSSARY[key])
+  return props.entry?.body ? [props.entry, ...fromGlossary] : fromGlossary
 })
 const label = computed(() => `說明：${entries.value.map((e) => e.title).join('、')}`)
 
@@ -142,7 +144,7 @@ onBeforeUnmount(() => {
     >
       <div v-for="entry in entries" :key="entry.title" class="space-y-1 [&+&]:mt-3 [&+&]:border-t [&+&]:border-tint/10 [&+&]:pt-3">
         <p class="text-body font-semibold text-accent">{{ entry.title }}</p>
-        <p class="text-body text-ink-muted">{{ entry.body }}</p>
+        <p class="whitespace-pre-line text-body text-ink-muted">{{ entry.body }}</p>
       </div>
     </div>
   </Teleport>

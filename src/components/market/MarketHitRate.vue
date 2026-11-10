@@ -13,6 +13,8 @@ const track = ref<MarketTrackSummary | null>(null)
 const trackStatus = ref<'loading' | 'ready' | 'error'>('loading')
 const trackError = ref('')
 const horizonIndex = ref(1)
+// 只看目前規則版本：規則改過之後，新舊紀錄混在一起看不出新規則準不準
+const onlyCurrent = ref(false)
 let trackRequestId = 0
 
 async function loadTrack() {
@@ -20,7 +22,7 @@ async function loadTrack() {
   trackStatus.value = 'loading'
   trackError.value = ''
   try {
-    const result = await fetchMarketTrack()
+    const result = await fetchMarketTrack(onlyCurrent.value)
     if (requestId === trackRequestId) {
       track.value = result
       trackStatus.value = 'ready'
@@ -54,6 +56,14 @@ async function clearTrack() {
 }
 
 const horizon = computed(() => track.value?.horizons[horizonIndex.value] ?? null)
+// 有舊規則的紀錄才需要切換
+const hasOlder = computed(() => (track.value?.versionCounts?.older ?? 0) > 0)
+
+function setOnlyCurrent(value: boolean) {
+  if (onlyCurrent.value === value) return
+  onlyCurrent.value = value
+  void loadTrack()
+}
 
 const STANCE_LABELS: Record<MarketCallRecord['stance'], string> = { bullish: '偏多', bearish: '偏空', neutral: '觀望' }
 const STANCE_CLASS: Record<MarketCallRecord['stance'], string> = {
@@ -150,11 +160,36 @@ onMounted(() => {
           共 {{ track.total }} 筆建議，{{ track.pending }} 筆還沒過 5 個交易日。
         </p>
 
+        <!-- 規則改版後才出現：全部紀錄 vs 只看目前規則 -->
+        <div v-if="hasOlder || track.onlyCurrent" class="space-y-1.5">
+          <div class="flex flex-wrap gap-2" role="group" aria-label="統計範圍">
+            <button
+              v-for="option in [{ value: false, label: '全部紀錄' }, { value: true, label: '只看目前規則' }]"
+              :key="String(option.value)"
+              type="button"
+              class="cursor-pointer border-2 px-3 py-1 text-button transition font-pixel"
+              :class="onlyCurrent === option.value ? 'border-accent-hue/40 bg-accent-hue/15 text-accent' : 'border-tint/15 text-ink-muted hover:bg-tint/10'"
+              :aria-pressed="onlyCurrent === option.value"
+              @click="setOnlyCurrent(option.value)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+          <p class="text-caption text-ink-muted">
+            判斷規則改過（目前是第 {{ track.ruleVersion }} 版），舊規則的紀錄有 {{ track.versionCounts?.older ?? 0 }} 筆、目前規則 {{ track.versionCounts?.current ?? 0 }} 筆。
+            要知道新規則準不準，看「只看目前規則」。
+          </p>
+        </div>
+
         <div v-if="horizon" class="grid gap-3 sm:grid-cols-4">
           <div class="border-2 border-accent-hue/20 bg-accent-hue/5 p-3">
             <p class="text-body text-accent">整體命中率</p>
             <p class="mt-1 text-display font-semibold tabular-nums text-ink">{{ pct(horizon.hitRate) }}</p>
             <p class="text-caption text-ink-muted">{{ horizon.evaluated }} 筆偏多／偏空已到期</p>
+            <!-- 對照組：大盤一路漲時，每次都猜漲的命中率本來就高；規則要贏過它才有判斷力 -->
+            <p v-if="horizon.alwaysUpRate !== undefined" class="mt-1 text-caption text-ink-muted">
+              對照：每次都猜漲是 <span class="tabular-nums text-ink-soft">{{ pct(horizon.alwaysUpRate) }}</span>
+            </p>
           </div>
           <div class="border-2 border-up-hue/20 bg-up-hue/5 p-3">
             <p class="text-body text-danger">偏多之後上漲</p>

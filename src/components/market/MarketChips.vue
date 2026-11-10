@@ -49,17 +49,25 @@ function streakClass(value: number) {
   return 'text-ink-muted'
 }
 
-function percentileText(p: number | null) {
-  return p === null ? '' : `高於 ${p}% 的上市櫃公司`
-}
-
+// 有同產業的百分位就以它為主（長條與主要文字），全市場的放在下面一行小字；舊版後端只有全市場
 const valuationRows = computed(() => {
   const v = props.valuation
   if (!v) return []
+  const industry = v.industry ?? null
+  const row = (label: string, value: string, market: number | null, peer: number | null | undefined) => {
+    const usePeer = industry !== null && peer !== null && peer !== undefined
+    return {
+      label,
+      value,
+      percentile: usePeer ? peer : market,
+      text: usePeer ? `高於 ${peer}% 的同產業公司（${industry!.label}，${industry!.count} 家）` : market === null ? '' : `高於 ${market}% 的上市櫃公司`,
+      marketText: usePeer && market !== null ? `全體上市櫃：高於 ${market}%` : '',
+    }
+  }
   return [
-    { label: '本益比', value: v.pe === null ? '無' : `${formatNumber(v.pe)} 倍`, percentile: v.pe === null ? null : v.pePercentile },
-    { label: '殖利率', value: v.dividendYield === null ? '—' : `${formatNumber(v.dividendYield)}%`, percentile: v.yieldPercentile },
-    { label: '股價淨值比', value: v.pb === null ? '—' : `${formatNumber(v.pb)} 倍`, percentile: v.pbPercentile },
+    row('本益比', v.pe === null ? '無' : `${formatNumber(v.pe)} 倍`, v.pe === null ? null : v.pePercentile, v.pe === null ? null : industry?.pePercentile),
+    row('殖利率', v.dividendYield === null ? '—' : `${formatNumber(v.dividendYield)}%`, v.yieldPercentile, industry?.yieldPercentile),
+    row('股價淨值比', v.pb === null ? '—' : `${formatNumber(v.pb)} 倍`, v.pbPercentile, industry?.pbPercentile),
   ]
 })
 </script>
@@ -81,6 +89,10 @@ const valuationRows = computed(() => {
       <ul v-if="chips.summary" class="space-y-1 text-body">
         <li v-for="part in [chips.summary.foreign, chips.summary.trust, chips.summary.dealer]" :key="part.name" :class="streakClass(part.total)">
           {{ part.text }}
+          <!-- 佔同期成交量的比例：太小（不到 1%）的買賣超在操作建議裡不計分 -->
+          <span v-if="part.volumePct !== null && part.volumePct !== undefined" class="text-caption tabular-nums text-ink-muted">
+            （佔成交量 {{ formatNumber(Math.abs(part.volumePct), 1) }}%）
+          </span>
         </li>
         <li
           v-if="chips.summary.margin"
@@ -110,7 +122,8 @@ const valuationRows = computed(() => {
             <div class="mt-2 h-1.5 w-full bg-tint/10">
               <div class="h-1.5 bg-accent-hue/70" :style="{ width: `${row.percentile}%` }" />
             </div>
-            <p class="mt-1 text-caption text-ink-muted">{{ percentileText(row.percentile) }}</p>
+            <p class="mt-1 text-caption text-ink-muted">{{ row.text }}</p>
+            <p v-if="row.marketText" class="text-caption text-ink-muted/80">{{ row.marketText }}</p>
           </template>
         </div>
       </div>

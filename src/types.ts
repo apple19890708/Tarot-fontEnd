@@ -365,11 +365,72 @@ export interface AuthResponse {
   user: AuthUser
 }
 
+// 管理頁的會員：多了登入、活動、停用狀態與登入方式（舊版後端沒有這些欄位，都設可選）
+export interface AdminUser extends AuthUser {
+  lastLoginAt?: string | null
+  lastLoginMethod?: 'password' | 'google' | 'register' | null
+  lastActiveAt?: string | null
+  disabled?: boolean
+  disabledAt?: string | null
+  loginMethods?: { password: boolean; google: boolean }
+}
+
+export type AdminUserFilter = 'all' | 'admin' | 'ai' | 'stock' | 'inactive' | 'disabled'
+export type AdminUserSort = 'created' | 'active' | 'login'
+
+export interface AdminUserStats {
+  total: number
+  active7d: number
+  newThisMonth: number
+  aiMembers: number
+  stockMembers: number
+  disabled: number
+}
+
 export interface AdminUsersResponse {
   page: number
   pageSize: number
+  // 符合目前搜尋、篩選的人數
   total: number
-  users: AuthUser[]
+  users: AdminUser[]
+  // 頁首統計（不受搜尋、篩選影響）；舊版後端沒有
+  stats?: AdminUserStats
+}
+
+export interface AdminLogEntry {
+  id: string
+  action: 'aiAccess' | 'stockAccess' | 'disable' | 'enable' | 'logoutAll'
+  // 權限類：開通 true、收回 false
+  value: boolean | null
+  createdAt: string
+  // 帳號已刪除時是 null
+  admin: { id: string; email: string; displayName: string } | null
+  target?: { id: string; email: string; displayName: string } | null
+}
+
+export interface AdminUserDetail {
+  user: AdminUser
+  usage: {
+    readings: { total: number | null; last30Days: number | null }
+    ai: {
+      stockToday: number | null
+      newsToday: number | null
+      // admin 不限次數時是 null
+      stockLimit: number | null
+      newsLimit: number | null
+      stockAnalyses: number | null
+      newsAnalyses: number | null
+    }
+    market: { watches: number | null; activeAlerts: number | null; pushDevices: number | null }
+  }
+  logs: AdminLogEntry[]
+}
+
+export interface AdminLogsResponse {
+  page: number
+  pageSize: number
+  total: number
+  logs: AdminLogEntry[]
 }
 
 // ===== 占卜紀錄（v13）=====
@@ -483,6 +544,8 @@ export interface MarketChipsPart {
   total: number
   // 正值連續買超天數、負值連續賣超天數
   streak: number
+  // 淨買賣超佔同期成交量的 %（個股才有；舊版後端沒有）
+  volumePct?: number | null
   text: string
 }
 
@@ -520,7 +583,16 @@ export interface MarketValuation {
   pePercentile: number | null
   yieldPercentile: number | null
   pbPercentile: number | null
-  summary: { notes: string[]; expensive: boolean } | null
+  // 同產業的百分位（同產業至少 8 家才有；舊版後端沒有）。判讀（偏貴、偏便宜）以這組為準
+  industry?: {
+    code: string
+    label: string
+    count: number
+    pePercentile: number | null
+    yieldPercentile: number | null
+    pbPercentile: number | null
+  } | null
+  summary: { notes: string[]; expensive: boolean; scope?: string } | null
 }
 
 export interface MarketAdviceEvidence {
@@ -534,6 +606,8 @@ export interface MarketAdviceEvidence {
 }
 
 export interface MarketAdvice {
+  // 產生這份建議的規則版本（後端 advice.js 的 RULE_VERSION）；舊版後端沒有
+  ruleVersion?: number
   stance: 'bullish' | 'bearish' | 'neutral'
   stanceLabel: string
   confidence: 'high' | 'medium' | 'low'
@@ -598,6 +672,7 @@ export interface MarketChart extends MarketChartSeries {
 export interface MarketHorizonStats {
   days: number
   count: number
+  wins?: number
   winRate: number | null
   avgReturn: number | null
   medianReturn: number | null
@@ -623,6 +698,18 @@ export interface MarketSignalBacktest {
   }
   // false：前後期方向相反；null：兩段樣本不夠，無法判斷
   consistent?: boolean | null
+  // 後端算好的結論（10 日上漲比例的信賴區間 vs 基準）；舊版後端沒有，前端退回「差 5 個百分點」
+  verdict?: MarketSignalVerdict
+}
+
+export interface MarketSignalVerdict {
+  // 1 之後偏漲、-1 偏跌、0 沒有優勢
+  direction: 1 | 0 | -1
+  // false：不列入判斷（次數太少、前後期相反）
+  counted: boolean
+  reason: 'few' | 'inconsistent' | 'edge' | 'noEdge' | 'horizonConflict'
+  // 10 日上漲比例的合理範圍（%）
+  interval: { low: number; high: number } | null
 }
 
 export interface MarketBacktest {
@@ -674,7 +761,12 @@ export interface MarketStrategies {
   to: string
   // 分段驗證的切點
   splitDate?: string
+  // 舊版後端：固定 % 停損
   stopLossPct?: number
+  // 新版後端：停損 = 進場價 − ATR(stopAtrPeriod) × stopAtrMultiple；stopNowPct 是以今天算，停損距離約股價的幾 %
+  stopAtrMultiple?: number
+  stopAtrPeriod?: number
+  stopNowPct?: number
   years: number
   roundTripCost: number
   strategies: MarketStrategyResult[]
@@ -706,6 +798,9 @@ export interface MarketPrediction {
   testTo: string
   // 樣本外準確率有明顯贏過基準才是 true
   reliable: boolean
+  // 獨立的測試樣本數（測試筆數 ÷ 預測天數）與準確率的合理範圍（%）；舊版後端沒有
+  effectiveSamples?: number
+  accuracyInterval?: { low: number; high: number } | null
   // 有加入大盤特徵時：大盤名稱與「不加大盤」的準確率
   marketContext?: { label: string; accuracyWithoutMarket: number } | null
   factors: MarketPredictionFactor[]
@@ -759,6 +854,7 @@ export interface MarketCallRecord {
   price: number
   stance: MarketAdvice['stance']
   confidence: MarketAdvice['confidence']
+  ruleVersion?: number
   stopLoss: number | null
   targets: number[]
   outcomes: MarketCallOutcome[]
@@ -777,6 +873,8 @@ export interface MarketTrackHorizon {
   days: number
   evaluated: number
   hitRate: number | null
+  // 對照組：同一批偏多／偏空的建議，每次都猜「會漲」的命中率（舊版後端沒有）
+  alwaysUpRate?: number | null
   bullish: MarketStanceStats
   bearish: MarketStanceStats
   neutral: MarketStanceStats
@@ -786,6 +884,10 @@ export interface MarketTrackHorizon {
 export interface MarketTrackSummary {
   total: number
   pending: number
+  // 目前的規則版本、這次是不是只統計目前版本、全部紀錄裡新舊版本各幾筆（舊版後端沒有）
+  ruleVersion?: number | null
+  onlyCurrent?: boolean
+  versionCounts?: { current: number; older: number }
   horizons: MarketTrackHorizon[]
   targetFirstRate: number | null
   targetPathCount: number
@@ -1021,7 +1123,8 @@ export type MarketSearchResult = Omit<MarketAlertTarget, 'code' | 'exchange'> & 
 
 // 一筆買賣：台股 quantity 單位是「張」（1 張 = 1000 股，可有小數代表零股），美股是「股」；date 是成交日期（選填）
 export interface MarketTrade {
-  side: 'buy' | 'sell'
+  // stockDividend：配股（v20 後端）。成交價為 0、一定有除權日；舊版後端不會出現
+  side: 'buy' | 'sell' | 'stockDividend'
   quantity: number
   price: number
   date: string | null
@@ -1031,6 +1134,8 @@ export interface MarketTrade {
 export interface MarketDividend {
   amount: number
   date: string | null
+  // 從應收股利帶入的那一次除息日（v20 後端，可選）。編輯持股時要原樣送回，否則同一次股利會被要求再帶入
+  exDate?: string | null
 }
 
 // 股市總覽的版面（v19）：使用者排的區塊與卡片，存在帳號裡。新版後端才有，舊版後端沒有時前端用預設版面
@@ -1117,6 +1222,8 @@ export interface MarketOpenLot {
   // 已扣掉預估賣出成本
   pnl: number | null
   pnlPct: number | null
+  // 配股來的那一批（成本 0，v20 後端）
+  stockDividend?: boolean
 }
 
 // 持股損益（後端依買賣、股利、交易成本與目前報價計算）。報價取不到時市值相關欄位為 null
@@ -1453,4 +1560,218 @@ export interface FinanceNewsDigest {
   stocks: FinanceNewsDigestStock[]
   groups: FinanceNewsDigestGroup[]
   createdAt: string
+}
+
+// ---- 股利獲利與預測（v20）：GET /api/market/income。舊版後端沒有這支，前端顯示錯誤 ----
+// 年化報酬（XIRR，%）。算不出來時 pct 是 null：missingDates 買賣或股利沒填日期、noQuote 報價取不到、
+// tooShort 持有不到 90 天、noSolution 解不出來、noTrades 沒有買賣、partial 合計裡有幾檔（blocked）算不出來、noFx 匯率取不到
+export interface IncomeAnnualized {
+  pct: number | null
+  reason: 'missingDates' | 'noQuote' | 'tooShort' | 'noSolution' | 'noTrades' | 'partial' | 'noFx' | null
+  blocked?: number
+}
+export interface IncomeSettings {
+  nhi: boolean
+  // 小數：2.11% 是 0.0211
+  nhiRate: number
+  nhiThreshold: number
+  usWithholding: number
+}
+// 已公告（證交所預告或 Yahoo 先列出）／本月已除息（實際）／推估（近 12 個月平均）
+export type IncomeSource = 'announced' | 'exDone' | 'estimated'
+export interface IncomeMonthCash {
+  perShare: number
+  source: IncomeSource
+  exDate: string | null
+  // 推估的月曆日期（去年同一次加一年、避開週末）；推不出來或不是推估時沒有
+  estimatedDate?: string | null
+  gross: number | null
+  deduction: number | null
+  net: number | null
+}
+export interface IncomeMonthStock {
+  exDate: string
+  // 每股配幾股
+  ratio: number
+  addShares: number
+  addQuantity: number
+}
+export interface IncomeMonth {
+  month: string
+  cash: IncomeMonthCash | null
+  stock: IncomeMonthStock | null
+}
+export type IncomeFrequency = 'monthly' | 'quarterly' | 'semiannual' | 'annual' | 'none'
+export interface IncomeProjection {
+  months: IncomeMonth[]
+  frequency: IncomeFrequency
+  annualPerShare: number
+  // 每持有 1 張（台股）／1 股（美股）一年約領多少（未扣款）
+  annualPerUnit: number | null
+  annualGross: number | null
+  annualNet: number | null
+  hasEstimate: boolean
+}
+export interface IncomeEntitlementEvent {
+  type: 'cash' | 'stock'
+  exDate: string
+  perShare?: number
+  ratio?: number
+  shares: number | null
+  gross?: number | null
+  deduction?: number | null
+  net?: number | null
+  addShares?: number
+  addQuantity?: number
+  recorded: 'yes' | 'maybe' | 'no'
+  // recorded 是 maybe 時：可能是 dividends 的第幾筆（「是同一筆」按鈕用）
+  matchIndex?: number | null
+}
+export interface IncomeEntitlement {
+  available: boolean
+  reason?: 'noTrades' | 'missingDates' | 'noData'
+  events: IncomeEntitlementEvent[]
+  splitWarning?: { date: string; ratio: number } | null
+  unrecordedCash?: number | null
+  unrecordedShares?: number
+}
+export interface IncomeItem {
+  id: string
+  target: MarketAlertTarget
+  groups?: string[]
+  price: number | null
+  quantity: number
+  position: MarketPosition | null
+  // 原始買賣與股利紀錄（頁內編輯持股用）；第 3 階段前的後端沒有
+  trades?: MarketTrade[]
+  dividends?: MarketDividend[]
+  // ok：有歷史股利；noticeOnly：只有證交所預告；failed：股利資料抓不到；notStock：指數
+  dividendStatus: 'ok' | 'noticeOnly' | 'failed' | 'notStock'
+  entitlement: IncomeEntitlement | null
+  projection: IncomeProjection | null
+  // %（未扣款）
+  yieldOnCost: number | null
+  currentYield: number | null
+  // 第 5 階段前的後端沒有
+  annualized?: IncomeAnnualized | null
+  // 近 2 年實際的除息（當年的每股金額）與配股，股利月曆往前看用；舊版後端沒有
+  pastEvents?: { type: 'cash' | 'stock'; date: string; perShare?: number; ratio?: number }[]
+  // 填息追蹤（v20 階段 7）：近 2 年每次除息後幾個交易日填息；沒有日 K 或股利資料時是 null，舊版後端沒有
+  fills?: IncomeFills | null
+  // 報酬拆解（v20 階段 8）；報價取不到時是 null，舊版後端沒有
+  breakdown?: IncomeBreakdown | null
+}
+export interface IncomeTotals {
+  count: number
+  cost: number
+  value: number
+  unrealized: number
+  unrealizedPct: number | null
+  realized: number
+  dividends: number
+  totalReturn: number
+  annualNet: number
+  unrecordedCash: number
+  monthly: number[]
+  monthlyEstimated?: number[]
+  // 過去 24 個月（pastMonths）的實際應收與當時的預估（沒有紀錄是 null）；舊版後端沒有
+  pastActual?: number[]
+  pastEstimate?: (number | null)[]
+  // 有持股但報價取不到的檔數（市值相關合計不完整）
+  missingQuote: number
+  annualized?: IncomeAnnualized
+  breakdown?: IncomeBreakdown
+}
+export interface IncomeTotalsTwd {
+  usIncluded: boolean
+  cost: number
+  value: number
+  unrealized: number
+  unrealizedPct: number | null
+  realized: number
+  dividends: number
+  totalReturn: number
+  annualNet: number
+  monthly: number[]
+  monthlyEstimated?: number[]
+  pastActual?: number[]
+  pastEstimate?: (number | null)[]
+  annualized?: IncomeAnnualized
+  breakdown?: IncomeBreakdown
+}
+export interface IncomeReport {
+  asOf: string
+  group: string | null
+  groups: MarketWatchGroup[]
+  fees: MarketFees
+  noticesAvailable: boolean
+  today: string
+  months: string[]
+  // 本月之前的 24 個月（圖表往前看）；舊版後端沒有
+  pastMonths?: string[]
+  settings: IncomeSettings
+  usdTwd: number | null
+  items: IncomeItem[]
+  totals: { tw: IncomeTotals; us: IncomeTotals; twd: IncomeTotalsTwd }
+  // 預估 vs 實際（近 24 個月）；後端沒啟用或舊版是 null／沒有
+  forecastChecks?: IncomeForecastCheck[] | null
+}
+
+// 股利月曆的一格裡的一檔（前端排版用，不是後端格式）：IncomeCalendar 與點日期跳出的 IncomeDayDialog 共用
+export interface IncomeCalendarEntry {
+  item: IncomeItem
+  cash: IncomeMonthCash | null
+  stock: IncomeMonthStock | null
+  date: string | null
+  // 推估的日期（虛線）
+  estimated: boolean
+  // 已經過去的除息（實際紀錄）；held 是「當時有沒有持股」，heldKnown 為 false 時算不出來（買賣沒填日期）
+  past: boolean
+  heldKnown: boolean
+  held: boolean
+}
+
+// 填息追蹤（v20 階段 7）。events 新到舊；filledOn 是 null＝還沒填（gap 是還差幾元、daysSince 是除息後過了幾個交易日）
+export interface IncomeFillEvent {
+  exDate: string
+  perShare: number
+  // 除息前一個交易日的實際收盤價（已還原配股調整）
+  preClose: number
+  filledOn: string | null
+  days: number | null
+  gap: number | null
+  gapPct: number | null
+  daysSince: number | null
+}
+export interface IncomeFills {
+  events: IncomeFillEvent[]
+  total: number
+  filledCount: number
+  avgDays: number | null
+}
+
+// 報酬拆解（v20 階段 8）：總報酬 ＝ price ＋ dividends − fees − tax − sellCost（費用類是正數）
+export interface IncomeBreakdown {
+  // 價差（未扣費用）
+  price: number
+  dividends: number
+  fees: number
+  tax: number
+  // 現在全部賣出還要付的手續費與稅（預估）
+  sellCost: number
+}
+
+// 股利預估 vs 實際（v20，正式公布後驗證準不準）：estimate 用公布前最後一次推估；errorPct 正的＝高估
+export interface IncomeForecastCheck {
+  symbol: string
+  code: string | null
+  name: string
+  market: 'tw' | 'us'
+  month: string
+  estimate: number
+  firstEstimate: number | null
+  actual: number
+  errorPct: number | null
+  estimateDate: string | null
+  actualDate: string | null
 }

@@ -20,7 +20,8 @@ const position = computed(() => props.item.position)
 
 // ---- 編輯 ----
 interface TradeRow {
-  side: 'buy' | 'sell'
+  // stockDividend：配股（成本 0、沒有成交價，從股利獲利與預測頁帶入）。這裡可以改數量與日期、可以刪，不能切成買賣
+  side: MarketTrade['side']
   quantity: string
   price: string
   date: string
@@ -28,6 +29,8 @@ interface TradeRow {
 interface DividendRow {
   amount: string
   date: string
+  // 帶入時記下的除息日：畫面不顯示，存檔時原樣送回
+  exDate: string | null
 }
 
 const tradeRows = ref<TradeRow[]>([])
@@ -38,9 +41,9 @@ const saving = ref(false)
 function resetRows() {
   editError.value = ''
   tradeRows.value = props.item.trades.length
-    ? props.item.trades.map((t) => ({ side: t.side, quantity: String(t.quantity), price: String(t.price), date: t.date ?? '' }))
+    ? props.item.trades.map((t) => ({ side: t.side, quantity: String(t.quantity), price: t.side === 'stockDividend' ? '' : String(t.price), date: t.date ?? '' }))
     : [{ side: 'buy', quantity: '', price: '', date: '' }]
-  dividendRows.value = props.item.dividends.map((d) => ({ amount: String(d.amount), date: d.date ?? '' }))
+  dividendRows.value = props.item.dividends.map((d) => ({ amount: String(d.amount), date: d.date ?? '', exDate: d.exDate ?? null }))
 }
 watch(editing, (value) => value && resetRows(), { immediate: true })
 
@@ -53,7 +56,7 @@ function removeTrade(index: number) {
   tradeRows.value = tradeRows.value.filter((_, i) => i !== index)
 }
 function addDividend() {
-  if (dividendRows.value.length < MAX_DIVIDENDS) dividendRows.value = [...dividendRows.value, { amount: '', date: '' }]
+  if (dividendRows.value.length < MAX_DIVIDENDS) dividendRows.value = [...dividendRows.value, { amount: '', date: '', exDate: null }]
 }
 function removeDividend(index: number) {
   dividendRows.value = dividendRows.value.filter((_, i) => i !== index)
@@ -65,8 +68,13 @@ function parseRows(): { trades?: MarketTrade[]; dividends?: MarketDividend[]; er
   for (const [index, row] of tradeRows.value.entries()) {
     if (!row.quantity.trim() && !row.price.trim()) continue
     const quantity = Number(row.quantity)
-    const price = Number(row.price)
     if (!Number.isFinite(quantity) || quantity <= 0) return { error: `第 ${index + 1} 筆：數量要大於 0。` }
+    if (row.side === 'stockDividend') {
+      if (!row.date) return { error: `第 ${index + 1} 筆：配股要填除權日。` }
+      trades.push({ side: 'stockDividend', quantity, price: 0, date: row.date })
+      continue
+    }
+    const price = Number(row.price)
     if (!Number.isFinite(price) || price <= 0) return { error: `第 ${index + 1} 筆：成交價要大於 0。` }
     trades.push({ side: row.side, quantity, price, date: row.date || null })
   }
@@ -75,7 +83,7 @@ function parseRows(): { trades?: MarketTrade[]; dividends?: MarketDividend[]; er
     if (!row.amount.trim()) continue
     const amount = Number(row.amount)
     if (!Number.isFinite(amount) || amount <= 0) return { error: `第 ${index + 1} 筆股利：金額要大於 0。` }
-    dividends.push({ amount, date: row.date || null })
+    dividends.push({ amount, date: row.date || null, exDate: row.exDate })
   }
   return { trades, dividends }
 }
@@ -84,7 +92,7 @@ function parseRows(): { trades?: MarketTrade[]; dividends?: MarketDividend[]; er
 const previewQuantity = computed(() =>
   tradeRows.value.reduce((sum, row) => {
     const q = Number(row.quantity)
-    return Number.isFinite(q) && q > 0 ? sum + (row.side === 'buy' ? q : -q) : sum
+    return Number.isFinite(q) && q > 0 ? sum + (row.side === 'sell' ? -q : q) : sum
   }, 0),
 )
 
@@ -146,7 +154,8 @@ async function recordDividend() {
   recording.value = true
   recordError.value = ''
   try {
-    const dividends = [...props.item.dividends, { amount: pending.amount, date: pending.date }]
+    // exDate：記下是哪一次除息，股利獲利與預測頁的應收股利對照才認得是同一筆（不會要你再帶入一次）
+    const dividends = [...props.item.dividends, { amount: pending.amount, date: pending.date, exDate: pending.date }]
     const { item } = await updateWatchHoldings(props.item.id, { dividends })
     emit('saved', item)
   } catch (err) {
@@ -181,7 +190,14 @@ const INPUT_CLASS =
       </p>
       <div v-for="(row, index) in tradeRows" :key="index" class="flex flex-wrap items-center gap-2">
         <span class="w-5 shrink-0 text-right text-caption tabular-nums text-ink-muted">{{ index + 1 }}</span>
-        <div class="flex shrink-0" role="radiogroup" :aria-label="`第 ${index + 1} 筆買或賣`">
+        <span
+          v-if="row.side === 'stockDividend'"
+          class="shrink-0 border-2 border-warn/40 bg-warn/10 px-2.5 py-2 text-button text-warn font-pixel"
+          title="配股：成本 0，不收手續費"
+        >
+          配股
+        </span>
+        <div v-else class="flex shrink-0" role="radiogroup" :aria-label="`第 ${index + 1} 筆買或賣`">
           <button
             v-for="side in (['buy', 'sell'] as const)"
             :key="side"
@@ -202,7 +218,15 @@ const INPUT_CLASS =
           </button>
         </div>
         <input v-model="row.quantity" inputmode="decimal" :class="INPUT_CLASS" class="flex-[1_1_4.5rem]" :placeholder="`${unitLabel}數`" :aria-label="`第 ${index + 1} 筆的${unitLabel}數`" />
-        <input v-model="row.price" inputmode="decimal" :class="INPUT_CLASS" class="flex-[1_1_4.5rem]" placeholder="成交價" :aria-label="`第 ${index + 1} 筆的成交價`" />
+        <input
+          v-model="row.price"
+          inputmode="decimal"
+          :class="INPUT_CLASS"
+          class="flex-[1_1_4.5rem] disabled:opacity-40"
+          :disabled="row.side === 'stockDividend'"
+          :placeholder="row.side === 'stockDividend' ? '成本 0' : '成交價'"
+          :aria-label="`第 ${index + 1} 筆的成交價`"
+        />
         <input v-model="row.date" type="date" :class="INPUT_CLASS" class="flex-[1_1_8.5rem] [color-scheme:dark]" :aria-label="`第 ${index + 1} 筆的日期`" />
         <button
           type="button"
@@ -364,7 +388,7 @@ const INPUT_CLASS =
             <summary class="flex cursor-pointer list-none items-center gap-2 py-0.5 text-body hover:bg-tint/5 [&::-webkit-details-marker]:hidden">
               <span class="w-3 shrink-0 text-ink-soft transition group-open:rotate-90">›</span>
               <span class="shrink-0 text-ink-muted">{{ lot.date || '未填日期' }}</span>
-              <span class="min-w-0 flex-1 truncate text-ink-soft">{{ formatNumber(lot.quantity, 3) }} {{ unitLabel }} @ {{ formatNumber(lot.price) }}</span>
+              <span class="min-w-0 flex-1 truncate text-ink-soft">{{ formatNumber(lot.quantity, 3) }} {{ unitLabel }} {{ lot.stockDividend ? '（配股）' : `@ ${formatNumber(lot.price)}` }}</span>
               <span class="shrink-0" :class="trendClass(lot.pnl)">{{ signedMoney(lot.pnl) }}</span>
             </summary>
             <div class="mb-1 ml-5 grid grid-cols-3 gap-2 border-l border-tint/10 py-1 pl-3 text-body">
@@ -393,9 +417,13 @@ const INPUT_CLASS =
       </summary>
       <ul class="mt-1.5 space-y-1 text-body">
         <li v-for="(trade, index) in item.trades" :key="`t${index}`" class="flex flex-wrap items-center gap-x-3">
-          <span :class="trade.side === 'buy' ? 'text-up-ink' : 'text-down-ink'">{{ trade.side === 'buy' ? '買' : '賣' }}</span>
+          <span :class="trade.side === 'buy' ? 'text-up-ink' : trade.side === 'sell' ? 'text-down-ink' : 'text-warn'">
+            {{ trade.side === 'buy' ? '買' : trade.side === 'sell' ? '賣' : '配股' }}
+          </span>
           <span class="text-ink-muted">{{ trade.date || '未填日期' }}</span>
-          <span class="text-ink-soft">{{ formatNumber(trade.quantity, 3) }} {{ unitLabel }} @ {{ formatNumber(trade.price) }}</span>
+          <span class="text-ink-soft">
+            {{ formatNumber(trade.quantity, 3) }} {{ unitLabel }}<template v-if="trade.side !== 'stockDividend'"> @ {{ formatNumber(trade.price) }}</template>
+          </span>
           <span class="text-ink-muted">
             手續費 {{ money(position.trades[index]?.fee, 2) }}<template v-if="position.trades[index]?.tax">、稅 {{ money(position.trades[index]?.tax) }}</template>
           </span>

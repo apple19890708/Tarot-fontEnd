@@ -5,6 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Bar } from 'vue-chartjs'
 
 import HelpTip from '../HelpTip.vue'
+import CheckboxField from '../CheckboxField.vue'
 import type { GlossaryKey } from '../../lib/marketGlossary'
 import { axis, CHART_COLORS, formatNumber, legendOptions, shortDate } from '../../lib/marketChart'
 import type { MarketAnalysis, MarketChart, MarketChartSeries, MarketLevel } from '../../types'
@@ -373,16 +374,7 @@ const options = computed(() => {
       <!-- 圖怎麼看、怎麼操作：收在「?」裡，不常駐佔版面 -->
       <HelpTip :terms="helpTerms" />
       <span class="ml-auto" />
-      <button
-        v-if="hasLevels"
-        type="button"
-        class="cursor-pointer border-2 px-3 py-1 text-button transition active:translate-x-[2px] active:translate-y-[2px] font-pixel"
-        :class="showLevels ? 'border-accent-hue/40 bg-accent-hue/15 text-accent' : 'border-tint/15 text-ink-muted hover:bg-tint/10'"
-        :aria-pressed="showLevels"
-        @click="toggleLevels"
-      >
-        支撐壓力線{{ showLevels ? '：開' : '：關' }}
-      </button>
+      <CheckboxField v-if="hasLevels" :model-value="showLevels" class="text-button" @update:model-value="toggleLevels">支撐壓力線</CheckboxField>
       <button
         v-if="view.dates.length > DEFAULT_BARS[period]"
         type="button"

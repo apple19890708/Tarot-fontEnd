@@ -5,11 +5,14 @@ import { confirmDialog } from '../../lib/confirm'
 import HelpTip from '../HelpTip.vue'
 import { signalGlossaryKeys } from '../../lib/marketGlossary'
 
-import { createWatch, createWatchGroup, deleteWatch, fetchMarketNews, fetchWatchlist, reorderWatchlist, saveMarketSettings, setWatchGroups } from '../../lib/api'
+import { deleteWatch, fetchMarketNews, fetchWatchlist, reorderWatchlist, saveMarketSettings, setWatchGroups } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { holdingTotals } from '../../lib/marketHoldings'
+import { anyMarketOpen } from '../../lib/marketHours'
 import { useCooldown } from '../../lib/useCooldown'
 import RefreshButton from '../RefreshButton.vue'
+import ViewToggleButton from '../ViewToggleButton.vue'
+import CheckboxField from '../CheckboxField.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import MarketAssetHistory from './MarketAssetHistory.vue'
 import MarketHoldingPie from './MarketHoldingPie.vue'
@@ -20,12 +23,11 @@ import MarketEventsCalendar from './MarketEventsCalendar.vue'
 import MarketGroupManager from './MarketGroupManager.vue'
 import MarketNewsList from './MarketNewsList.vue'
 import StockAnalysisDialog from './StockAnalysisDialog.vue'
-import StockSearchInput from './StockSearchInput.vue'
 import DashboardWatchList from './DashboardWatchList.vue'
 import WatchItemDialog from './WatchItemDialog.vue'
-import SelectField from '../SelectField.vue'
+import WatchAddForm from './WatchAddForm.vue'
 import EditToggleButton from '../EditToggleButton.vue'
-import type { MarketAlertTarget, MarketFees, MarketSearchResult, MarketSignal, MarketNewsItem, MarketTrade, MarketWatchGroup, MarketWatchItem } from '../../types'
+import type { MarketAlertTarget, MarketFees, MarketSignal, MarketNewsItem, MarketWatchGroup, MarketWatchItem } from '../../types'
 
 // 自訂股票追蹤：自己加的觀察清單（台股／美股分開），可以記下買賣與股利算損益。
 // 報價、技術判讀與每檔損益都來自後端；前端只做各檔的加總與排序。
@@ -33,8 +35,6 @@ const emit = defineEmits<{ alert: [target: MarketAlertTarget, price: number | nu
 
 type Market = 'tw' | 'us'
 const MARKET_LABELS: Record<Market, string> = { tw: '台股', us: '美股' }
-// 台股持股單位是「張」（1 張 = 1000 股），美股是「股」
-const UNIT: Record<Market, { label: string }> = { tw: { label: '張' }, us: { label: '股' } }
 const REFRESH_MS = 60 * 1000
 
 // ---- 清單 ----
@@ -79,12 +79,15 @@ async function load({ silent = false } = {}) {
 const refreshCooldown = useCooldown(30, 'watchlist-refresh')
 const manualRefresh = () => refreshCooldown.run(() => load({ silent: true }))
 
-// 分頁開著、瀏覽器分頁在前景時每分鐘更新一次報價
+// 分頁開著、瀏覽器分頁在前景、而且清單裡有市場正在交易時，每分鐘更新一次報價；
+// 都收盤了就不自動更新（價格不會再變），要看最新的按「更新」
 let timer: ReturnType<typeof setInterval> | null = null
 function startTimer() {
   stopTimer()
   timer = setInterval(() => {
-    if (document.visibilityState === 'visible' && status.value === 'ready') void load({ silent: true })
+    if (document.visibilityState !== 'visible' || status.value !== 'ready') return
+    if (!anyMarketOpen(items.value.map((item) => item.target.market))) return
+    void load({ silent: true })
   }, REFRESH_MS)
 }
 function stopTimer() {
@@ -136,107 +139,17 @@ onActivated(() => {
 onDeactivated(stopTimer)
 onBeforeUnmount(stopTimer)
 
-// ---- 新增 ----
-const form = ref({ market: 'tw' as Market, query: '', quantity: '', cost: '' })
-const picked = ref<MarketSearchResult | null>(null)
-const formError = ref('')
-// 新增表單的成功提示：已經在追蹤的股票，這次只是加進另一個清單
-const formNotice = ref('')
-const adding = ref(false)
-
-// 選了候選之後又改了文字，就不再用剛才選的標的
-watch(
-  () => form.value.query,
-  (value) => {
-    if (picked.value && value !== picked.value.name) picked.value = null
-  },
-)
-watch(
-  () => form.value.market,
-  () => {
-    picked.value = null
-  },
-)
-
-// 新增時一起填的張數與成本 → 第一筆買進；兩個都空白就不記
-function firstTrade(): { trade?: MarketTrade; error?: string } {
-  const { quantity, cost } = form.value
-  if (!quantity.trim() && !cost.trim()) return {}
-  const q = Number(quantity)
-  const c = Number(cost)
-  if (!quantity.trim() || !Number.isFinite(q) || q <= 0) return { error: '數量要大於 0。' }
-  if (!cost.trim() || !Number.isFinite(c) || c <= 0) return { error: '成本價要大於 0。' }
-  return { trade: { side: 'buy', quantity: q, price: c, date: new Date().toISOString().slice(0, 10) } }
+// ---- 新增（表單是共用的 WatchAddForm）----
+function onAdded({ item, existing, group }: { item: MarketWatchItem; existing: boolean; group: string | null }) {
+  // 已經在追蹤：後端把清單加上去了，換掉原本那一筆
+  items.value = existing ? items.value.map((it) => (it.id === item.id ? item : it)) : [...items.value, item]
+  // 正在看別的清單時切到剛加入的那個清單，免得看起來像沒加成功
+  if (groupFilter.value !== 'all' && groupFilter.value !== (group ?? 'none')) groupFilter.value = group ?? 'none'
+  // 剛加的股票不在目前的篩選裡時切回全部，免得看起來像沒加成功
+  if (marketFilter.value !== 'all' && marketFilter.value !== item.target.market) marketFilter.value = 'all'
 }
-
-async function submit() {
-  formError.value = ''
-  formNotice.value = ''
-  const query = form.value.query.trim()
-  if (!query) {
-    formError.value = '請輸入代號或名稱。'
-    return
-  }
-  const parsed = firstTrade()
-  if (parsed.error) {
-    formError.value = parsed.error
-    return
-  }
-  // 加到哪個清單：選「新清單」就先建立
-  let group: string | null = addTarget.value === NEW_GROUP ? null : addTarget.value || null
-  if (addTarget.value === NEW_GROUP) {
-    const name = newGroupName.value.trim()
-    if (!name) {
-      formError.value = '請輸入新清單的名稱。'
-      return
-    }
-    if (name.length > 20) {
-      formError.value = '清單名稱最多 20 個字。'
-      return
-    }
-    if (groups.value.some((g) => g.name === name)) {
-      formError.value = `已經有「${name}」這個清單了，直接選它就好。`
-      return
-    }
-  }
-  adding.value = true
-  try {
-    if (addTarget.value === NEW_GROUP) {
-      const created = await createWatchGroup(newGroupName.value.trim())
-      groups.value = [...groups.value, created.group]
-      group = created.group.id
-      // 清單已經建好：之後就算加股票失敗，重試也不會再建一次
-      addTarget.value = created.group.id
-      newGroupName.value = ''
-    }
-    const { item, existing, tradesIgnored } = await createWatch({
-      market: form.value.market,
-      query,
-      target: picked.value ?? undefined,
-      trades: parsed.trade ? [parsed.trade] : [],
-      group,
-    })
-    if (existing) {
-      // 已經在追蹤：後端把清單加上去了，換掉原本那一筆
-      items.value = items.value.map((it) => (it.id === item.id ? item : it))
-      const name = item.summary?.name || item.target.name
-      formNotice.value =
-        `${name} 已經在追蹤，這次加到「${groupName(group)}」清單。` +
-        (tradesIgnored ? '持股沒有變動；要記這筆買進，請展開這檔，在持股那一區記錄。' : '')
-    } else {
-      items.value = [...items.value, item]
-    }
-    form.value = { ...form.value, query: '', quantity: '', cost: '' }
-    picked.value = null
-    // 正在看別的清單時切到剛加入的那個清單，免得看起來像沒加成功
-    if (groupFilter.value !== 'all' && groupFilter.value !== (group ?? 'none')) groupFilter.value = group ?? 'none'
-    // 剛加的股票不在目前的篩選裡時切回全部，免得看起來像沒加成功
-    if (marketFilter.value !== 'all' && marketFilter.value !== item.target.market) marketFilter.value = 'all'
-  } catch (err) {
-    formError.value = err instanceof Error ? err.message : '新增失敗'
-  } finally {
-    adding.value = false
-  }
+function onGroupCreated(group: MarketWatchGroup) {
+  groups.value = [...groups.value, group]
 }
 
 // ---- 編輯持股（MarketHoldings 負責編輯與顯示）----
@@ -370,20 +283,6 @@ const managingGroups = ref(false)
 const addGroup = computed(() => (groupFilter.value === 'all' || groupFilter.value === 'none' ? null : groupFilter.value))
 const groupName = (id: string | null | undefined) => groups.value.find((g) => g.id === id)?.name ?? '未分類'
 
-// 新增表單的「加到清單」：預設是目前所在的清單分頁；''＝未分類，NEW_GROUP＝當場建立新清單
-const NEW_GROUP = '__new__'
-const MAX_GROUPS = 10
-const addTarget = ref('')
-// 「加到清單」的選項：未分類、既有清單、還沒滿就可以當場建立新清單
-const addTargetOptions = computed(() => [
-  { value: '', label: '未分類' },
-  ...groups.value.map((group) => ({ value: group.id, label: group.name })),
-  ...(groups.value.length < MAX_GROUPS ? [{ value: NEW_GROUP, label: '＋ 新清單…' }] : []),
-])
-const newGroupName = ref('')
-watch(addGroup, (id) => {
-  if (addTarget.value !== NEW_GROUP) addTarget.value = id ?? ''
-}, { immediate: true })
 // 這一檔所在的清單（一檔可以放進好幾個）；舊版後端只有單一的 group
 const groupIdsOf = (item: MarketWatchItem) => item.groups ?? (item.group ? [item.group] : [])
 // 清單分頁的篩選：all 全部、none 一個清單都不在、其他是「有放進這個清單」
@@ -402,7 +301,6 @@ function onGroupRemoved(id: string) {
     return { ...item, groups: rest, group: rest[0] ?? null }
   })
   if (groupFilter.value === id) groupFilter.value = 'all'
-  if (addTarget.value === id) addTarget.value = ''
 }
 
 const moving = ref('')
@@ -571,7 +469,7 @@ const INPUT_CLASS =
         <p class="text-caption uppercase tracking-[0.2em] text-ink-muted sm:tracking-[0.3em]">Watchlist</p>
         <h2 class="mt-1 text-title font-semibold text-ink">自訂股票追蹤</h2>
         <p class="mt-1 text-body text-ink-muted">
-          加入想觀察的台股或美股，可以另外記下持股（台股以「張」計，零股可填小數；美股以「股」計）。頁面開著時每分鐘更新報價。
+          加入想觀察的台股或美股，可以另外記下持股（台股以「張」計，零股可填小數；美股以「股」計）。頁面開著時，交易時段每分鐘更新報價。
         </p>
       </div>
       <RefreshButton
@@ -585,64 +483,7 @@ const INPUT_CLASS =
     </div>
 
     <!-- ── 新增 ── -->
-    <form class="space-y-2 border-2 border-tint/10 bg-tint/[0.03] p-3" @submit.prevent="submit">
-      <div class="flex flex-wrap gap-2">
-        <div class="flex shrink-0" role="radiogroup" aria-label="市場">
-          <button
-            v-for="market in (['tw', 'us'] as const)"
-            :key="market"
-            type="button"
-            role="radio"
-            :aria-checked="form.market === market"
-            class="cursor-pointer border-2 px-3 py-2 text-button transition font-pixel"
-            :class="form.market === market ? 'border-accent-hue/40 bg-accent-hue/15 text-accent' : 'border-tint/10 text-ink-muted hover:bg-tint/10'"
-            @click="form.market = market"
-          >
-            {{ MARKET_LABELS[market] }}
-          </button>
-        </div>
-        <StockSearchInput
-          v-model="form.query"
-          class="flex-[2_1_14rem]"
-          :market="form.market"
-          :placeholder="form.market === 'tw' ? '代號或名稱（2330、台積電、0050）' : '代號或名稱（NVDA、Apple、輝達）'"
-          @select="picked = $event"
-        />
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <input
-          v-model="form.quantity"
-          inputmode="decimal"
-          :class="INPUT_CLASS"
-          class="flex-[1_1_8rem]"
-          :placeholder="`第一筆${UNIT[form.market].label}數（選填）`"
-        />
-        <input v-model="form.cost" inputmode="decimal" :class="INPUT_CLASS" class="flex-[1_1_8rem]" placeholder="第一筆成本價（選填）" />
-        <button
-          type="submit"
-          class="shrink-0 cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-4 py-2 text-button text-accent transition hover:bg-accent-hue/25 disabled:opacity-60 font-pixel"
-          :disabled="adding"
-        >
-          {{ adding ? '加入中…' : '加入追蹤' }}
-        </button>
-      </div>
-      <!-- 加到哪個清單：可以選既有清單，或當場建立新清單 -->
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="shrink-0 text-caption text-ink-muted" aria-hidden="true">加到清單</span>
-        <SelectField v-model="addTarget" :options="addTargetOptions" label="加到清單" variant="pixel" hide-label class="min-w-0 flex-[1_1_9rem]" />
-        <input
-          v-if="addTarget === NEW_GROUP"
-          v-model="newGroupName"
-          maxlength="20"
-          :class="INPUT_CLASS"
-          class="flex-[2_1_12rem]"
-          placeholder="新清單名稱（例如 長期存股）"
-          aria-label="新清單名稱"
-        />
-      </div>
-      <p v-if="formError" class="text-body text-danger">{{ formError }}</p>
-      <p v-else-if="formNotice" class="text-body text-ok-hue">{{ formNotice }}</p>
-    </form>
+    <WatchAddForm :groups="groups" :default-group="addGroup" @added="onAdded" @group-created="onGroupCreated" />
 
     <!-- 交易成本：損益會扣掉手續費與證交稅，券商有折扣的話在這裡設定 -->
     <details class="border-2 border-tint/10 bg-tint/[0.03] px-3 py-2">
@@ -867,22 +708,11 @@ const INPUT_CLASS =
         <div class="flex flex-wrap items-center justify-between gap-2">
           <p class="text-caption text-ink-muted">{{ asOf ? `報價更新於 ${timeText(asOf)}` : '' }}</p>
           <!-- 卡片／表格切換：和股市總覽同一個樣子，圖示是「按了會變成的樣子」 -->
-          <button
+          <ViewToggleButton
             v-if="!sortMode && visibleItems.length"
-            type="button"
-            class="flex h-7 w-8 shrink-0 cursor-pointer items-center justify-center border border-tint/15 text-ink-muted transition hover:bg-tint/10 hover:text-ink active:translate-x-[1px] active:translate-y-[1px]"
-            :aria-label="listView === 'table' ? '改成卡片檢視' : '改成表格檢視'"
-            :title="listView === 'table' ? '改成卡片檢視' : '改成表格檢視'"
-            @click="toggleListView"
-          >
-            <svg v-if="listView === 'table'" class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <rect x="2" y="2" width="5" height="5" /><rect x="9" y="2" width="5" height="5" />
-              <rect x="2" y="9" width="5" height="5" /><rect x="9" y="9" width="5" height="5" />
-            </svg>
-            <svg v-else class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <rect x="2" y="3" width="12" height="2" /><rect x="2" y="7" width="12" height="2" /><rect x="2" y="11" width="12" height="2" />
-            </svg>
-          </button>
+            :view="listView"
+            @toggle="toggleListView"
+          />
         </div>
 
         <p v-if="visibleItems.length === 0" class="text-body text-ink-muted">這個分類還沒有股票。</p>
@@ -1094,21 +924,16 @@ const INPUT_CLASS =
                 </summary>
                 <!-- 可以勾好幾個；全部取消就是未分類 -->
                 <div class="absolute left-0 top-full z-20 mt-1 flex min-w-[10rem] flex-col border-2 border-tint/15 bg-surface py-1 shadow-xl shadow-shade">
-                  <label
+                  <CheckboxField
                     v-for="option in groups"
                     :key="option.id"
-                    class="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-button transition hover:bg-tint/10"
-                    :class="[groupIdsOf(item).includes(option.id) ? 'text-accent' : 'text-ink-muted', moving === item.id ? 'pointer-events-none opacity-60' : '']"
+                    :model-value="groupIdsOf(item).includes(option.id)"
+                    :disabled="moving === item.id"
+                    class="px-3 py-1.5 text-button transition hover:bg-tint/10"
+                    @update:model-value="toggleGroup(item, option.id)"
                   >
-                    <input
-                      type="checkbox"
-                      class="h-4 w-4 cursor-pointer"
-                      :checked="groupIdsOf(item).includes(option.id)"
-                      :disabled="moving === item.id"
-                      @change="toggleGroup(item, option.id)"
-                    />
                     {{ option.name }}
-                  </label>
+                  </CheckboxField>
                   <p class="border-t border-tint/10 px-3 pt-1.5 text-caption text-ink-muted">都不勾＝未分類</p>
                 </div>
               </details>

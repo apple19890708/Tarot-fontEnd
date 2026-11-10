@@ -18,9 +18,12 @@ import {
 } from '../../lib/marketDashboard'
 import { usePointerReorder } from '../../lib/usePointerReorder'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
+import { watchlistVersion } from '../../lib/watchlistSync'
 import { useCooldown } from '../../lib/useCooldown'
 import HelpTip from '../HelpTip.vue'
 import RefreshButton from '../RefreshButton.vue'
+import ViewToggleButton from '../ViewToggleButton.vue'
+import CheckboxField from '../CheckboxField.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import EditToggleButton from '../EditToggleButton.vue'
 import DashboardCardPicker from './DashboardCardPicker.vue'
@@ -63,10 +66,7 @@ const refresh = () =>
     refreshing.value = true
     try {
       // 追蹤清單（自選清單、持股、重點卡上的個股）抓過的話一起更新
-      if (watchLoaded) {
-        watchLoaded = false
-        void loadWatch()
-      }
+      if (watchLoaded) void loadWatch(true)
       await load()
     } finally {
       refreshing.value = false
@@ -153,7 +153,8 @@ onMounted(() => {
   void load()
   void loadLayout()
 })
-// 放在 KeepAlive 裡：切回這個分頁時更新（後端有快取，不會一直打外部來源）
+// 放在 KeepAlive 裡：切回這個分頁時更新（後端有快取，不會一直打外部來源）。
+// 追蹤清單在別的分頁改過（版本號變了，見 lib/watchlistSync.ts）才重抓，沒變就不多打一次
 let first = true
 onActivated(() => {
   if (first) {
@@ -161,6 +162,7 @@ onActivated(() => {
     return
   }
   void load()
+  if (watchLoaded && watchSeen !== watchlistVersion.value) void loadWatch(true)
 })
 
 function trendClass(value: number | null | undefined) {
@@ -223,16 +225,27 @@ const watchReady = ref(false)
 const watchError = ref('')
 const watchRetrying = ref(false)
 let watchLoaded = false
-async function loadWatch() {
-  if (watchLoaded) return
+let watchRequestId = 0
+// 這份清單資料對應的版本號（抓的當下記下來）
+let watchSeen = -1
+// force：已經抓過也重抓（切回這個分頁、按更新）。清單可能在「自訂股票追蹤」被改過，
+// 以前只抓一次，刪掉的股票要整頁重新整理才會消失。重抓時舊資料先留著，不換回骨架
+async function loadWatch(force = false) {
+  if (watchLoaded && !force) return
   watchLoaded = true
+  watchSeen = watchlistVersion.value
+  const id = ++watchRequestId
   try {
     const result = await fetchWatchlist()
+    if (id !== watchRequestId) return
     watchItems.value = result.items
     watchGroups.value = result.groups ?? []
     watchReady.value = true
     watchError.value = ''
   } catch (error) {
+    if (id !== watchRequestId) return
+    // 已經有資料時重抓失敗就繼續顯示舊的，下次切回來或按更新再試
+    if (watchReady.value) return
     watchLoaded = false
     watchError.value = error instanceof Error ? error.message : '自選清單暫時讀不到。'
   }
@@ -571,15 +584,7 @@ function timeText(value: string) {
           </button>
           <span class="w-5 shrink-0 text-center text-caption tabular-nums text-ink-muted">{{ index + 1 }}</span>
           <span class="min-w-0 flex-1 truncate text-body" :class="block.visible ? 'text-ink' : 'text-ink-muted line-through'">{{ BLOCK_LABELS[block.type] }}</span>
-          <button
-            type="button"
-            class="w-16 shrink-0 cursor-pointer border-2 px-2 py-1 text-button transition active:translate-x-[1px] active:translate-y-[1px]"
-            :class="block.visible ? 'border-ink-soft/60 bg-tint/10 text-ink' : 'border-tint/15 text-ink-muted hover:bg-tint/10'"
-            :aria-pressed="block.visible"
-            @click="toggleBlock(index)"
-          >
-            {{ block.visible ? '顯示' : '隱藏' }}
-          </button>
+          <CheckboxField :model-value="block.visible" class="shrink-0 text-button" @update:model-value="toggleBlock(index)">顯示</CheckboxField>
           </div>
         </li>
       </TransitionGroup>
@@ -654,23 +659,11 @@ function timeText(value: string) {
           class="flex items-center gap-1.5"
         >
           <!-- 卡片／表格切換（推薦／熱門、自選清單）：按了換成另一種，直接存 -->
-          <button
+          <ViewToggleButton
             v-if="block.type === 'picks' || block.type === 'watchGroup'"
-            type="button"
-            class="flex h-7 w-8 shrink-0 cursor-pointer items-center justify-center border border-tint/15 text-ink-muted transition hover:bg-tint/10 hover:text-ink active:translate-x-[1px] active:translate-y-[1px]"
-            :aria-label="block.options.view === 'table' ? '改成卡片檢視' : '改成表格檢視'"
-            :title="block.options.view === 'table' ? '改成卡片檢視' : '改成表格檢視'"
-            @click="setBlockOptions(block, { view: block.options.view === 'table' ? 'card' : 'table' })"
-          >
-            <!-- 圖示是「按了會變成的樣子」：表格中顯示四格（卡片），卡片中顯示橫條（表格） -->
-            <svg v-if="block.options.view === 'table'" class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <rect x="2" y="2" width="5" height="5" /><rect x="9" y="2" width="5" height="5" />
-              <rect x="2" y="9" width="5" height="5" /><rect x="9" y="9" width="5" height="5" />
-            </svg>
-            <svg v-else class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <rect x="2" y="3" width="12" height="2" /><rect x="2" y="7" width="12" height="2" /><rect x="2" y="11" width="12" height="2" />
-            </svg>
-          </button>
+            :view="block.options.view === 'table' ? 'table' : 'card'"
+            @toggle="setBlockOptions(block, { view: block.options.view === 'table' ? 'card' : 'table' })"
+          />
           <button
             v-if="isBlockEditing(block)"
             type="button"

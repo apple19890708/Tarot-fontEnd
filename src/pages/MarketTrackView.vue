@@ -6,18 +6,22 @@ import BackToTop from '../components/BackToTop.vue'
 import MarketAlertsPanel from '../components/market/MarketAlertsPanel.vue'
 import MarketFinanceNews from '../components/market/MarketFinanceNews.vue'
 import MarketHitRate from '../components/market/MarketHitRate.vue'
+import MarketIncome from '../components/market/MarketIncome.vue'
+import MarketSimulator from '../components/market/MarketSimulator.vue'
 import MarketOverview from '../components/market/MarketOverview.vue'
 import MarketScreener from '../components/market/MarketScreener.vue'
 import MarketWatchlist from '../components/market/MarketWatchlist.vue'
 import { marketAlerts } from '../lib/marketAlerts'
 import type { MarketAlertTarget } from '../types'
 
-// 股市追蹤：自訂股票追蹤、股市總覽（原大盤概況）、財經新聞、選股、參考命中（建議自動對答案）、價位提醒等分頁。
+// 股市追蹤：自訂股票追蹤、股利獲利與預測（v20）、存股試算、股市總覽（原大盤概況）、財經新聞、選股、參考命中（建議自動對答案）、價位提醒等分頁。
 // 限 admin 與開通金融股市的會員（路由 meta.stock）。目前的分頁放在網址 ?tab=，重新整理或分享時會停在同一頁
 const TABS = [
   { key: 'overview', label: '股市總覽' },
   { key: 'news', label: '財經新聞' },
   { key: 'watch', label: '自訂股票追蹤' },
+  { key: 'income', label: '股利獲利與預測' },
+  { key: 'simulate', label: '存股試算' },
   { key: 'screen', label: '選股' },
   { key: 'hits', label: '參考命中' },
   { key: 'alerts', label: '價位提醒' },
@@ -103,6 +107,8 @@ function onTabKeydown(event: KeyboardEvent, index: number) {
       <KeepAlive>
         <MarketWatchlist v-if="activeTab === 'watch'" @alert="openAlertFor" />
         <MarketOverview v-else-if="activeTab === 'overview'" />
+        <MarketIncome v-else-if="activeTab === 'income'" />
+        <MarketSimulator v-else-if="activeTab === 'simulate'" />
         <MarketFinanceNews v-else-if="activeTab === 'news'" />
         <MarketScreener v-else-if="activeTab === 'screen'" />
         <MarketHitRate v-else-if="activeTab === 'hits'" />
