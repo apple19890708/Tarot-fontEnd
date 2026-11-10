@@ -536,7 +536,22 @@ export interface MarketItem {
   chips?: MarketChips | null
   // 估值（台股個股才有）
   valuation?: MarketValuation | null
+  // 歷年除權息（個股分析彈窗才有；股利歷史抓不到是 null，沒配過息是空陣列）
+  dividendRecords?: MarketDividendRecord[] | null
   barCount: number
+}
+
+// 個股分析「除權息」分頁的一列：一次除權息（同一天的現金與配股合併），新到舊。
+// cash：當年實際的每股現金股利；stock：台股配股換算成元（每股配 0.02 股＝0.2 元），美股一律 null；
+// yieldPct：現金股利 ÷ 除息前一天的實際收盤價；fill：填息狀況（日 K 不夠是 null）
+export interface MarketDividendRecord {
+  year: number
+  exDate: string
+  cash: number | null
+  stock: number | null
+  preClose: number | null
+  yieldPct: number | null
+  fill: { filledOn: string | null; days: number | null; gapPct: number | null; daysSince: number | null } | null
 }
 
 export interface MarketChipsPart {
@@ -1366,6 +1381,8 @@ export interface MarketWatchItem {
   // 買賣紀錄（依順序先進先出）與股利；空陣列代表沒有
   trades: MarketTrade[]
   dividends: MarketDividend[]
+  // 應收股利裡刪掉、不想帶入的那幾次（舊版後端沒有）
+  dismissedEntitlements?: IncomeDismissed[]
   // 沒有任何買賣與股利時為 null
   position: MarketPosition | null
   createdAt: string
@@ -1626,6 +1643,13 @@ export interface IncomeEntitlementEvent {
   recorded: 'yes' | 'maybe' | 'no'
   // recorded 是 maybe 時：可能是 dividends 的第幾筆（「是同一筆」按鈕用）
   matchIndex?: number | null
+  // 使用者刪掉了（不想帶入）：不列在還沒記錄，但過去的實際應收照樣算（舊版後端沒有）
+  dismissed?: boolean
+}
+// 刪掉的應收股利：哪一種、哪一次除息
+export interface IncomeDismissed {
+  type: 'cash' | 'stock'
+  exDate: string
 }
 export interface IncomeEntitlement {
   available: boolean
@@ -1645,6 +1669,7 @@ export interface IncomeItem {
   // 原始買賣與股利紀錄（頁內編輯持股用）；第 3 階段前的後端沒有
   trades?: MarketTrade[]
   dividends?: MarketDividend[]
+  dismissedEntitlements?: IncomeDismissed[]
   // ok：有歷史股利；noticeOnly：只有證交所預告；failed：股利資料抓不到；notStock：指數
   dividendStatus: 'ok' | 'noticeOnly' | 'failed' | 'notStock'
   entitlement: IncomeEntitlement | null
@@ -1654,10 +1679,12 @@ export interface IncomeItem {
   currentYield: number | null
   // 第 5 階段前的後端沒有
   annualized?: IncomeAnnualized | null
-  // 近 2 年實際的除息（當年的每股金額）與配股，股利月曆往前看用；舊版後端沒有
+  // 近 2 年實際的除息（當年的每股金額）與配股，每月股利往前看用；舊版後端沒有
   pastEvents?: { type: 'cash' | 'stock'; date: string; perShare?: number; ratio?: number }[]
   // 填息追蹤（v20 階段 7）：近 2 年每次除息後幾個交易日填息；沒有日 K 或股利資料時是 null，舊版後端沒有
   fills?: IncomeFills | null
+  // 股利成長（v20 2.9.7）：近 5 年每年的每股股利；沒配過息是 null，舊版後端沒有
+  growth?: IncomeGrowth | null
   // 報酬拆解（v20 階段 8）；報價取不到時是 null，舊版後端沒有
   breakdown?: IncomeBreakdown | null
 }
@@ -1715,9 +1742,44 @@ export interface IncomeReport {
   totals: { tw: IncomeTotals; us: IncomeTotals; twd: IncomeTotalsTwd }
   // 預估 vs 實際（近 24 個月）；後端沒啟用或舊版是 null／沒有
   forecastChecks?: IncomeForecastCheck[] | null
+  // 集中度提醒（v20 2.9.8）；舊版後端沒有
+  concentration?: IncomeConcentration
 }
 
-// 股利月曆的一格裡的一檔（前端排版用，不是後端格式）：IncomeCalendar 與點日期跳出的 IncomeDayDialog 共用
+// 股利成長：cash 是當年實際的每股現金股利合計、stock 是配股（元，台股）、count 是配了幾次；
+// partial＝今年還沒過完（不判斷減少）；decreased＝現金股利比前一年少（少不到 0.5% 不算）
+export interface IncomeGrowthYear {
+  year: number
+  cash: number
+  stock: number
+  count: number
+  partial: boolean
+  decreased: boolean
+}
+export interface IncomeGrowth {
+  years: IncomeGrowthYear[]
+  decreasedYears: number[]
+}
+
+// 集中度：百分比都是佔持股市值（台幣）的 %；warnings 的 text 由後端產生，直接顯示
+export interface ConcentrationThresholds {
+  holding: number
+  industry: number
+}
+export interface IncomeConcentration {
+  thresholds: ConcentrationThresholds
+  total: number
+  count: number
+  // 取不到匯率、沒算進來的美股檔數
+  excludedUs: number
+  holdings: { id: string; name: string; code: string; pct: number }[]
+  industries: { code: string; label: string; pct: number; names: string[] }[]
+  // 沒有產業別的（ETF、美股、查不到）佔多少；沒有持股是 null
+  unclassifiedPct: number | null
+  warnings: { type: 'holding' | 'industry'; key: string; pct: number; text: string }[]
+}
+
+// 某個月的一檔除息（前端排版用，不是後端格式）：lib/incomeMonthEntries 算出來，每月小卡與點開的 IncomeMonthDialog 共用
 export interface IncomeCalendarEntry {
   item: IncomeItem
   cash: IncomeMonthCash | null

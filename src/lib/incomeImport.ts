@@ -1,6 +1,6 @@
 // 應收股利「帶入」（v20 階段 4）：把後端算好的應收股利寫進這一檔的紀錄。
 // 金額、股數都直接用後端算的（net、addQuantity），這裡只負責放到紀錄的哪個位置，不重算。
-import type { IncomeEntitlementEvent, IncomeItem, MarketDividend, MarketTrade } from '../types'
+import type { IncomeDismissed, IncomeEntitlementEvent, IncomeItem, MarketDividend, MarketTrade } from '../types'
 
 // 台股股利取整數元，美股到分
 function roundAmount(value: number, market: 'tw' | 'us') {
@@ -44,4 +44,13 @@ export function linkDividendPatch(item: IncomeItem, event: IncomeEntitlementEven
   const dividends = item.dividends ?? []
   if (index === null || index === undefined || !dividends[index]) return null
   return { dividends: dividends.map((d, i) => (i === index ? { ...d, exDate: event.exDate } : d)) }
+}
+
+// 刪掉應收股利（2026-11-10 使用者要求：不想帶入的可以刪，之後要記就自己在持股手動加）：加進這一檔的刪除清單。
+// 只是不再提醒，紀錄本身不動
+export function dismissPatch(item: IncomeItem, events: IncomeEntitlementEvent[]) {
+  const current = item.dismissedEntitlements ?? []
+  const keys = new Set(current.map((d) => `${d.type}:${d.exDate}`))
+  const added: IncomeDismissed[] = events.filter((e) => !keys.has(`${e.type}:${e.exDate}`)).map((e) => ({ type: e.type, exDate: e.exDate }))
+  return { dismissedEntitlements: [...current, ...added] }
 }

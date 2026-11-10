@@ -30,6 +30,18 @@ const volumeText = (item: MarketWatchItem) => {
   if (volume === null || volume === undefined) return null
   return item.target.market === 'tw' ? `${formatNumber(Math.round(volume / 1000), 0)} 張` : `${formatNumber(volume, 0)} 股`
 }
+// 持股（還有持有數量才算）：台股數量是張（零股是小數）、美股是股；損益是未實現（已扣預估賣出成本）
+function holdingOf(item: MarketWatchItem) {
+  const position = item.position
+  if (!position || position.quantity <= 0) return null
+  const unit = item.target.market === 'tw' ? '張' : '股'
+  return {
+    avgCost: position.avgCost,
+    quantity: `${formatNumber(position.quantity, item.target.market === 'tw' ? 3 : 4)} ${unit}`,
+    pnl: position.unrealized,
+    pnlPct: position.unrealizedPct,
+  }
+}
 const tableRows = computed(() =>
   props.items.map((item) => ({
     key: item.id,
@@ -42,6 +54,7 @@ const tableRows = computed(() =>
     high: item.summary?.quote.high ?? null,
     low: item.summary?.quote.low ?? null,
     volume: volumeText(item),
+    holding: holdingOf(item),
   })),
 )
 function openById(id: string) {

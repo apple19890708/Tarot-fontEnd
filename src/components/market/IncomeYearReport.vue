@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import HelpTip from '../HelpTip.vue'
 import ListPager from '../ListPager.vue'
 import { usePaged } from '../../lib/usePaged'
 
@@ -9,7 +10,8 @@ import type { IncomeItem } from '../../types'
 // 年度報表（v20 階段 9）：依年份列出每一筆買進、賣出、現金股利、配股，含手續費、證交稅、已實現損益，可以匯出 CSV。
 // 每一筆的手續費、稅、已實現損益都是後端算好的（position.trades 與 trades 同順序）；這裡只依年份分組加總、排版。
 // 只做對帳用的整理，不算應繳稅額。沒填日期的放在「未填日期」
-const props = defineProps<{ items: IncomeItem[] }>()
+// pendingDividends：應收股利還沒帶入的筆數（這裡只算已記錄的，有沒帶入的要提醒，不然股利會是 0 看不懂）
+const props = defineProps<{ items: IncomeItem[]; pendingDividends?: number }>()
 
 type Kind = 'buy' | 'sell' | 'stockDividend' | 'dividend'
 const KIND_LABELS: Record<Kind, string> = { buy: '買進', sell: '賣出', stockDividend: '配股', dividend: '現金股利' }
@@ -100,6 +102,9 @@ const summary = computed(() =>
         market,
         label: market === 'tw' ? '台股（元）' : '美股（美元）',
         count: list.length,
+        buys: list.filter((row) => row.kind === 'buy').length,
+        sells: list.filter((row) => row.kind === 'sell').length,
+        dividendCount: list.filter((row) => row.kind === 'dividend').length,
         realized: sum((row) => row.realized),
         dividends: sum((row) => (row.kind === 'dividend' ? row.amount : null)),
         fees: sum((row) => row.fee),
@@ -155,7 +160,7 @@ function exportCsv() {
 <template>
   <section v-if="rows.length" class="space-y-2">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <p class="text-body text-ink-muted">年度報表（對帳用，不是報稅試算）</p>
+      <p class="flex items-center gap-1 text-body text-ink-muted">年度對帳表<HelpTip term="yearReport" /></p>
       <button
         type="button"
         class="cursor-pointer border-2 border-tint/15 px-3 py-1 text-button text-ink-muted transition hover:bg-tint/10 hover:text-ink active:translate-x-[1px] active:translate-y-[1px]"
@@ -180,14 +185,20 @@ function exportCsv() {
       </button>
     </div>
 
-    <!-- 合計 -->
+    <p class="text-caption text-ink-muted">你記下的買賣與股利依年份整理，拿來和券商對帳單對照；只算已經記錄的，不是報稅試算。</p>
+    <p v-if="pendingDividends" class="text-body text-warn">還有 {{ pendingDividends }} 筆應收股利沒帶入，帶入後才會算進這裡的「記錄的現金股利」。</p>
+
+    <!-- 合計：標籤寫清楚是「這一年」的什麼（2026-11-10 使用者回報意義不明） -->
     <div class="grid gap-2 sm:grid-cols-2">
       <dl v-for="side in summary" :key="side.market" class="space-y-1 border-2 border-tint/10 bg-tint/5 p-3 text-body">
-        <p class="font-semibold text-ink">{{ side.label }}</p>
-        <div class="flex justify-between gap-3"><dt class="text-ink-muted">已實現損益</dt><dd class="tabular-nums" :class="trendClass(side.realized)">{{ formatNumber(side.realized, digits(side.market)) }}</dd></div>
-        <div class="flex justify-between gap-3"><dt class="text-ink-muted">現金股利</dt><dd class="tabular-nums text-accent">{{ formatNumber(side.dividends, digits(side.market)) }}</dd></div>
-        <div class="flex justify-between gap-3"><dt class="text-ink-muted">手續費（買賣都算）</dt><dd class="tabular-nums text-ink-soft">{{ formatNumber(side.fees, digits(side.market)) }}</dd></div>
-        <div class="flex justify-between gap-3"><dt class="text-ink-muted">證交稅</dt><dd class="tabular-nums text-ink-soft">{{ formatNumber(side.tax, digits(side.market)) }}</dd></div>
+        <p class="flex flex-wrap items-baseline justify-between gap-x-3">
+          <span class="font-semibold text-ink">{{ side.label }}</span>
+          <span class="text-caption text-ink-muted">買進 {{ side.buys }} 筆、賣出 {{ side.sells }} 筆、股利 {{ side.dividendCount }} 筆</span>
+        </p>
+        <div class="flex justify-between gap-3"><dt class="text-ink-muted">賣掉的部分賺賠</dt><dd class="tabular-nums" :class="trendClass(side.realized)">{{ formatNumber(side.realized, digits(side.market)) }}</dd></div>
+        <div class="flex justify-between gap-3"><dt class="text-ink-muted">記錄的現金股利</dt><dd class="tabular-nums text-accent">{{ formatNumber(side.dividends, digits(side.market)) }}</dd></div>
+        <div class="flex justify-between gap-3"><dt class="text-ink-muted">付的手續費（買賣都算）</dt><dd class="tabular-nums text-ink-soft">{{ formatNumber(side.fees, digits(side.market)) }}</dd></div>
+        <div class="flex justify-between gap-3"><dt class="text-ink-muted">付的證交稅（賣出才有）</dt><dd class="tabular-nums text-ink-soft">{{ formatNumber(side.tax, digits(side.market)) }}</dd></div>
       </dl>
     </div>
 
@@ -206,7 +217,7 @@ function exportCsv() {
               <th class="px-3 py-2 text-right font-normal">金額</th>
               <th class="px-3 py-2 text-right font-normal">手續費</th>
               <th class="px-3 py-2 text-right font-normal">證交稅</th>
-              <th class="px-3 py-2 text-right font-normal">已實現損益</th>
+              <th class="px-3 py-2 text-right font-normal">賣掉賺賠</th>
             </tr>
           </thead>
           <tbody>

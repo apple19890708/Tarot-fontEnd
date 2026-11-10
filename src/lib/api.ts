@@ -29,6 +29,8 @@ import type {
   MarketSearchResult,
   MarketSnapshot,
   MarketTrackSummary,
+  IncomeDismissed,
+  ConcentrationThresholds,
   MarketDividend,
   DailyPicks,
   DailyPickType,
@@ -379,7 +381,10 @@ export function createWatch(payload: {
 }
 
 // 買賣紀錄、股利各自整批替換（可以只送其中一個，空陣列代表清除）；回傳含報價與重算後的損益
-export function updateWatchHoldings(id: string, payload: { trades?: MarketTrade[]; dividends?: MarketDividend[] }) {
+export function updateWatchHoldings(
+  id: string,
+  payload: { trades?: MarketTrade[]; dividends?: MarketDividend[]; dismissedEntitlements?: IncomeDismissed[] },
+) {
   return watchlistMutation(
     request<{ item: MarketWatchItem }>(`/api/market/watchlist/${id}`, {
       method: 'PATCH',
@@ -526,7 +531,21 @@ export function deleteFinanceNewsAnalysis(id: string) {
 export function fetchMarketSettings() {
   // dashboard：股市總覽的版面；沒自訂過是 null，舊版後端沒有這個欄位
   // reminders：提醒開關（v20，舊版後端沒有）
-  return request<{ fees: MarketFees; reminders?: { exDividend: boolean }; dashboard?: MarketDashboard | null }>('/api/market/settings')
+  // concentration：集中度提醒的門檻（v20，舊版後端沒有）
+  return request<{
+    fees: MarketFees
+    reminders?: { exDividend: boolean }
+    concentration?: ConcentrationThresholds
+    dashboard?: MarketDashboard | null
+  }>('/api/market/settings')
+}
+
+// 集中度提醒的門檻（v20 2.9.8）：只送 concentration，其他設定不動
+export function saveConcentrationThresholds(concentration: ConcentrationThresholds) {
+  return request<{ concentration: ConcentrationThresholds }>('/api/market/settings', {
+    method: 'PUT',
+    body: JSON.stringify({ concentration }),
+  })
 }
 
 // 除息前推播的開關（v20 階段 6）：只送 reminders，交易成本不動

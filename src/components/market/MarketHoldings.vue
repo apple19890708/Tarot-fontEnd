@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { confirmDialog } from '../../lib/confirm'
+import QuantityField from './QuantityField.vue'
 
 import { updateWatchHoldings } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
+import { toEditableQuantity, toStoredQuantity, type QuantityUnit } from '../../lib/quantityUnit'
 import type { MarketDividend, MarketTrade, MarketWatchItem } from '../../types'
 
 // 一檔股票的持股：買賣紀錄（先進先出）、股利、損益。
@@ -14,7 +16,10 @@ const emit = defineEmits<{ saved: [item: MarketWatchItem] }>()
 
 const MAX_TRADES = 100
 const MAX_DIVIDENDS = 100
-const unitLabel = computed(() => (props.item.target.market === 'tw' ? '張' : '股'))
+const market = computed(() => props.item.target.market)
+const unitLabel = computed(() => (market.value === 'tw' ? '張' : '股'))
+// 新增一列時的單位：沿用最後一列（連續記零股不用每列都切）
+const defaultUnit = computed<QuantityUnit>(() => tradeRows.value[tradeRows.value.length - 1]?.unit ?? unitLabel.value)
 const currency = computed(() => (props.item.target.market === 'tw' ? '元' : '美元'))
 const position = computed(() => props.item.position)
 
@@ -23,6 +28,8 @@ interface TradeRow {
   // stockDividend：配股（成本 0、沒有成交價，從股利獲利與預測頁帶入）。這裡可以改數量與日期、可以刪，不能切成買賣
   side: MarketTrade['side']
   quantity: string
+  // 台股可以填張數或股數（零股），存檔時換算成張
+  unit: QuantityUnit
   price: string
   date: string
 }
@@ -41,15 +48,20 @@ const saving = ref(false)
 function resetRows() {
   editError.value = ''
   tradeRows.value = props.item.trades.length
-    ? props.item.trades.map((t) => ({ side: t.side, quantity: String(t.quantity), price: t.side === 'stockDividend' ? '' : String(t.price), date: t.date ?? '' }))
-    : [{ side: 'buy', quantity: '', price: '', date: '' }]
+    ? props.item.trades.map((t) => ({
+        side: t.side,
+        ...toEditableQuantity(t.quantity, market.value),
+        price: t.side === 'stockDividend' ? '' : String(t.price),
+        date: t.date ?? '',
+      }))
+    : [{ side: 'buy', quantity: '', unit: unitLabel.value, price: '', date: '' }]
   dividendRows.value = props.item.dividends.map((d) => ({ amount: String(d.amount), date: d.date ?? '', exDate: d.exDate ?? null }))
 }
 watch(editing, (value) => value && resetRows(), { immediate: true })
 
 function addTrade(side: 'buy' | 'sell') {
   if (tradeRows.value.length < MAX_TRADES) {
-    tradeRows.value = [...tradeRows.value, { side, quantity: '', price: '', date: new Date().toISOString().slice(0, 10) }]
+    tradeRows.value = [...tradeRows.value, { side, quantity: '', unit: defaultUnit.value, price: '', date: new Date().toISOString().slice(0, 10) }]
   }
 }
 function removeTrade(index: number) {
@@ -67,8 +79,9 @@ function parseRows(): { trades?: MarketTrade[]; dividends?: MarketDividend[]; er
   const trades: MarketTrade[] = []
   for (const [index, row] of tradeRows.value.entries()) {
     if (!row.quantity.trim() && !row.price.trim()) continue
-    const quantity = Number(row.quantity)
-    if (!Number.isFinite(quantity) || quantity <= 0) return { error: `第 ${index + 1} 筆：數量要大於 0。` }
+    const input = Number(row.quantity)
+    if (!Number.isFinite(input) || input <= 0) return { error: `第 ${index + 1} 筆：數量要大於 0。` }
+    const quantity = toStoredQuantity(input, row.unit, market.value)
     if (row.side === 'stockDividend') {
       if (!row.date) return { error: `第 ${index + 1} 筆：配股要填除權日。` }
       trades.push({ side: 'stockDividend', quantity, price: 0, date: row.date })
@@ -91,8 +104,10 @@ function parseRows(): { trades?: MarketTrade[]; dividends?: MarketDividend[]; er
 // 編輯中的即時數量（賣超過時提醒；正確的數字以儲存後後端算的為準）
 const previewQuantity = computed(() =>
   tradeRows.value.reduce((sum, row) => {
-    const q = Number(row.quantity)
-    return Number.isFinite(q) && q > 0 ? sum + (row.side === 'sell' ? -q : q) : sum
+    const input = Number(row.quantity)
+    if (!Number.isFinite(input) || input <= 0) return sum
+    const q = toStoredQuantity(input, row.unit, market.value)
+    return sum + (row.side === 'sell' ? -q : q)
   }, 0),
 )
 
@@ -186,7 +201,7 @@ const INPUT_CLASS =
   <div v-if="editing" class="space-y-3 border-t border-tint/10 pt-3">
     <div class="space-y-2">
       <p class="text-body text-ink-muted">
-        買賣紀錄依順序先進先出沖銷（{{ unitLabel }}數、成交價、日期）；手續費與證交稅會自動計算。整列空白會略過。
+        買賣紀錄依順序先進先出沖銷（{{ unitLabel }}數、成交價、日期）<template v-if="market === 'tw'">；零股按數量旁的「張」切成「股」直接填股數</template>；手續費與證交稅會自動計算。整列空白會略過。
       </p>
       <div v-for="(row, index) in tradeRows" :key="index" class="flex flex-wrap items-center gap-2">
         <span class="w-5 shrink-0 text-right text-caption tabular-nums text-ink-muted">{{ index + 1 }}</span>
@@ -217,7 +232,14 @@ const INPUT_CLASS =
             {{ side === 'buy' ? '買' : '賣' }}
           </button>
         </div>
-        <input v-model="row.quantity" inputmode="decimal" :class="INPUT_CLASS" class="flex-[1_1_4.5rem]" :placeholder="`${unitLabel}數`" :aria-label="`第 ${index + 1} 筆的${unitLabel}數`" />
+        <QuantityField
+          v-model="row.quantity"
+          v-model:unit="row.unit"
+          :market="market"
+          :input-class="INPUT_CLASS"
+          class="flex-[1_1_6rem]"
+          :label="`第 ${index + 1} 筆的${market === 'tw' ? row.unit : '股'}數`"
+        />
         <input
           v-model="row.price"
           inputmode="decimal"

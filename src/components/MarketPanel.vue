@@ -5,6 +5,7 @@ import { signalGlossaryKeys } from '../lib/marketGlossary'
 
 import MarketAdvice from './market/MarketAdvice.vue'
 import MarketChips from './market/MarketChips.vue'
+import MarketDividendRecords from './market/MarketDividendRecords.vue'
 import MarketPriceChart from './market/MarketPriceChart.vue'
 import MarketResearch from './market/MarketResearch.vue'
 import { vsPrevClass } from '../lib/marketChart'
@@ -23,7 +24,7 @@ const props = defineProps<{
   isSaved?: boolean
   // 不顯示「更新報價」（例如「我的紀錄」的股票分析只看當時的資料）
   hideRefresh?: boolean
-  // 操作建議、籌碼與估值、歷史回測與模型改成分頁籤（個股分析彈窗用；結果頁與紀錄維持一段接一段）
+  // 操作建議、除權息、籌碼與估值、歷史回測與模型改成分頁籤（個股分析彈窗用；結果頁與紀錄維持一段接一段）
   tabs?: boolean
 }>()
 
@@ -103,7 +104,7 @@ function sessionLabel(item: MarketItem) {
 }
 
 // ---- 分頁籤（tabs 模式）：操作建議放第一個，沒有資料的分頁不顯示 ----
-type PanelTab = 'advice' | 'chips' | 'research'
+type PanelTab = 'advice' | 'dividends' | 'chips' | 'research'
 
 const itemKey = (item: MarketItem) => item.symbol || item.code || item.name
 // 每一檔各自記住選到哪一頁
@@ -112,6 +113,8 @@ const chosenTab = ref<Record<string, PanelTab>>({})
 function tabsOf(item: MarketItem) {
   const list: { key: PanelTab; label: string }[] = []
   if (item.advice) list.push({ key: 'advice', label: '操作建議' })
+  // 個股才有（指數沒有）；抓不到（null）也顯示分頁，裡面說明取不到
+  if (item.dividendRecords !== undefined) list.push({ key: 'dividends', label: '除權息' })
   if (item.chips || item.valuation) list.push({ key: 'chips', label: '籌碼與估值' })
   if (item.research) list.push({ key: 'research', label: '歷史回測與模型' })
   return list
@@ -278,7 +281,7 @@ function indicatorRows(item: MarketItem) {
         </dl>
         <p v-else class="border-t border-tint/10 pt-3 text-body text-ink-muted">歷史資料不足，沒有技術指標。</p>
 
-        <!-- 分頁籤模式：操作建議、籌碼與估值、歷史回測與模型 -->
+        <!-- 分頁籤模式：操作建議、除權息、籌碼與估值、歷史回測與模型 -->
         <div v-if="tabs && tabsOf(item).length" class="border-t-2 border-accent-hue/20 pt-4" data-panel-section="操作建議・籌碼・回測">
           <!-- overflow-y-hidden：分頁往下凸 2px 蓋住底線，不加的話會冒出上下捲軸 -->
           <div role="tablist" aria-label="分析分頁" class="flex overflow-x-auto overflow-y-hidden border-b-2 border-tint/10">
@@ -310,6 +313,7 @@ function indicatorRows(item: MarketItem) {
             class="pt-4"
           >
             <MarketAdvice v-if="currentTab(item) === 'advice' && item.advice" :advice="item.advice" :item="item" />
+            <MarketDividendRecords v-else-if="currentTab(item) === 'dividends'" :records="item.dividendRecords ?? null" :market="item.market" />
             <MarketChips v-else-if="currentTab(item) === 'chips'" :chips="item.chips" :valuation="item.valuation" />
             <MarketResearch v-else-if="currentTab(item) === 'research' && item.research" :research="item.research" />
           </div>

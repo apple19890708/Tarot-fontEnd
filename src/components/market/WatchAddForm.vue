@@ -2,8 +2,10 @@
 import { computed, ref, watch } from 'vue'
 
 import SelectField from '../SelectField.vue'
+import QuantityField from './QuantityField.vue'
 import StockSearchInput from './StockSearchInput.vue'
 import { createWatch, createWatchGroup } from '../../lib/api'
+import { toStoredQuantity, type QuantityUnit } from '../../lib/quantityUnit'
 import type { MarketSearchResult, MarketTrade, MarketWatchGroup, MarketWatchItem } from '../../types'
 
 // 「加入追蹤」表單（自訂股票追蹤、股利獲利與預測共用）：選市場、搜尋代號或名稱、可以帶第一筆買進、
@@ -20,12 +22,12 @@ const emit = defineEmits<{
 
 type Market = 'tw' | 'us'
 const MARKET_LABELS: Record<Market, string> = { tw: '台股', us: '美股' }
-// 台股持股單位是「張」（1 張 = 1000 股），美股是「股」
-const UNIT_LABEL: Record<Market, string> = { tw: '張', us: '股' }
 const MAX_GROUPS = 10
 const NEW_GROUP = '__new__'
 
-const form = ref({ market: 'tw' as Market, query: '', quantity: '', cost: '' })
+const today = () => new Date().toISOString().slice(0, 10)
+// unit：台股可以填張數或股數（零股）；date：第一筆的成交日期，預設今天
+const form = ref({ market: 'tw' as Market, query: '', quantity: '', unit: '張' as QuantityUnit, cost: '', date: today() })
 const picked = ref<MarketSearchResult | null>(null)
 const formError = ref('')
 // 成功提示：已經在追蹤的股票，這次只是加進另一個清單
@@ -70,15 +72,16 @@ watch(
 )
 const groupName = (id: string | null) => props.groups.find((g) => g.id === id)?.name ?? '未分類'
 
-// 新增時一起填的張數與成本 → 第一筆買進；兩個都空白就不記
+// 新增時一起填的數量、成本與日期 → 第一筆買進；數量和成本都空白就不記
 function firstTrade(): { trade?: MarketTrade; error?: string } {
-  const { quantity, cost } = form.value
+  const { quantity, cost, unit, date, market } = form.value
   if (!quantity.trim() && !cost.trim()) return {}
   const q = Number(quantity)
   const c = Number(cost)
   if (!quantity.trim() || !Number.isFinite(q) || q <= 0) return { error: '數量要大於 0。' }
   if (!cost.trim() || !Number.isFinite(c) || c <= 0) return { error: '成本價要大於 0。' }
-  return { trade: { side: 'buy', quantity: q, price: c, date: new Date().toISOString().slice(0, 10) } }
+  if (date > today()) return { error: '成交日期不能是未來。' }
+  return { trade: { side: 'buy', quantity: toStoredQuantity(q, unit, market), price: c, date: date || null } }
 }
 
 async function submit() {
@@ -133,7 +136,7 @@ async function submit() {
         `${name} 已經在追蹤，這次加到「${groupName(group)}」清單。` +
         (tradesIgnored ? '持股沒有變動；要記這筆買進，請打開這檔的詳細，在持股那一區記錄。' : '')
     }
-    form.value = { ...form.value, query: '', quantity: '', cost: '' }
+    form.value = { ...form.value, query: '', quantity: '', cost: '', date: today() }
     picked.value = null
     emit('added', { item, existing: Boolean(existing), group })
   } catch (err) {
@@ -173,14 +176,25 @@ const INPUT_CLASS =
       />
     </div>
     <div class="flex flex-wrap gap-2">
-      <input
+      <QuantityField
         v-model="form.quantity"
-        inputmode="decimal"
-        :class="INPUT_CLASS"
-        class="flex-[1_1_8rem]"
-        :placeholder="`第一筆${UNIT_LABEL[form.market]}數（選填）`"
+        v-model:unit="form.unit"
+        :market="form.market"
+        :input-class="INPUT_CLASS"
+        class="flex-[1_1_9rem]"
+        :placeholder="`第一筆${form.market === 'tw' ? form.unit : '股'}數（選填）`"
+        :label="`第一筆${form.market === 'tw' ? form.unit : '股'}數`"
       />
       <input v-model="form.cost" inputmode="decimal" :class="INPUT_CLASS" class="flex-[1_1_8rem]" placeholder="第一筆成本價（選填）" />
+      <input
+        v-model="form.date"
+        type="date"
+        :max="today()"
+        :class="INPUT_CLASS"
+        class="flex-[1_1_8.5rem] [color-scheme:dark]"
+        aria-label="第一筆成交日期"
+        title="第一筆成交日期"
+      />
       <button
         type="submit"
         class="shrink-0 cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-4 py-2 text-button text-accent transition hover:bg-accent-hue/25 active:translate-x-[1px] active:translate-y-[1px] disabled:opacity-60 font-pixel"

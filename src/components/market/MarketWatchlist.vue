@@ -469,7 +469,7 @@ const INPUT_CLASS =
         <p class="text-caption uppercase tracking-[0.2em] text-ink-muted sm:tracking-[0.3em]">Watchlist</p>
         <h2 class="mt-1 text-title font-semibold text-ink">自訂股票追蹤</h2>
         <p class="mt-1 text-body text-ink-muted">
-          加入想觀察的台股或美股，可以另外記下持股（台股以「張」計，零股可填小數；美股以「股」計）。頁面開著時，交易時段每分鐘更新報價。
+          加入想觀察的台股或美股，可以另外記下持股（台股以「張」計，零股可按「張」切成「股」直接填股數；美股以「股」計）。頁面開著時，交易時段每分鐘更新報價。
         </p>
       </div>
       <RefreshButton

@@ -12,19 +12,23 @@ import MarketGroupManager from './MarketGroupManager.vue'
 import MarketHoldings from './MarketHoldings.vue'
 import WatchAddForm from './WatchAddForm.vue'
 import WatchItemDialog from './WatchItemDialog.vue'
-import IncomeCalendar from './IncomeCalendar.vue'
+import IncomeMonthDialog from './IncomeMonthDialog.vue'
+import { monthEntries } from '../../lib/incomeMonthEntries'
+import IncomeConcentration from './IncomeConcentration.vue'
 import IncomeFills from './IncomeFills.vue'
+import IncomeGrowth from './IncomeGrowth.vue'
 import IncomeForecastCheck from './IncomeForecastCheck.vue'
 import IncomeYearReport from './IncomeYearReport.vue'
 import { deleteWatch, fetchIncome, fetchMarketSettings, fetchNotifyStatus, saveExDividendReminder, setWatchGroups, updateWatchHoldings } from '../../lib/api'
-import { entitlementPatch, linkDividendPatch } from '../../lib/incomeImport'
+import { dismissPatch, entitlementPatch, linkDividendPatch } from '../../lib/incomeImport'
 import { confirmDialog } from '../../lib/confirm'
 import { watchlistVersion } from '../../lib/watchlistSync'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { useCooldown } from '../../lib/useCooldown'
 import { usePaged } from '../../lib/usePaged'
+import { useStoredToggle } from '../../lib/useStoredToggle'
 import ListPager from '../ListPager.vue'
-import type { IncomeAnnualized, IncomeBreakdown, IncomeEntitlementEvent, IncomeFrequency, IncomeItem, IncomeReport, IncomeSource, MarketWatchGroup, MarketWatchItem } from '../../types'
+import type { IncomeAnnualized, IncomeBreakdown, IncomeEntitlementEvent, IncomeFrequency, IncomeItem, IncomeReport, MarketWatchGroup, MarketWatchItem } from '../../types'
 
 // 股利獲利與預測（v20）：自選清單的持股損益、未來 12 個月的股利預估（依除息月）、每檔的殖利率。
 // 數字全部由後端算（GET /api/market/income），這裡只負責排版、切清單、換卡片／表格。
@@ -261,7 +265,6 @@ function breakdownRows(b: IncomeBreakdown) {
     { label: '現在賣出還要付', value: b.sellCost, sign: '−', tone: 'text-ink-soft', help: 'sellCost' as const },
   ]
 }
-const SOURCE_LABELS: Record<IncomeSource, string> = { announced: '已公告', exDone: '已除息', estimated: '推估' }
 
 // 摘要卡：台股（元）、美股（美元）、兩邊都有時再加一張合計（台幣）
 const summaryCards = computed(() => {
@@ -283,6 +286,8 @@ const summaryCards = computed(() => {
   }
   return cards
 })
+// 桌機摘要表：summaryRows 的欄名（順序要一致）
+const SUMMARY_COLUMNS = ['投入成本', '目前市值', '還沒賣的賺賠', '已經賣掉的賺賠', '已記錄的股利']
 const summaryRows = (card: (typeof summaryCards.value)[number]) => [
   { label: '投入成本', value: money(card.data.cost, card.market), tone: '' },
   { label: '目前市值', value: money(card.data.value, card.market), tone: '' },
@@ -356,34 +361,23 @@ const windowSummary = computed(() => {
   return { total, average: total / Math.max(1, monthRows.value.length), compared: compared.length, estimate, actual, diffPct: actual > 0 ? ((estimate - actual) / actual) * 100 : null }
 })
 
-// 某個月有哪幾檔：本月以後用預估（projection），過去用應收股利（當時有持股的那幾次，實際金額）
-function entriesOf(month: string) {
-  const future = futureMonths.value.indexOf(month)
-  if (future >= 0) {
-    return held.value
-      .filter((item) => item.quantity > 0)
-      .map((item) => ({ item, cash: item.projection?.months[future]?.cash ?? null, stock: item.projection?.months[future]?.stock ?? null }))
-      .filter((entry) => entry.cash || entry.stock)
-  }
-  return held.value
-    .map((item) => {
-      const events = (item.entitlement?.events ?? []).filter((e) => e.exDate.startsWith(month))
-      const cashEvent = events.find((e) => e.type === 'cash')
-      const stockEvent = events.find((e) => e.type === 'stock')
-      return {
-        item,
-        cash: cashEvent
-          ? { perShare: cashEvent.perShare ?? 0, source: 'exDone' as const, exDate: cashEvent.exDate, gross: cashEvent.gross ?? null, deduction: cashEvent.deduction ?? null, net: cashEvent.net ?? null }
-          : null,
-        stock: stockEvent ? { exDate: stockEvent.exDate, ratio: stockEvent.ratio ?? 0, addShares: stockEvent.addShares ?? 0, addQuantity: stockEvent.addQuantity ?? 0 } : null,
-      }
-    })
-    .filter((entry) => entry.cash || entry.stock)
+// 每月小卡（2026-11-10 使用者覺得一個月一列的表太佔空間，改成格子；也取代原本的股利月曆）：
+// 卡片上放合計與有持股的代號，點開彈窗看這個月每一檔的除息日與股利。哪幾檔的判斷在 lib/incomeMonthEntries（原本月曆那一套）
+const thisMonth = computed(() => report.value?.today.slice(0, 7) ?? '')
+const monthCards = computed(() =>
+  monthRows.value.map((row) => {
+    const entries = monthEntries(items.value, futureMonths.value, thisMonth.value, row.month)
+    return { ...row, entries, held: entries.filter((entry) => entry.held) }
+  }),
+)
+// 卡片上最多放幾個代號，其他寫「+N」
+const CARD_CHIPS = 4
+const openMonth = ref<string | null>(null)
+const openCard = computed(() => monthCards.value.find((card) => card.month === openMonth.value) ?? null)
+function openMonthItem(id: string) {
+  openMonth.value = null
+  selectedId.value = id
 }
-
-// 每月明細表：每個月是哪幾檔；合計沿用圖表那一份（後端加總）
-const monthTableRows = computed(() => monthRows.value.map((row) => ({ ...row, entries: entriesOf(row.month) })))
-
 
 const MONTH_SKELETON = 12
 
@@ -396,10 +390,12 @@ const entitlementRows = computed(() =>
       const events = item.entitlement?.events ?? []
       return {
         item,
-        pending: events.filter((e) => e.recorded !== 'yes'),
+        // 刪掉的（dismissed）不再列出，之後要記請自己在持股手動加
+        pending: events.filter((e) => e.recorded !== 'yes' && !e.dismissed),
         recordedCount: events.filter((e) => e.recorded === 'yes').length,
+        dismissedCount: events.filter((e) => e.dismissed && e.recorded !== 'yes').length,
         // 「還沒記錄」才能一次全部帶入；「可能已記錄」要使用者自己判斷
-        importable: events.filter((e) => e.recorded === 'no'),
+        importable: events.filter((e) => e.recorded === 'no' && !e.dismissed),
       }
     })
     .filter((row) => !row.item.entitlement?.available || row.pending.length || row.item.entitlement?.splitWarning),
@@ -408,6 +404,8 @@ const entitlementRows = computed(() =>
 const { items: heldPageItems, page: heldPage, pageSize: heldPageSize, total: heldTotal } = usePaged(held, 'income-held')
 const { items: watchingPageItems, page: watchingPage, pageSize: watchingPageSize, total: watchingTotal } = usePaged(watching, 'income-watching')
 const { items: entitlementPageRows, page: entitlementPage, pageSize: entitlementPageSize, total: entitlementTotal } = usePaged(entitlementRows, 'income-entitlement', 5)
+const entitlementOpen = useStoredToggle('income-entitlement', false)
+const pendingCount = computed(() => entitlementRows.value.reduce((sum, row) => sum + row.pending.length, 0))
 const importableCount = computed(() => entitlementRows.value.reduce((sum, row) => sum + row.importable.length, 0))
 const importing = ref('')
 const importError = ref('')
@@ -437,6 +435,36 @@ async function linkEvent(item: IncomeItem, event: IncomeEntitlementEvent) {
     importing.value = ''
   }
 }
+// 刪除（不帶入）：一筆、這檔全部、全部。只是不再提醒，之後要記就自己在持股詳細手動加；不能復原，所以先確認
+async function dismissEvents(item: IncomeItem, events: IncomeEntitlementEvent[], key: string) {
+  if (importing.value || !events.length) return
+  importing.value = key
+  importError.value = ''
+  try {
+    await updateWatchHoldings(item.id, dismissPatch(item, events))
+  } catch (err) {
+    importError.value = `${item.target.name}：${err instanceof Error ? err.message : '刪除失敗'}`
+  } finally {
+    importing.value = ''
+  }
+}
+async function confirmDismiss(rows: { item: IncomeItem; pending: IncomeEntitlementEvent[] }[], key: string) {
+  const count = rows.reduce((sum, row) => sum + row.pending.length, 0)
+  if (!count || importing.value) return
+  const ok = await confirmDialog({
+    title: '刪除應收股利',
+    message: `${rows.length === 1 ? rows[0]!.item.target.name : `${rows.length} 檔`}共 ${count} 筆應收股利從清單刪掉、不帶入？
+刪掉之後不會再出現在這裡，要記的話請點股票名稱，在持股裡自己手動加。`,
+    confirmText: '刪除',
+    danger: true,
+  })
+  if (!ok) return
+  for (const row of rows) {
+    await dismissEvents(row.item, row.pending, key)
+    if (importError.value) break
+  }
+}
+
 // 全部帶入：一檔一個請求，依序送（同一檔的紀錄要一次改完）；失敗的那一檔停下來顯示原因
 async function importAll() {
   const rows = entitlementRows.value.filter((row) => row.importable.length)
@@ -459,14 +487,6 @@ const ENTITLEMENT_REASONS: Record<string, string> = {
   missingDates: '有買賣紀錄沒填日期，算不出當時有沒有持股。點股票名稱補上日期就能算。',
   noData: '股利資料暫時抓不到，稍後再按更新。',
 }
-// ---- 股利月曆（v20 階段 6）：格子本身在 IncomeCalendar ----
-const calendarHasAny = computed(() =>
-  items.value.some(
-    (item) =>
-      item.target.kind === 'stock' && (item.projection?.months.some((month) => month.cash || month.stock) || (item.pastEvents?.length ?? 0) > 0),
-  ),
-)
-
 // 除息前推播的開關：存在帳號的股市設定裡；推播本身要先在「價位提醒」開啟（這裡只提示）
 const reminderOn = ref<boolean | null>(null)
 const reminderSaving = ref(false)
@@ -608,7 +628,55 @@ async function toggleReminder() {
 
       <template v-else>
         <!-- ── 摘要 ── -->
-        <div v-if="summaryCards.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <!-- 桌機：一個市場一列、指標排成欄（2026-11-10 使用者要求：只有一張卡時左邊一小塊、右邊全空） -->
+        <div v-if="summaryCards.length" class="hidden overflow-x-auto border-2 border-tint/10 lg:block">
+          <table class="w-full text-body tabular-nums">
+            <thead class="bg-tint/5 text-caption text-ink-muted">
+              <tr>
+                <th scope="col" class="px-3 py-2 text-left font-normal">市場</th>
+                <th scope="col" class="px-3 py-2 text-right font-normal">總報酬（賺賠＋股利）</th>
+                <th scope="col" class="px-3 py-2 text-right font-normal"><span class="inline-flex items-center gap-1">平均每年<HelpTip term="xirr" /></span></th>
+                <th v-for="label in SUMMARY_COLUMNS" :key="label" scope="col" class="px-3 py-2 text-right font-normal">{{ label }}</th>
+                <th scope="col" class="px-3 py-2 text-right font-normal"><span class="inline-flex items-center gap-1">預估一年股利<HelpTip term="incomeDeduction" /></span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="card in summaryCards" :key="card.key">
+                <tr class="border-t border-tint/10">
+                  <th scope="row" class="px-3 py-2.5 text-left font-normal">
+                    <span class="block font-semibold text-ink">{{ card.title }}</span>
+                    <span class="block text-caption text-ink-muted">{{ card.note }}</span>
+                  </th>
+                  <td class="whitespace-nowrap px-3 py-2.5 text-right text-subtitle font-semibold" :class="trendClass(card.data.totalReturn)">{{ signedMoney(card.data.totalReturn, card.market) }}</td>
+                  <td class="whitespace-nowrap px-3 py-2.5 text-right" :class="!card.data.annualized || card.data.annualized.pct === null ? 'text-ink-muted' : trendClass(card.data.annualized.pct)">
+                    {{ card.data.annualized ? annualizedText(card.data.annualized) : '—' }}
+                  </td>
+                  <td v-for="row in summaryRows(card)" :key="row.label" class="whitespace-nowrap px-3 py-2.5 text-right" :class="row.tone || 'text-ink-soft'">{{ row.value }}</td>
+                  <td class="whitespace-nowrap px-3 py-2.5 text-right text-accent">{{ money(card.data.annualNet, card.market) }}</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <!-- 報酬怎麼來的：放在表格外面、一直顯示成一行算式（2026-11-10 使用者回報：放在表格裡展開會撐寬表格、冒出橫向捲軸而抖動，右邊箭頭也不要） -->
+          <div v-for="card in summaryCards.filter((c) => c.data.breakdown)" :key="card.key" class="border-t border-tint/10 px-3 py-2 text-body">
+            <dl class="flex flex-wrap items-baseline gap-x-4 gap-y-1 tabular-nums">
+              <dt class="text-caption text-ink-muted">{{ summaryCards.length > 1 ? `${card.title}：` : '' }}報酬怎麼來的</dt>
+              <div v-for="row in breakdownRows(card.data.breakdown!)" :key="row.label" class="flex items-baseline gap-1.5">
+                <dt class="flex items-center gap-1 text-ink-muted">{{ row.label }}<HelpTip v-if="row.help" :term="row.help" /></dt>
+                <dd :class="row.tone">{{ row.sign }}{{ money(Math.abs(row.value), card.market) }}</dd>
+              </div>
+              <div class="flex items-baseline gap-1.5">
+                <dt class="text-ink-muted">＝ 總報酬</dt>
+                <dd class="font-semibold" :class="trendClass(card.data.totalReturn)">{{ signedMoney(card.data.totalReturn, card.market) }}</dd>
+              </div>
+            </dl>
+          </div>
+          <p v-for="card in summaryCards.filter((c) => c.missingQuote)" :key="card.key" class="border-t border-tint/10 px-3 py-2 text-caption text-warn">
+            {{ card.title }}有 {{ card.missingQuote }} 檔報價暫時抓不到，市值與賺賠沒算進去。
+          </p>
+        </div>
+        <!-- 手機、平板：一個市場一張卡 -->
+        <div v-if="summaryCards.length" class="grid gap-3 sm:grid-cols-2 lg:hidden">
           <div v-for="card in summaryCards" :key="card.key" class="space-y-2 border-2 border-tint/10 bg-tint/5 p-3">
             <p class="flex items-baseline justify-between gap-2">
               <span class="text-subtitle font-semibold text-ink">{{ card.title }}</span>
@@ -654,12 +722,19 @@ async function toggleReminder() {
           這裡的股票都還沒記錄持股。點下面的股票名稱記下買進紀錄，就會算出賺賠和預估股利；先列出每張一年大約能領多少。
         </p>
 
+        <!-- ── 集中度提醒（v20 2.9.8）：摘要下面；舊版後端沒有 concentration 就不顯示 ── -->
+        <IncomeConcentration v-if="report.concentration" :concentration="report.concentration" @saved="load" />
+
         <!-- ── 每月股利預估 ── -->
         <section v-if="summaryCards.length" class="space-y-2">
           <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <p class="flex items-center gap-1 text-body text-ink-muted">
               每月股利（扣款後，{{ chartSide?.unit }}）<HelpTip term="incomeProjection" />
             </p>
+            <!-- 除息前推播的開關（原本在股利月曆，月曆拿掉後移到這裡；中性色，和換頁的金色區分） -->
+            <CheckboxField v-if="reminderOn !== null" :model-value="reminderOn" :disabled="reminderSaving" class="text-body" @update:model-value="toggleReminder">
+              除息前一個交易日提醒我{{ reminderSaving ? '（儲存中…）' : '' }}
+            </CheckboxField>
             <!-- 區間（起 ~ 迄，最長 12 個月）：最早往前 2 年，最晚到本月起第 12 個月（2026-11-10 使用者要求可以看過去、用日期選擇器） -->
             <MonthRangePicker
               v-if="timeline.length"
@@ -669,6 +744,15 @@ async function toggleReminder() {
               :max="timeline[timeline.length - 1]!"
             />
           </div>
+          <p v-if="reminderError" class="text-body text-danger">{{ reminderError }}</p>
+          <p v-else-if="reminderOn && hasNotifyChannel === false" class="text-body text-warn">
+            還沒開啟推播通知，提醒送不出去。到
+            <router-link :to="{ query: { tab: 'alerts' } }" class="underline">價位提醒</router-link>
+            開啟這台裝置的通知。
+          </p>
+          <p v-else-if="reminderOn" class="text-caption text-ink-muted">
+            追蹤的台股在已公告的除息（除權）日前一個交易日早上推播；推估的日期不提醒。
+          </p>
           <p v-if="hasProjection && chartSide" class="text-body text-ink-soft">
             這 {{ monthRows.length }} 個月合計約 <span class="tabular-nums text-accent">{{ money(windowSummary.total, chartSide.market) }}</span>，平均每月
             <span class="tabular-nums text-accent">{{ money(windowSummary.average, chartSide.market) }}</span>
@@ -679,53 +763,57 @@ async function toggleReminder() {
             </template>
           </p>
           <template v-if="hasProjection">
-            <!-- 每月明細（2026-11-10 使用者要求拿掉長條圖，只留這張表）：每個月是哪幾檔、合計；過去的月份多一欄當時的預估 -->
-            <div class="overflow-x-auto border-2 border-tint/10">
-              <table class="w-full text-left text-body tabular-nums">
-                <thead class="bg-tint/5 text-caption text-ink-muted">
-                  <tr>
-                    <th class="px-3 py-2 font-normal">月份</th>
-                    <th class="px-3 py-2 font-normal">股票（實線已公告／實際、虛線推估）</th>
-                    <th class="px-3 py-2 text-right font-normal">合計</th>
-                    <th v-if="isPastWindow" class="px-3 py-2 text-right font-normal">當時預估</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in monthTableRows" :key="row.month" class="border-t border-tint/10 align-top">
-                    <td class="whitespace-nowrap px-3 py-2 text-ink-soft">
-                      {{ row.label }}<span v-if="row.past" class="ml-1 text-caption text-ink-muted">（已過）</span>
-                    </td>
-                    <td class="px-3 py-2">
-                      <span v-if="!row.entries.length" class="text-ink-muted">—</span>
-                      <!-- 只放代號：實線＝已公告／已除息／實際、虛線＝推估；滑過看名稱與金額 -->
-                      <span v-else class="flex flex-wrap gap-1">
-                        <span
-                          v-for="entry in row.entries"
-                          :key="entry.item.id"
-                          class="border px-1 text-caption"
-                          :class="entry.cash?.source === 'estimated' ? 'border-dashed border-ink-muted/60 text-ink-soft' : 'border-accent-hue/50 bg-accent-hue/15 text-ink'"
-                          :title="`${entry.item.target.name}${entry.cash ? `：每股 ${formatNumber(entry.cash.perShare, 4)}，約 ${money(entry.cash.net, entry.item.target.market)}（${SOURCE_LABELS[entry.cash.source]}）` : ''}${entry.stock ? `；配股 ${formatNumber(entry.stock.addShares, 0)} 股` : ''}`"
-                        >
-                          {{ entry.item.target.code || entry.item.target.symbol }}
-                        </span>
-                      </span>
-                    </td>
-                    <td class="whitespace-nowrap px-3 py-2 text-right text-accent">{{ row.total ? money(row.total, chartSide?.market) : '—' }}</td>
-                    <td v-if="isPastWindow" class="whitespace-nowrap px-3 py-2 text-right">
-                      <template v-if="row.past && row.pastEstimate !== null">
-                        <span class="text-ink-soft">{{ money(row.pastEstimate, chartSide?.market) }}</span>
-                        <span v-if="row.total > 0" class="ml-1 text-caption" :class="Math.abs(row.pastEstimate - row.total) / row.total <= 0.1 ? 'text-ok' : 'text-warn'">
-                          {{ row.pastEstimate >= row.total ? '高' : '低' }} {{ formatNumber((Math.abs(row.pastEstimate - row.total) / row.total) * 100, 1) }}%
-                        </span>
-                      </template>
-                      <span v-else class="text-ink-muted">—</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <!-- 每月小卡：手機 2 欄、平板 3 欄、桌機 4 欄。卡片上只放合計與有持股的代號（實線已公告／實際、虛線推估），點開看細節 -->
+            <ul class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              <li v-for="card in monthCards" :key="card.month">
+                <component
+                  :is="card.entries.length ? 'button' : 'div'"
+                  :type="card.entries.length ? 'button' : undefined"
+                  class="flex h-full w-full flex-col gap-1 border-2 border-tint/10 bg-tint/[0.03] p-2.5 text-left tabular-nums"
+                  :class="[
+                    card.entries.length ? 'cursor-pointer transition hover:bg-tint/10 active:translate-x-[1px] active:translate-y-[1px]' : '',
+                    card.month === thisMonth ? 'border-accent-hue/40' : '',
+                  ]"
+                  :aria-label="card.entries.length ? `${card.label}，${card.held.length} 檔，點開看除息日與股利` : card.label"
+                  @click="card.entries.length && (openMonth = card.month)"
+                >
+                  <span class="flex items-baseline justify-between gap-1 text-caption text-ink-soft">
+                    <span>{{ card.label }}</span>
+                    <span v-if="card.past" class="text-ink-muted">已過</span>
+                    <span v-else-if="card.month === thisMonth" class="text-accent">本月</span>
+                  </span>
+                  <span class="text-subtitle font-semibold" :class="card.total ? 'text-accent' : 'text-ink-muted'">{{ card.total ? money(card.total, chartSide?.market) : '—' }}</span>
+                  <!-- 過去的月份：當時的預估與差距（有記錄到才有） -->
+                  <span v-if="card.past && card.pastEstimate !== null" class="text-caption text-ink-muted">
+                    當時預估 {{ money(card.pastEstimate, chartSide?.market) }}
+                    <span v-if="card.total > 0" :class="Math.abs(card.pastEstimate - card.total) / card.total <= 0.1 ? 'text-ok' : 'text-warn'">
+                      {{ card.pastEstimate >= card.total ? '高' : '低' }} {{ formatNumber((Math.abs(card.pastEstimate - card.total) / card.total) * 100, 1) }}%
+                    </span>
+                  </span>
+                  <span v-if="card.held.length" class="mt-auto flex flex-wrap gap-1 pt-1">
+                    <span
+                      v-for="entry in card.held.slice(0, CARD_CHIPS)"
+                      :key="`${entry.item.id}:${entry.date}`"
+                      class="border px-1 text-caption"
+                      :class="entry.cash?.source === 'estimated' ? 'border-dashed border-ink-muted/60 text-ink-soft' : 'border-accent-hue/50 bg-accent-hue/15 text-ink'"
+                    >
+                      {{ entry.item.target.code || entry.item.target.symbol }}
+                    </span>
+                    <span v-if="card.held.length > CARD_CHIPS" class="text-caption text-ink-muted">+{{ card.held.length - CARD_CHIPS }}</span>
+                  </span>
+                </component>
+              </li>
+            </ul>
+            <IncomeMonthDialog
+              v-if="openCard"
+              :month="openCard.month"
+              :entries="openCard.entries"
+              :total="openCard.total ? money(openCard.total, chartSide?.market) : null"
+              @close="openMonth = null"
+              @open="openMonthItem"
+            />
             <p class="text-caption text-ink-muted">
-              依除息月排，實際入帳通常再晚 3～5 週。<template v-if="isPastWindow">已過的月份是依你的買賣紀錄算的實際應收；「當時預估」從開始記錄後才有。</template>
+              依除息月排，實際入帳通常再晚 3～5 週。實線框是已公告／已除息、虛線框是推估；點月份看每一檔的除息日與股利。<template v-if="isPastWindow">已過的月份是依你的買賣紀錄算的實際應收；「當時預估」從開始記錄後才有。</template>
             </p>
             <p v-if="hasTw && hasUs && !totals?.twd.usIncluded" class="text-caption text-warn">匯率暫時取不到，合計只有台股。</p>
           </template>
@@ -737,27 +825,8 @@ async function toggleReminder() {
         <!-- ── 預估準不準（正式公布後比較；舊版後端沒有 forecastChecks 就不顯示）── -->
         <IncomeForecastCheck v-if="report.forecastChecks" :checks="report.forecastChecks" />
 
-        <!-- ── 股利月曆（v20 階段 6）── -->
-        <section v-if="calendarHasAny" class="space-y-2">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <p class="text-body text-ink-muted">股利月曆（依除息日）</p>
-            <!-- 除息前推播：開關（中性色，和換頁的金色區分） -->
-            <CheckboxField v-if="reminderOn !== null" :model-value="reminderOn" :disabled="reminderSaving" class="text-body" @update:model-value="toggleReminder">
-              除息前一個交易日提醒我{{ reminderSaving ? '（儲存中…）' : '' }}
-            </CheckboxField>
-          </div>
-          <p v-if="reminderError" class="text-body text-danger">{{ reminderError }}</p>
-          <p v-else-if="reminderOn && hasNotifyChannel === false" class="text-body text-warn">
-            還沒開啟推播通知，提醒送不出去。到
-            <router-link :to="{ query: { tab: 'alerts' } }" class="underline">價位提醒</router-link>
-            開啟這台裝置的通知。
-          </p>
-          <p v-else-if="reminderOn" class="text-caption text-ink-muted">
-            追蹤的台股在已公告的除息（除權）日前一個交易日早上推播；推估的日期不提醒。
-          </p>
-
-          <IncomeCalendar :months="report.months" :items="items" :today="report.today" @open="(id) => (selectedId = id)" />
-        </section>
+        <!-- ── 股利成長（v20 2.9.7）── -->
+        <IncomeGrowth :items="items" @open="(id) => (selectedId = id)" />
 
         <!-- ── 填息追蹤（v20 階段 7）── -->
         <IncomeFills :items="items" @open="(id) => (selectedId = id)" />
@@ -886,11 +955,23 @@ async function toggleReminder() {
         </section>
 
         <!-- ── 應收股利對照（v20 階段 4）── -->
+        <!-- 可以收合（2026-11-10 使用者：功能好但太佔空間）：預設收起、記住開關；收起時標題列仍看得到筆數，也能直接全部帶入 -->
         <section v-if="entitlementRows.length" class="space-y-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <p class="flex items-center gap-1 text-body text-ink-muted">
-              持有期間應該領到、但還沒記錄的股利<HelpTip term="entitlement" />
+              <button
+                type="button"
+                class="flex cursor-pointer items-center gap-1 text-left transition hover:text-ink"
+                :aria-expanded="entitlementOpen"
+                @click="entitlementOpen = !entitlementOpen"
+              >
+                <span class="inline-block transition" :class="entitlementOpen ? 'rotate-90' : ''" aria-hidden="true">▸</span>
+                持有期間應該領到、但還沒記錄的股利
+                <span v-if="pendingCount" class="tabular-nums text-accent">（{{ entitlementRows.length }} 檔、{{ pendingCount }} 筆）</span>
+              </button>
+              <HelpTip term="entitlement" />
             </p>
+            <div class="flex flex-wrap gap-2">
             <button
               v-if="importableCount"
               type="button"
@@ -900,10 +981,21 @@ async function toggleReminder() {
             >
               {{ importing === 'all' ? '帶入中…' : `全部帶入（${importableCount} 筆）` }}
             </button>
+            <button
+              v-if="pendingCount"
+              type="button"
+              class="cursor-pointer border-2 border-danger-hue/40 px-3 py-1 text-button text-danger transition hover:bg-danger-hue/10 active:translate-x-[1px] active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="importing !== ''"
+              @click="confirmDismiss(entitlementRows, 'dismiss-all')"
+            >
+              {{ importing === 'dismiss-all' ? '刪除中…' : '全部刪除' }}
+            </button>
+            </div>
           </div>
           <p v-if="importError" class="text-body text-danger">{{ importError }}</p>
 
-          <div v-for="row in entitlementPageRows" :key="row.item.id" class="space-y-2 border-2 border-tint/10 bg-tint/5 p-3">
+          <template v-if="entitlementOpen">
+          <div v-for="row in entitlementPageRows" :key="row.item.id" class="space-y-1.5 border-2 border-tint/10 bg-tint/5 px-3 py-2">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
               <button
                 type="button"
@@ -912,6 +1004,7 @@ async function toggleReminder() {
               >
                 {{ row.item.target.name }}
               </button>
+              <div class="flex flex-wrap gap-1.5">
               <button
                 v-if="row.importable.length > 1"
                 type="button"
@@ -921,6 +1014,16 @@ async function toggleReminder() {
               >
                 {{ importing === `item:${row.item.id}` ? '帶入中…' : `這檔全部帶入（${row.importable.length}）` }}
               </button>
+              <button
+                v-if="row.pending.length > 1"
+                type="button"
+                class="cursor-pointer border border-danger-hue/40 px-2 py-0.5 text-button text-danger transition hover:bg-danger-hue/10 active:translate-x-[1px] active:translate-y-[1px] disabled:opacity-50"
+                :disabled="importing !== ''"
+                @click="confirmDismiss([row], `dismiss-item:${row.item.id}`)"
+              >
+                {{ importing === `dismiss-item:${row.item.id}` ? '刪除中…' : `這檔全部刪除（${row.pending.length}）` }}
+              </button>
+              </div>
             </div>
 
             <p v-if="!row.item.entitlement?.available" class="text-body text-ink-muted">
@@ -931,8 +1034,9 @@ async function toggleReminder() {
             </p>
 
             <ul v-if="row.pending.length" class="divide-y divide-tint/10 text-body">
-              <li v-for="event in row.pending" :key="`${event.type}:${event.exDate}`" class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2">
-                <div class="min-w-0 space-y-0.5">
+              <li v-for="event in row.pending" :key="`${event.type}:${event.exDate}`" class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5">
+                <!-- 手機兩行；平板以上日期、類別、算式排成一行 -->
+                <div class="min-w-0 space-y-0.5 sm:flex sm:flex-wrap sm:items-baseline sm:gap-x-3 sm:space-y-0">
                   <p class="flex flex-wrap items-baseline gap-x-2">
                     <span class="tabular-nums text-ink-soft">{{ event.exDate }}</span>
                     <span class="border px-1.5 text-caption" :class="event.type === 'cash' ? 'border-accent-hue/40 text-accent' : 'border-warn/40 text-warn'">
@@ -971,15 +1075,28 @@ async function toggleReminder() {
                   >
                     {{ importing === `one:${row.item.id}:${event.type}:${event.exDate}` ? '帶入中…' : event.recorded === 'maybe' ? '另外帶入' : '帶入' }}
                   </button>
+                  <button
+                    type="button"
+                    class="cursor-pointer border border-danger-hue/40 px-2 py-0.5 text-button text-danger transition hover:bg-danger-hue/10 active:translate-x-[1px] active:translate-y-[1px] disabled:opacity-50"
+                    :disabled="importing !== ''"
+                    :aria-label="`刪除 ${event.exDate} 這筆應收股利`"
+                    @click="confirmDismiss([{ item: row.item, pending: [event] }], `dismiss-one:${row.item.id}:${event.type}:${event.exDate}`)"
+                  >
+                    {{ importing === `dismiss-one:${row.item.id}:${event.type}:${event.exDate}` ? '刪除中…' : '刪除' }}
+                  </button>
                 </div>
               </li>
             </ul>
-            <p v-if="row.recordedCount" class="text-caption text-ink-muted">另有 {{ row.recordedCount }} 次已經記錄過。</p>
+            <p v-if="row.recordedCount || row.dismissedCount" class="text-caption text-ink-muted">
+              <template v-if="row.recordedCount">另有 {{ row.recordedCount }} 次已經記錄過。</template>
+              <template v-if="row.dismissedCount">{{ row.dismissedCount }} 次你刪掉了（要記請點股票名稱手動加）。</template>
+            </p>
           </div>
           <ListPager v-model:page="entitlementPage" v-model:page-size="entitlementPageSize" :total="entitlementTotal" />
           <p class="text-caption text-ink-muted">
             依你填的買賣日期，算除息前一天的持股。帶入的現金股利入帳日先填除息日、金額是扣款後的預估，實際入帳和券商不同時點股票名稱修改。
           </p>
+          </template>
         </section>
 
         <!-- ── 還沒持股的：每張一年約領多少 ── -->
@@ -1007,7 +1124,7 @@ async function toggleReminder() {
         </section>
 
         <!-- ── 年度報表與 CSV（v20 階段 9）── -->
-        <IncomeYearReport :items="items" />
+        <IncomeYearReport :items="items" :pending-dividends="pendingCount" />
 
       </template>
     </template>

@@ -9,7 +9,7 @@ import type { IncomeFillEvent, IncomeItem } from '../../types'
 
 // 填息追蹤（v20 階段 7）：每檔近 2 年每次除息後幾個交易日填息、這次填了沒、還差多少。數字都由後端算（item.fills）。
 // 手機：每檔一張可收合的卡片（兩行一次除息）。桌機（2026-11-10 使用者說卡片並排太醜）：一檔一列的總覽表，
-// 「近 8 次」用一排小方塊（天數＋顏色）看快慢趨勢，點一列才展開完整明細。
+// 「近 8 次」用一排小方塊（天數＋顏色，新 → 舊）看快慢趨勢，點一列才展開完整明細。
 // 台股在前（有持股的排前面）；美股很少看填息，收在展開裡。點股票名稱用 open 開持股詳細
 const props = defineProps<{ items: IncomeItem[] }>()
 const emit = defineEmits<{ open: [id: string] }>()
@@ -41,7 +41,7 @@ function resultText(event: IncomeFillEvent) {
   if (event.filledOn) return event.days === 1 ? '當天填息' : `${event.days} 天填息`
   return `還差 ${formatNumber(event.gap, 2)}（${formatNumber(event.gapPct, 1)}%）`
 }
-// 「近 8 次」的小方塊：舊 → 新，顏色和天數一致
+// 「近 8 次」的小方塊：新 → 舊（和最近一次同一側，2026-11-10 使用者要求），顏色和天數一致
 function chipClass(event: IncomeFillEvent) {
   if (!event.filledOn) return 'border-danger-hue/50 bg-danger-hue/10 text-danger'
   if ((event.days ?? 0) <= 5) return 'border-ok-hue/50 bg-ok-hue/10 text-ok'
@@ -144,7 +144,7 @@ function daysClass(event: IncomeFillEvent) {
                 <th class="px-3 py-2 text-right font-normal">平均</th>
                 <th class="px-3 py-2 font-normal">最近一次除息</th>
                 <th class="px-3 py-2 font-normal">最近結果</th>
-                <th class="px-3 py-2 font-normal">近 8 次（舊 → 新，格子裡是天數）</th>
+                <th class="px-3 py-2 font-normal">近 8 次（新 → 舊，格子裡是天數）</th>
                 <th class="w-8 px-2 py-2"><span class="sr-only">展開</span></th>
               </tr>
             </thead>
@@ -172,16 +172,16 @@ function daysClass(event: IncomeFillEvent) {
                   <td class="whitespace-nowrap px-3 py-2 text-right text-ink-soft">
                     {{ item.fills!.avgDays === null ? '—' : `${formatNumber(item.fills!.avgDays, 1)} 天` }}
                   </td>
+                  <!-- 上：除息日、下：每股股利（2026-11-10 使用者要求上下排） -->
                   <td class="whitespace-nowrap px-3 py-2">
-                    <span class="text-ink-soft">{{ shortDate(item.fills!.events[0]!.exDate) }}</span>
-                    <span class="text-ink-muted"> · </span>
-                    <span class="text-accent">{{ formatNumber(item.fills!.events[0]!.perShare, 4) }}</span>
+                    <span class="block text-ink-soft">{{ shortDate(item.fills!.events[0]!.exDate) }}</span>
+                    <span class="block text-caption text-accent">每股 {{ formatNumber(item.fills!.events[0]!.perShare, 4) }}</span>
                   </td>
                   <td class="whitespace-nowrap px-3 py-2 font-semibold" :class="daysClass(item.fills!.events[0]!)">{{ resultText(item.fills!.events[0]!) }}</td>
                   <td class="px-3 py-2">
                     <div class="flex gap-1">
                       <span
-                        v-for="event in [...item.fills!.events].reverse()"
+                        v-for="event in item.fills!.events"
                         :key="event.exDate"
                         class="inline-flex h-6 min-w-[2.25rem] items-center justify-center border px-1 text-caption"
                         :class="chipClass(event)"
