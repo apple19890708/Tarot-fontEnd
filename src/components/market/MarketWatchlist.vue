@@ -723,6 +723,8 @@ const INPUT_CLASS =
           :items="visibleItems"
           :view="listView"
           selectable
+          page-key="custom-watch"
+          :reset-key="`${marketFilter}:${groupFilter}`"
           @select="selectedId = $event.id"
         />
 

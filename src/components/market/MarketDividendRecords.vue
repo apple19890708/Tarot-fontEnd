@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, toRef } from 'vue'
 
+import DataTable from '../DataTable.vue'
 import HelpTip from '../HelpTip.vue'
 import ListPager from '../ListPager.vue'
 import { formatNumber } from '../../lib/marketChart'
@@ -51,42 +52,37 @@ function fillDetail(record: MarketDividendRecord) {
     <p v-if="records === null" class="text-body text-ink-muted">股利資料暫時取不到，請稍後再試。</p>
     <p v-else-if="!records.length" class="text-body text-ink-muted">近 5 年沒有除權息紀錄。</p>
     <template v-else>
-      <div class="overflow-x-auto border-2 border-tint/10">
-        <table class="w-full min-w-[30rem] text-body tabular-nums">
-          <thead>
-            <tr class="border-b-2 border-tint/10 text-caption text-ink-muted">
-              <th scope="col" class="px-3 py-2 text-left font-normal">年度</th>
-              <th scope="col" class="px-3 py-2 text-left font-normal">除息日</th>
-              <th scope="col" class="px-3 py-2 text-right font-normal">
+      <DataTable table-class="min-w-[30rem]">
+        <template #head>
+            <tr>
+              <th scope="col">年度</th>
+              <th scope="col">除息日</th>
+              <th scope="col">
                 <template v-if="showStock"><span class="block">股票股利</span><span class="block">現金股利</span></template>
                 <template v-else>現金股利</template>
               </th>
-              <th scope="col" class="px-3 py-2 text-right font-normal">殖利率</th>
-              <th scope="col" class="px-3 py-2 text-right font-normal">填息</th>
+              <th scope="col">殖利率</th>
+              <th scope="col">填息</th>
             </tr>
-          </thead>
-          <tbody>
+        </template>
             <tr
               v-for="(record, index) in pageItems"
               :key="record.exDate"
-              class="border-tint/5"
-              :class="yearShown(index) && index > 0 ? 'border-t-2 border-t-tint/10' : 'border-t'"
+              :class="yearShown(index) && index > 0 ? 'border-t-2' : ''"
             >
-              <th scope="row" class="px-3 py-2 text-left font-semibold text-ink">{{ yearShown(index) ? record.year : '' }}</th>
-              <td class="whitespace-nowrap px-3 py-2 text-ink-soft">{{ shortDate(record.exDate) }}</td>
-              <td class="whitespace-nowrap px-3 py-2 text-right">
+              <th scope="row" class="font-semibold text-ink">{{ yearShown(index) ? record.year : '' }}</th>
+              <td class="whitespace-nowrap text-ink-soft">{{ shortDate(record.exDate) }}</td>
+              <td class="whitespace-nowrap">
                 <span v-if="showStock" class="block" :class="record.stock ? 'text-warn' : 'text-ink-muted'">{{ record.stock ? formatNumber(record.stock, 4) : '—' }}</span>
                 <span class="block" :class="record.cash ? 'text-ink' : 'text-ink-muted'">{{ record.cash ? formatNumber(record.cash, 4) : '—' }}</span>
               </td>
-              <td class="whitespace-nowrap px-3 py-2 text-right text-accent">{{ record.yieldPct === null ? '—' : `${formatNumber(record.yieldPct)}%` }}</td>
-              <td class="whitespace-nowrap px-3 py-2 text-right">
+              <td class="whitespace-nowrap text-accent">{{ record.yieldPct === null ? '—' : `${formatNumber(record.yieldPct)}%` }}</td>
+              <td class="whitespace-nowrap">
                 <span class="block" :class="fillClass(record)">{{ fillText(record) }}</span>
                 <span v-if="fillDetail(record)" class="block text-caption text-ink-muted">{{ fillDetail(record) }}</span>
               </td>
             </tr>
-          </tbody>
-        </table>
-      </div>
+      </DataTable>
       <ListPager v-model:page="page" v-model:page-size="pageSize" :total="total" />
       <p class="text-caption text-ink-muted">股利單位：元／每股{{ market === 'us' ? '（美元）' : '' }}。資料來源：Yahoo Finance。</p>
     </template>

@@ -4,8 +4,10 @@ import { confirmDialog } from '../../lib/confirm'
 
 import { clearMarketTrack, fetchMarketTrack } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
+import DataTable from '../DataTable.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import type { MarketCallRecord, MarketTrackSummary } from '../../types'
+import StockNameCell from '../StockNameCell.vue'
 
 // 參考命中：每次股市諮詢的操作建議和之後實際走勢的對照（自動對答案）
 
@@ -235,38 +237,34 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full min-w-[40rem] text-body">
-            <thead>
-              <tr class="border-b border-tint/10 text-left text-ink-muted">
-                <th class="py-1.5 pr-3 font-normal">日期</th>
-                <th class="py-1.5 pr-3 font-normal">標的</th>
-                <th class="py-1.5 pr-3 font-normal">建議</th>
-                <th class="py-1.5 pr-3 text-right font-normal">當時價格</th>
-                <th class="py-1.5 pr-3 text-right font-normal">{{ horizon?.days }} 日後</th>
-                <th class="py-1.5 pr-3 font-normal">結果</th>
-                <th class="py-1.5 font-normal">停損／目標</th>
+        <DataTable table-class="min-w-[40rem]">
+          <template #head>
+              <tr>
+                <th>日期</th>
+                <th>標的</th>
+                <th>建議</th>
+                <th>當時價格</th>
+                <th>{{ horizon?.days }} 日後</th>
+                <th>結果</th>
+                <th>停損／目標</th>
               </tr>
-            </thead>
-            <tbody class="tabular-nums">
-              <tr v-for="call in track.calls" :key="call.id" class="border-b border-tint/5 text-ink-soft">
-                <td class="py-1.5 pr-3 text-ink-muted">{{ call.date }}</td>
-                <td class="py-1.5 pr-3">{{ call.name }} <span class="text-ink-muted">{{ call.code || call.symbol }}</span></td>
-                <td class="py-1.5 pr-3">
+          </template>
+              <tr v-for="call in track.calls" :key="call.id" class="text-ink-soft">
+                <td class="text-ink-muted">{{ call.date }}</td>
+                <td><StockNameCell :name="call.name" :code="call.code || call.symbol" /></td>
+                <td>
                   <span :class="STANCE_CLASS[call.stance]">{{ STANCE_LABELS[call.stance] }}</span>
                   <span class="ml-1 text-ink-muted">信心{{ CONFIDENCE_LABELS[call.confidence] }}</span>
                 </td>
-                <td class="py-1.5 pr-3 text-right">{{ formatNumber(call.price) }}</td>
-                <td class="py-1.5 pr-3 text-right" :class="trendClass(call.outcomes[horizonIndex]?.return)">{{ outcomeText(call) }}</td>
-                <td class="py-1.5 pr-3">
+                <td>{{ formatNumber(call.price) }}</td>
+                <td :class="trendClass(call.outcomes[horizonIndex]?.return)">{{ outcomeText(call) }}</td>
+                <td>
                   <span v-if="hitMark(call)" :class="hitMark(call)!.cls">{{ hitMark(call)!.text }}</span>
                   <span v-else class="text-ink-muted">—</span>
                 </td>
-                <td class="py-1.5 text-ink-muted">{{ call.path ? PATH_LABELS[call.path] : '—' }}</td>
+                <td class="text-ink-muted">{{ call.path ? PATH_LABELS[call.path] : '—' }}</td>
               </tr>
-            </tbody>
-          </table>
-        </div>
+        </DataTable>
 
         <button
           type="button"

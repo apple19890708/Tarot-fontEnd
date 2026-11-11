@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import DataTable from '../DataTable.vue'
 import HelpTip from '../HelpTip.vue'
 import ListPager from '../ListPager.vue'
 import { usePaged } from '../../lib/usePaged'
 
 import { formatNumber } from '../../lib/marketChart'
 import type { IncomeItem } from '../../types'
+import StockNameCell from '../StockNameCell.vue'
 
 // 年度報表（v20 階段 9）：依年份列出每一筆買進、賣出、現金股利、配股，含手續費、證交稅、已實現損益，可以匯出 CSV。
 // 每一筆的手續費、稅、已實現損益都是後端算好的（position.trades 與 trades 同順序）；這裡只依年份分組加總、排版。
@@ -205,36 +207,32 @@ function exportCsv() {
     <!-- 明細：手機自己橫向捲動 -->
     <details>
       <summary class="cursor-pointer text-body text-ink-muted marker:text-ink-soft hover:text-ink">明細（{{ shown.length }} 筆）</summary>
-      <div class="mt-2 overflow-x-auto border-2 border-tint/10">
-        <table class="w-full min-w-[56rem] text-left text-body tabular-nums">
-          <thead class="bg-tint/5 text-caption text-ink-muted">
+      <DataTable class="mt-2" table-class="min-w-[56rem]">
+        <template #head>
             <tr>
-              <th class="px-3 py-2 font-normal">日期</th>
-              <th class="px-3 py-2 font-normal">股票</th>
-              <th class="px-3 py-2 font-normal">類別</th>
-              <th class="px-3 py-2 text-right font-normal">數量</th>
-              <th class="px-3 py-2 text-right font-normal">成交價</th>
-              <th class="px-3 py-2 text-right font-normal">金額</th>
-              <th class="px-3 py-2 text-right font-normal">手續費</th>
-              <th class="px-3 py-2 text-right font-normal">證交稅</th>
-              <th class="px-3 py-2 text-right font-normal">賣掉賺賠</th>
+              <th>日期</th>
+              <th>股票</th>
+              <th>類別</th>
+              <th>數量</th>
+              <th>成交價</th>
+              <th>金額</th>
+              <th>手續費</th>
+              <th>證交稅</th>
+              <th>賣掉賺賠</th>
             </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, index) in pageRows" :key="index" class="border-t border-tint/10">
-              <td class="whitespace-nowrap px-3 py-1.5 text-ink-soft">{{ row.date ?? '未填' }}</td>
-              <td class="px-3 py-1.5"><span class="text-ink">{{ row.name }}</span> <span class="text-caption text-ink-muted">{{ row.code }}</span></td>
-              <td class="whitespace-nowrap px-3 py-1.5" :class="row.kind === 'sell' ? 'text-down-ink' : row.kind === 'buy' ? 'text-up-ink' : 'text-warn'">{{ KIND_LABELS[row.kind] }}</td>
-              <td class="px-3 py-1.5 text-right text-ink-soft">{{ row.quantity === null ? '' : `${formatNumber(row.quantity, 3)} ${row.market === 'tw' ? '張' : '股'}` }}</td>
-              <td class="px-3 py-1.5 text-right text-ink-soft">{{ row.price === null ? '' : formatNumber(row.price) }}</td>
-              <td class="px-3 py-1.5 text-right text-ink-soft">{{ cell(row.amount, row.market) }}</td>
-              <td class="px-3 py-1.5 text-right text-ink-muted">{{ cell(row.fee, row.market) }}</td>
-              <td class="px-3 py-1.5 text-right text-ink-muted">{{ cell(row.tax, row.market) }}</td>
-              <td class="px-3 py-1.5 text-right" :class="trendClass(row.realized)">{{ cell(row.realized, row.market) }}</td>
+        </template>
+            <tr v-for="(row, index) in pageRows" :key="index">
+              <td class="whitespace-nowrap text-ink-soft">{{ row.date ?? '未填' }}</td>
+              <td><StockNameCell :name="row.name" :code="row.code" /></td>
+              <td class="whitespace-nowrap" :class="row.kind === 'sell' ? 'text-down-ink' : row.kind === 'buy' ? 'text-up-ink' : 'text-warn'">{{ KIND_LABELS[row.kind] }}</td>
+              <td class="text-ink-soft">{{ row.quantity === null ? '' : `${formatNumber(row.quantity, 3)} ${row.market === 'tw' ? '張' : '股'}` }}</td>
+              <td class="text-ink-soft">{{ row.price === null ? '' : formatNumber(row.price) }}</td>
+              <td class="text-ink-soft">{{ cell(row.amount, row.market) }}</td>
+              <td class="text-ink-muted">{{ cell(row.fee, row.market) }}</td>
+              <td class="text-ink-muted">{{ cell(row.tax, row.market) }}</td>
+              <td :class="trendClass(row.realized)">{{ cell(row.realized, row.market) }}</td>
             </tr>
-          </tbody>
-        </table>
-      </div>
+      </DataTable>
       <ListPager v-model:page="page" v-model:page-size="pageSize" :total="total" class="mt-2" />
     </details>
   </section>

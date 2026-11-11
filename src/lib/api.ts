@@ -1,5 +1,6 @@
 import { watchlistMutation } from './watchlistSync'
 import type {
+  DividendProfile,
   IncomeReport,
   AdminLogsResponse,
   AdminUser,
@@ -343,6 +344,12 @@ export function checkMarketAlerts() {
 }
 
 // ===== 自訂股票追蹤 =====
+
+// 存股試算自選一檔：現價、配息頻率、近 12 個月與多年平均殖利率（不用先加入追蹤）；舊版後端沒有這支會 404
+export function fetchDividendProfile(market: 'tw' | 'us', q: string) {
+  const params = new URLSearchParams({ market, q })
+  return request<{ profile: DividendProfile }>(`/api/market/dividend-profile?${params}`)
+}
 
 // 輸入框的下拉候選；signal 讓輸入很快時可以取消前一次查詢
 export function searchMarketTargets(market: 'tw' | 'us', q: string, signal?: AbortSignal) {

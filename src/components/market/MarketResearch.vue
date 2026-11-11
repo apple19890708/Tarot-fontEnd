@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import DataTable from '../DataTable.vue'
 import HelpTip from '../HelpTip.vue'
 
 import MarketBacktestChart from './MarketBacktestChart.vue'
@@ -319,54 +320,52 @@ const topFactors = computed(() => {
           </dl>
 
           <!-- 停損版本與分段檢查：原本是一長串句子，手機上數字被拆行很難對照，改成「照規則／一直抱著」兩欄的小表。
-               列名只寫白話，細節放第二行小字；數字一位小數、不換行，兩欄之間留 pl-3 -->
-          <table class="w-full text-caption tabular-nums">
-            <thead>
-              <tr class="text-ink-muted">
-                <th class="py-1 text-left font-normal">總共賺</th>
-                <th class="whitespace-nowrap py-1 pl-3 text-right align-top font-normal">照規則</th>
-                <th class="whitespace-nowrap py-1 pl-3 text-right align-top font-normal">一直抱著</th>
+               列名只寫白話，細節放第二行小字；數字一位小數、不換行，兩欄之間的間距由 DataTable 的精簡樣式給 -->
+          <DataTable variant="compact" class="text-ink-soft">
+            <template #head>
+              <tr>
+                <th>總共賺</th>
+                <th class="whitespace-nowrap align-top">照規則</th>
+                <th class="whitespace-nowrap align-top">一直抱著</th>
               </tr>
-            </thead>
-            <tbody class="text-ink-soft">
+            </template>
               <!-- 全期間放第一列，下面的停損、分段都和它對照 -->
-              <tr class="border-t border-tint/10">
-                <td class="py-1">全期間</td>
-                <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.totalReturn)">{{ signed1(s.totalReturn) }}</td>
-                <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(buyHold?.totalReturn)">{{ signed1(buyHold?.totalReturn) }}</td>
+              <tr>
+                <td>全期間</td>
+                <td class="whitespace-nowrap align-top" :class="trendClass(s.totalReturn)">{{ signed1(s.totalReturn) }}</td>
+                <td class="whitespace-nowrap align-top" :class="trendClass(buyHold?.totalReturn)">{{ signed1(buyHold?.totalReturn) }}</td>
               </tr>
-              <tr v-if="s.withStop && stopRule" class="border-t border-tint/10">
-                <td class="py-1">
+              <tr v-if="s.withStop && stopRule">
+                <td>
                   <span class="inline-flex items-center gap-1">加上停損 <HelpTip term="strategyStopLoss" /></span>
                   <span class="block text-ink-muted">
                     {{ stopRule }}<template v-if="s.withStop.stops !== undefined">，賣過 {{ s.withStop.stops }} 次</template>，最慘從高點跌
                     <span class="text-down">{{ pct(s.withStop.maxDrawdown === null ? null : Math.abs(s.withStop.maxDrawdown)) }}</span>
                   </span>
                 </td>
-                <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.withStop.totalReturn)">{{ signed1(s.withStop.totalReturn) }}</td>
+                <td class="whitespace-nowrap align-top" :class="trendClass(s.withStop.totalReturn)">{{ signed1(s.withStop.totalReturn) }}</td>
                 <!-- 一直抱著本來就不賣，加停損就變成「跌一次就永遠出場」，沒有可比的數字 -->
-                <td class="whitespace-nowrap py-1 pl-3 text-right align-top text-ink-muted">不適用</td>
+                <td class="whitespace-nowrap align-top text-ink-muted">不適用</td>
               </tr>
               <template v-if="s.periods && research.strategies.splitDate">
-                <tr class="border-t border-tint/10">
-                  <td class="py-1">
+                <tr>
+                  <td>
                     <span class="inline-flex items-center gap-1">前段 <HelpTip term="strategySplit" /></span>
                     <span class="block text-ink-muted">{{ research.strategies.splitDate }} 以前</span>
                   </td>
-                  <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.periods.early.totalReturn)">{{ signed1(s.periods.early.totalReturn) }}</td>
-                  <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.periods.early.buyHold)">{{ signed1(s.periods.early.buyHold) }}</td>
+                  <td class="whitespace-nowrap align-top" :class="trendClass(s.periods.early.totalReturn)">{{ signed1(s.periods.early.totalReturn) }}</td>
+                  <td class="whitespace-nowrap align-top" :class="trendClass(s.periods.early.buyHold)">{{ signed1(s.periods.early.buyHold) }}</td>
                 </tr>
-                <tr class="border-t border-tint/10">
-                  <td class="py-1">
+                <tr>
+                  <td>
                     後段
                     <span class="block text-ink-muted">{{ research.strategies.splitDate }} 以後</span>
                   </td>
-                  <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.periods.late.totalReturn)">{{ signed1(s.periods.late.totalReturn) }}</td>
-                  <td class="whitespace-nowrap py-1 pl-3 text-right align-top" :class="trendClass(s.periods.late.buyHold)">{{ signed1(s.periods.late.buyHold) }}</td>
+                  <td class="whitespace-nowrap align-top" :class="trendClass(s.periods.late.totalReturn)">{{ signed1(s.periods.late.totalReturn) }}</td>
+                  <td class="whitespace-nowrap align-top" :class="trendClass(s.periods.late.buyHold)">{{ signed1(s.periods.late.buyHold) }}</td>
                 </tr>
               </template>
-            </tbody>
-          </table>
+          </DataTable>
         </li>
       </ul>
     </section>

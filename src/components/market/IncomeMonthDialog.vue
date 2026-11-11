@@ -60,7 +60,7 @@ const otherEntries = computed(() => props.entries.filter((entry) => !entry.held 
                     type="button"
                     class="cursor-pointer text-left font-semibold underline decoration-dotted decoration-tint/40 underline-offset-4 hover:text-accent active:text-accent"
                     :class="group.key === 'other' ? 'text-ink-muted' : 'text-ink'"
-                    :title="`${entry.item.target.name}：看持股與清單`"
+                    :title="`${entry.item.target.name}：個股分析`"
                     @click="emit('open', entry.item.id)"
                   >
                     {{ entry.item.target.name }}

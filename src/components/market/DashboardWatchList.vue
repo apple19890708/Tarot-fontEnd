@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
+import ListPager from '../ListPager.vue'
 import { formatNumber } from '../../lib/marketChart'
+import { usePaged } from '../../lib/usePaged'
 
 import DashboardStockCard from './DashboardStockCard.vue'
 import DashboardStockTable from './DashboardStockTable.vue'
@@ -12,7 +14,11 @@ import type { MarketWatchItem } from '../../types'
 // 挑哪個清單由父元件決定；點卡片開個股分析彈窗
 // view：卡片或表格（父元件存進版面）
 // selectable：點了不開個股分析，改發 select 給父元件（自訂股票追蹤頁用：開自己的詳細彈窗，持股、清單、刪除都在裡面）
-const props = defineProps<{ items: MarketWatchItem[]; view?: 'card' | 'table'; selectable?: boolean }>()
+// pageKey：分頁每頁筆數記在 localStorage 的 key（每個用到的地方各自記）；resetKey 變了就回第 1 頁（例如換清單、換市場）
+const props = withDefaults(defineProps<{ items: MarketWatchItem[]; view?: 'card' | 'table'; selectable?: boolean; pageKey?: string; resetKey?: string }>(), {
+  pageKey: 'watch-list',
+  resetKey: '',
+})
 const emit = defineEmits<{ select: [item: MarketWatchItem] }>()
 
 const analysisFor = ref<{ id: string; name: string } | null>(null)
@@ -42,8 +48,16 @@ function holdingOf(item: MarketWatchItem) {
     pnlPct: position.unrealizedPct,
   }
 }
+// 分頁（2026-11-11 使用者要求：自選清單、推薦股票、自訂股票追蹤都要分頁）；卡片和表格共用同一頁
+const { items: pageItems, page, pageSize, total } = usePaged(computed(() => props.items), props.pageKey)
+watch(
+  () => props.resetKey,
+  () => {
+    page.value = 1
+  },
+)
 const tableRows = computed(() =>
-  props.items.map((item) => ({
+  pageItems.value.map((item) => ({
     key: item.id,
     name: item.summary?.name || item.target.name,
     code: (item.target.market === 'tw' && item.target.kind === 'stock' ? item.target.code : item.target.symbol || item.target.code) ?? '',
@@ -68,8 +82,9 @@ function openById(id: string) {
     <!-- grid-cols-1：不寫的話窄螢幕的欄寬會被 K 線圖撐開，卡片右邊被切掉；寬螢幕每張至少 300px（約 350×350） -->
     <DashboardStockTable v-if="view === 'table'" :rows="tableRows" @open="openById" />
     <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
-      <DashboardStockCard v-for="item in items" :key="item.id" :item="item" @open="open(item)" />
+      <DashboardStockCard v-for="item in pageItems" :key="item.id" :item="item" @open="open(item)" />
     </div>
+    <ListPager v-model:page="page" v-model:page-size="pageSize" :total="total" />
     <StockAnalysisDialog v-if="analysisFor" :watch-id="analysisFor.id" :name="analysisFor.name" @close="analysisFor = null" />
   </div>
 </template>

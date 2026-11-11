@@ -175,6 +175,10 @@ watch(tab, (value) => {
 
 // 和紙帳簿的紙紋（和我的紀錄菜單同一張）
 installWashi()
+// 第一欄（會員）固定在左邊（2026-11-11 使用者要求「表格都把左側欄位固定」）：這頁是和紙主題、沒用 DataTable，
+// 固定欄自己給和紙底色與紙紋蓋住捲過去的內容；滑過整列時跟著變色
+const STICKY_WASHI =
+  'sticky left-0 z-10 bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px] shadow-[2px_0_0_color-mix(in_oklab,var(--c-frame)_20%,transparent)] group-hover:bg-[color-mix(in_oklab,var(--c-frame)_5%,#f1e7cf)]'
 
 onMounted(() => load(1))
 
@@ -261,19 +265,19 @@ const PAGER_BUTTON =
         <table class="w-full min-w-[60rem] text-left text-body">
           <thead class="bg-frame font-pixel text-[12px] text-[#f1e7cf]">
             <tr>
-              <th class="px-3 py-2 font-normal">會員</th>
+              <th class="sticky left-0 z-10 bg-frame px-3 py-2 font-normal">會員</th>
               <th class="px-3 py-2 font-normal">角色</th>
               <th class="px-3 py-2 font-normal">登入方式</th>
               <th class="px-3 py-2 font-normal">AI 解析</th>
               <th class="px-3 py-2 font-normal">金融股市</th>
-              <th class="px-3 py-2 text-right font-normal">最後活動</th>
-              <th class="px-3 py-2 text-right font-normal">註冊時間</th>
+              <th class="px-3 py-2 text-left font-normal">最後活動</th>
+              <th class="px-3 py-2 text-left font-normal">註冊時間</th>
             </tr>
           </thead>
           <tbody>
             <template v-if="loading && !users.length">
               <tr v-for="n in 5" :key="n" class="border-b-2 border-dashed border-frame/20 last:border-0">
-                <td class="px-3 py-3"><SkeletonBlock class="h-4 w-48 rounded-none bg-frame/15!" /><SkeletonBlock class="mt-1.5 h-3.5 w-20 rounded-none bg-frame/15!" /></td>
+                <td class="px-3 py-3" :class="STICKY_WASHI"><SkeletonBlock class="h-4 w-48 rounded-none bg-frame/15!" /><SkeletonBlock class="mt-1.5 h-3.5 w-20 rounded-none bg-frame/15!" /></td>
                 <td class="px-3 py-3"><SkeletonBlock class="h-6 w-16 rounded-none bg-frame/15!" /></td>
                 <td class="px-3 py-3"><SkeletonBlock class="h-4 w-20 rounded-none bg-frame/15!" /></td>
                 <td class="px-3 py-3"><SkeletonBlock class="h-7 w-28 rounded-none bg-frame/15!" /></td>
@@ -292,10 +296,10 @@ const PAGER_BUTTON =
               v-for="user in users"
               v-else
               :key="user.id"
-              class="border-b-2 border-dashed border-frame/20 transition-colors last:border-0 hover:bg-frame/5"
+              class="group border-b-2 border-dashed border-frame/20 transition-colors last:border-0 hover:bg-frame/5"
               :class="loading ? 'opacity-60' : ''"
             >
-              <td class="max-w-[18em] px-3 py-3">
+              <td class="max-w-[18em] px-3 py-3" :class="STICKY_WASHI">
                 <button
                   type="button"
                   class="block max-w-full cursor-pointer truncate text-left underline decoration-dotted underline-offset-2 hover:text-[#a8322a] active:text-[#a8322a]"
@@ -334,13 +338,13 @@ const PAGER_BUTTON =
               </td>
               <!-- 超過 30 天沒有活動（或沒有紀錄）標淡 -->
               <td
-                class="whitespace-nowrap px-3 py-3 text-right tabular-nums"
+                class="whitespace-nowrap px-3 py-3 text-left tabular-nums"
                 :class="isInactive(user) ? 'text-[#2a1a14]/45' : 'text-[#2a1a14]/80'"
                 :title="formatDateTime(user.lastActiveAt)"
               >
                 {{ relativeTime(user.lastActiveAt) }}
               </td>
-              <td class="whitespace-nowrap px-3 py-3 text-right tabular-nums text-[#2a1a14]/65">{{ formatDateTime(user.createdAt) }}</td>
+              <td class="whitespace-nowrap px-3 py-3 text-left tabular-nums text-[#2a1a14]/65">{{ formatDateTime(user.createdAt) }}</td>
             </tr>
           </tbody>
         </table>

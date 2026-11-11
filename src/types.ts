@@ -1683,10 +1683,29 @@ export interface IncomeItem {
   pastEvents?: { type: 'cash' | 'stock'; date: string; perShare?: number; ratio?: number }[]
   // 填息追蹤（v20 階段 7）：近 2 年每次除息後幾個交易日填息；沒有日 K 或股利資料時是 null，舊版後端沒有
   fills?: IncomeFills | null
-  // 股利成長（v20 2.9.7）：近 5 年每年的每股股利；沒配過息是 null，舊版後端沒有
-  growth?: IncomeGrowth | null
   // 報酬拆解（v20 階段 8）；報價取不到時是 null，舊版後端沒有
   breakdown?: IncomeBreakdown | null
+  // 多年平均股利（v20 2.9.9，存股試算的殖利率基準）；股利紀錄不滿 12 個月是 null，舊版後端沒有
+  dividendAverage?: IncomeDividendAverage | null
+}
+
+// 存股試算自選一檔（GET /api/market/dividend-profile）：不用先追蹤；和股利頁清單同一套算法。
+// price 美股是美元；usdTwd 只有美股才給（取不到是 null）
+export interface DividendProfile {
+  target: MarketAlertTarget
+  price: number | null
+  usdTwd: number | null
+  dividendStatus: IncomeItem['dividendStatus']
+  frequency: IncomeFrequency
+  currentYield: number | null
+  dividendAverage: IncomeDividendAverage | null
+}
+
+// 多年平均股利：近 months 個月（36，上市不久退成 24／12）的現金股利 ÷ 年數；yieldPct 是 ÷ 現價（未扣款，%）
+export interface IncomeDividendAverage {
+  months: number
+  perShare: number
+  yieldPct: number | null
 }
 export interface IncomeTotals {
   count: number
@@ -1744,21 +1763,6 @@ export interface IncomeReport {
   forecastChecks?: IncomeForecastCheck[] | null
   // 集中度提醒（v20 2.9.8）；舊版後端沒有
   concentration?: IncomeConcentration
-}
-
-// 股利成長：cash 是當年實際的每股現金股利合計、stock 是配股（元，台股）、count 是配了幾次；
-// partial＝今年還沒過完（不判斷減少）；decreased＝現金股利比前一年少（少不到 0.5% 不算）
-export interface IncomeGrowthYear {
-  year: number
-  cash: number
-  stock: number
-  count: number
-  partial: boolean
-  decreased: boolean
-}
-export interface IncomeGrowth {
-  years: IncomeGrowthYear[]
-  decreasedYears: number[]
 }
 
 // 集中度：百分比都是佔持股市值（台幣）的 %；warnings 的 text 由後端產生，直接顯示

@@ -833,7 +833,13 @@ function timeText(value: string) {
         <div v-else-if="!watchReady" class="space-y-1.5">
           <SkeletonBlock v-for="n in 3" :key="n" class="h-10 w-full rounded-none" />
         </div>
-        <DashboardWatchList v-else-if="watchGroupOf(block).items.length" :items="watchGroupOf(block).items" :view="block.options.view" />
+        <DashboardWatchList
+          v-else-if="watchGroupOf(block).items.length"
+          :items="watchGroupOf(block).items"
+          :view="block.options.view"
+          page-key="dashboard-watch"
+          :reset-key="watchGroupOf(block).group?.id ?? ''"
+        />
         <p v-else-if="picksShown" class="border-2 border-dashed border-tint/15 px-3 py-4 text-center text-body text-ink-muted">
           {{ watchGroupOf(block).group ? `「${watchGroupOf(block).group!.name}」清單還是空的。` : '還沒有自訂清單。' }}到「自訂股票追蹤」把股票加進清單，這裡就會出現。
         </p>

@@ -3,7 +3,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 
 import { fetchDailyPicks } from '../../lib/api'
 import { formatNumber } from '../../lib/marketChart'
+import ListPager from '../ListPager.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
+import { usePaged } from '../../lib/usePaged'
 import DashboardStockCard from './DashboardStockCard.vue'
 import DashboardStockTable from './DashboardStockTable.vue'
 import StockAnalysisDialog from './StockAnalysisDialog.vue'
@@ -42,9 +44,17 @@ watch(() => props.type, load)
 
 const analysisFor = ref<DailyPick | null>(null)
 
-// 表格檢視的列：成交量是張
+// 分頁（2026-11-11 使用者要求）：卡片和表格共用同一頁；換推薦類型回第 1 頁
+const { items: pageItems, page, pageSize, total } = usePaged(computed(() => picks.value?.items ?? []), 'dashboard-picks')
+watch(
+  () => picks.value?.type,
+  () => {
+    page.value = 1
+  },
+)
+// 表格檢視的列（這一頁的）：成交量是張
 const tableRows = computed(() =>
-  (picks.value?.items ?? []).map((item) => ({
+  pageItems.value.map((item) => ({
     key: item.code,
     name: item.name,
     code: item.code,
@@ -90,7 +100,7 @@ function openByCode(code: string) {
       <DashboardStockTable v-if="picks.items.length && view === 'table'" :rows="tableRows" @open="openByCode" />
       <div v-else-if="picks.items.length" class="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
         <DashboardStockCard
-          v-for="item in picks.items"
+          v-for="item in pageItems"
           :key="item.code"
           :code="item.code"
           :name="item.name"
@@ -99,6 +109,7 @@ function openByCode(code: string) {
         />
       </div>
       <p v-else class="border-2 border-dashed border-tint/15 px-3 py-4 text-center text-body text-ink-muted">今天沒有符合條件的股票，換一種類型看看。</p>
+      <ListPager v-if="picks.items.length" v-model:page="page" v-model:page-size="pageSize" :total="total" />
       <p class="text-caption text-ink-muted">
         {{ picks.quoteDate ? `${picks.quoteDate} 收盤資料。` : '' }}挑選方式：{{ picks.rule }}。依公開資料用固定規則挑出，<span class="text-warn">不是投資建議</span>。
       </p>

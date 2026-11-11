@@ -4,9 +4,11 @@ import { computed, ref } from 'vue'
 import { createWatch, screenMarket } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { useCooldown } from '../../lib/useCooldown'
+import DataTable from '../DataTable.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import CheckboxField from '../CheckboxField.vue'
 import type { MarketScreenFilters, MarketScreenResult, MarketScreenRow, MarketScreenSort } from '../../types'
+import StockNameCell from '../StockNameCell.vue'
 
 // 選股：用估值、營收、籌碼、價量、技術面條件從全市場（上市＋上櫃）篩選。篩選與排序在後端做，
 // 這裡只負責條件表單與結果表格；結果可以直接加入自訂追蹤
@@ -267,37 +269,34 @@ const INPUT = 'w-20 min-w-0 border-2 border-tint/10 bg-tint/5 px-2 py-1 text-bod
       <p v-for="note in result.notes" :key="note" class="text-body text-accent">{{ note }}</p>
 
       <p v-if="!result.results.length" class="text-body text-ink-muted">沒有符合的股票，試著放寬條件。</p>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full min-w-[46rem] text-body tabular-nums">
-          <thead>
-            <tr class="border-b border-tint/10 text-left text-ink-muted">
-              <th class="py-1.5 pr-3 font-normal">股票</th>
-              <th class="py-1.5 pr-3 text-right font-normal">收盤</th>
-              <th class="py-1.5 pr-3 text-right font-normal">漲跌</th>
-              <th class="py-1.5 pr-3 text-right font-normal">本益比</th>
-              <th class="py-1.5 pr-3 text-right font-normal">殖利率</th>
-              <th class="py-1.5 pr-3 text-right font-normal">淨值比</th>
-              <th class="py-1.5 pr-3 text-right font-normal">營收年增</th>
-              <th class="py-1.5 pr-3 text-right font-normal">外資</th>
-              <th class="py-1.5 pr-3 text-right font-normal">成交量</th>
-              <th class="py-1.5 font-normal" />
+      <DataTable v-else table-class="min-w-[46rem]">
+        <template #head>
+            <tr>
+              <th>股票</th>
+              <th>收盤</th>
+              <th>漲跌</th>
+              <th>本益比</th>
+              <th>殖利率</th>
+              <th>淨值比</th>
+              <th>營收年增</th>
+              <th>外資</th>
+              <th>成交量</th>
+              <th />
             </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in result.results" :key="row.code" class="border-b border-tint/5 text-ink-soft">
-              <td class="py-1.5 pr-3">
-                {{ row.name }} <span class="text-ink-muted">{{ row.code }}</span>
-                <span v-if="row.exchange === 'otc'" class="ml-1 text-caption text-ink-muted">上櫃</span>
+        </template>
+            <tr v-for="row in result.results" :key="row.code" class="text-ink-soft">
+              <td>
+                <StockNameCell :name="row.name" :code="row.code"><template v-if="row.exchange === 'otc'">．上櫃</template></StockNameCell>
               </td>
-              <td class="py-1.5 pr-3 text-right">{{ formatNumber(row.close) }}</td>
-              <td class="py-1.5 pr-3 text-right" :class="trendClass(row.changePct)">{{ formatSigned(row.changePct, '%') }}</td>
-              <td class="py-1.5 pr-3 text-right">{{ formatNumber(row.pe) }}</td>
-              <td class="py-1.5 pr-3 text-right">{{ row.dividendYield === null ? '—' : `${formatNumber(row.dividendYield)}%` }}</td>
-              <td class="py-1.5 pr-3 text-right">{{ formatNumber(row.pb) }}</td>
-              <td class="py-1.5 pr-3 text-right" :class="trendClass(row.revenueYoy)">{{ formatSigned(row.revenueYoy, '%') }}</td>
-              <td class="py-1.5 pr-3 text-right" :class="trendClass(row.foreignStreak)">{{ streakText(row.foreignStreak) }}</td>
-              <td class="py-1.5 pr-3 text-right">{{ formatNumber(row.volume, 0) }}</td>
-              <td class="py-1.5 text-right">
+              <td>{{ formatNumber(row.close) }}</td>
+              <td :class="trendClass(row.changePct)">{{ formatSigned(row.changePct, '%') }}</td>
+              <td>{{ formatNumber(row.pe) }}</td>
+              <td>{{ row.dividendYield === null ? '—' : `${formatNumber(row.dividendYield)}%` }}</td>
+              <td>{{ formatNumber(row.pb) }}</td>
+              <td :class="trendClass(row.revenueYoy)">{{ formatSigned(row.revenueYoy, '%') }}</td>
+              <td :class="trendClass(row.foreignStreak)">{{ streakText(row.foreignStreak) }}</td>
+              <td>{{ formatNumber(row.volume, 0) }}</td>
+              <td>
                 <span v-if="addState[row.code] === 'saved'" class="text-down-ink">已加入</span>
                 <button
                   v-else
@@ -311,9 +310,7 @@ const INPUT = 'w-20 min-w-0 border-2 border-tint/10 bg-tint/5 px-2 py-1 text-bod
                 </button>
               </td>
             </tr>
-          </tbody>
-        </table>
-      </div>
+      </DataTable>
       <p class="text-caption text-ink-muted">篩選結果只是條件比對，不是投資建議。殖利率、本益比來自證交所與櫃買中心公布的資料，個別公司可能有異常值。</p>
     </template>
   </section>

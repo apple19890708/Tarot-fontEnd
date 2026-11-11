@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import DataTable from '../DataTable.vue'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import type { MarketWatchItem } from '../../types'
+import StockNameCell from '../StockNameCell.vue'
 
 // 除權息與營收一覽：追蹤清單裡台股的即將除權息（依日期排）與最新月營收年增率（由高到低）。
 // 資料來自清單摘要（證交所、櫃買中心的公開資料），這裡只排序與顯示
@@ -69,28 +71,24 @@ const trendClass = (value: number | null) => (!value ? 'text-ink-muted' : value 
           （{{ monthText(revenueDeadline.forMonth) }}營收在 {{ dateText(revenueDeadline.deadline) }} 前公布）
         </span>
       </p>
-      <div class="overflow-x-auto">
-        <table class="w-full min-w-[26rem] tabular-nums">
-          <thead>
-            <tr class="border-b border-tint/10 text-left text-ink-muted">
-              <th class="py-1 pr-3 font-normal">公司</th>
-              <th class="py-1 pr-3 font-normal">月份</th>
-              <th class="py-1 pr-3 text-right font-normal">年增</th>
-              <th class="py-1 pr-3 text-right font-normal">月增</th>
-              <th class="py-1 text-right font-normal">累計年增</th>
+      <DataTable variant="compact" table-class="min-w-[26rem]">
+        <template #head>
+            <tr>
+              <th>公司</th>
+              <th>月份</th>
+              <th>年增</th>
+              <th>月增</th>
+              <th>累計年增</th>
             </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in revenues" :key="row.id" class="border-b border-tint/5" :title="row.revenue.note || undefined">
-              <td class="py-1 pr-3 text-ink">{{ row.name }} <span class="text-ink-muted">{{ row.code }}</span></td>
-              <td class="py-1 pr-3 text-ink-muted">{{ monthText(row.revenue.month) }}</td>
-              <td class="py-1 pr-3 text-right" :class="trendClass(row.revenue.yoy)">{{ formatSigned(row.revenue.yoy, '%') }}</td>
-              <td class="py-1 pr-3 text-right" :class="trendClass(row.revenue.mom)">{{ formatSigned(row.revenue.mom, '%') }}</td>
-              <td class="py-1 text-right" :class="trendClass(row.revenue.cumYoy)">{{ formatSigned(row.revenue.cumYoy, '%') }}</td>
+        </template>
+            <tr v-for="row in revenues" :key="row.id" :title="row.revenue.note || undefined">
+              <td><StockNameCell :name="row.name" :code="row.code" /></td>
+              <td class="text-ink-muted">{{ monthText(row.revenue.month) }}</td>
+              <td :class="trendClass(row.revenue.yoy)">{{ formatSigned(row.revenue.yoy, '%') }}</td>
+              <td :class="trendClass(row.revenue.mom)">{{ formatSigned(row.revenue.mom, '%') }}</td>
+              <td :class="trendClass(row.revenue.cumYoy)">{{ formatSigned(row.revenue.cumYoy, '%') }}</td>
             </tr>
-          </tbody>
-        </table>
-      </div>
+      </DataTable>
     </section>
     <p class="text-caption text-ink-muted">資料來自證交所、櫃買中心的公開資料（每 6 小時更新）。除權息預告只列即將發生的；美股沒有這兩項。</p>
   </div>

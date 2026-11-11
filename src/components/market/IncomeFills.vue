@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import DataTable from '../DataTable.vue'
+import { ROW_HOVER, ROW_SINK, ROW_TINT } from '../../lib/table'
 import HelpTip from '../HelpTip.vue'
 import ListPager from '../ListPager.vue'
 import { usePaged } from '../../lib/usePaged'
 import { formatNumber } from '../../lib/marketChart'
 import type { IncomeFillEvent, IncomeItem } from '../../types'
+import StockNameCell from '../StockNameCell.vue'
 
 // 填息追蹤（v20 階段 7）：每檔近 2 年每次除息後幾個交易日填息、這次填了沒、還差多少。數字都由後端算（item.fills）。
 // 手機：每檔一張可收合的卡片（兩行一次除息）。桌機（2026-11-10 使用者說卡片並排太醜）：一檔一列的總覽表，
@@ -30,15 +33,9 @@ function daysText(event: IncomeFillEvent) {
   if (event.filledOn) return event.days === 1 ? '當天' : `${event.days} 天`
   return `已過 ${event.daysSince} 天`
 }
-// 收起來時標題列的最近一次：「7/21 當天填息」「還差 6.45（11%）」
-function latestText(event: IncomeFillEvent) {
-  const date = `${Number(event.exDate.slice(5, 7))}/${Number(event.exDate.slice(8))}`
-  if (event.filledOn) return `${date} ${event.days === 1 ? '當天填息' : `${event.days} 天填息`}`
-  return `${date} 還差 ${formatNumber(event.gap, 2)}（${formatNumber(event.gapPct, 1)}%）`
-}
-// 桌機總覽的「最近結果」（日期另外一欄）
+// 「填息天數」欄（最近一次）：桌機總覽與手機卡片標題列共用（日期另外放）
 function resultText(event: IncomeFillEvent) {
-  if (event.filledOn) return event.days === 1 ? '當天填息' : `${event.days} 天填息`
+  if (event.filledOn) return event.days === 1 ? '當天' : `${event.days} 天`
   return `還差 ${formatNumber(event.gap, 2)}（${formatNumber(event.gapPct, 1)}%）`
 }
 // 「近 8 次」的小方塊：新 → 舊（和最近一次同一側，2026-11-10 使用者要求），顏色和天數一致
@@ -106,7 +103,9 @@ function daysClass(event: IncomeFillEvent) {
               </p>
               <p class="text-caption text-ink-muted">
                 填息 {{ item.fills!.filledCount }}/{{ item.fills!.total }} 次<template v-if="item.fills!.avgDays !== null">，平均 {{ formatNumber(item.fills!.avgDays, 1) }} 天</template>
-                <span class="ml-1 font-semibold" :class="daysClass(item.fills!.events[0]!)">｜最近：{{ latestText(item.fills!.events[0]!) }}</span>
+                <!-- 最近一次：日期與結果分開（2026-11-11 使用者要求：「還差多少」「當天填息」放在「填息天數」，和日期區隔） -->
+                <span class="ml-1">｜最近：<span class="tabular-nums text-ink-soft">{{ shortDate(item.fills!.events[0]!.exDate) }}</span></span>
+                <span class="ml-1">｜填息天數：<span class="font-semibold" :class="daysClass(item.fills!.events[0]!)">{{ resultText(item.fills!.events[0]!) }}</span></span>
               </p>
             </summary>
             <div class="mt-2 space-y-2">
@@ -115,7 +114,7 @@ function daysClass(event: IncomeFillEvent) {
               class="cursor-pointer text-caption text-ink-muted underline decoration-dotted decoration-tint/40 underline-offset-4 hover:text-accent active:text-accent"
               @click="emit('open', item.id)"
             >
-              看持股與清單
+              個股分析
             </button>
             <!-- 手機：一次除息兩行（2026-11-10 使用者回報表格在手機破版） -->
             <ul class="divide-y divide-tint/10 text-caption tabular-nums sm:hidden">
@@ -135,50 +134,41 @@ function daysClass(event: IncomeFillEvent) {
           </details>
         </div>
         <!-- 桌機：一檔一列的總覽表；點一列展開明細 -->
-        <div class="hidden overflow-x-auto border-2 border-tint/10 sm:block" :class="group.key === 'us' ? 'mt-2' : ''">
-          <table class="w-full text-left text-body tabular-nums">
-            <thead class="bg-tint/5 text-caption text-ink-muted">
+        <DataTable class="hidden sm:block" :class="group.key === 'us' ? 'mt-2' : ''">
+          <template #head>
               <tr>
-                <th class="px-3 py-2 font-normal">股票</th>
-                <th class="px-3 py-2 text-right font-normal">填息</th>
-                <th class="px-3 py-2 text-right font-normal">平均</th>
-                <th class="px-3 py-2 font-normal">最近一次除息</th>
-                <th class="px-3 py-2 font-normal">最近結果</th>
-                <th class="px-3 py-2 font-normal">近 8 次（新 → 舊，格子裡是天數）</th>
-                <th class="w-8 px-2 py-2"><span class="sr-only">展開</span></th>
+                <th>股票</th>
+                <th>填息</th>
+                <th>平均</th>
+                <th>最近一次除息</th>
+                <th>填息天數</th>
+                <th>近 8 次（新 → 舊，格子裡是天數）</th>
+                <th class="w-8 px-2"><span class="sr-only">展開</span></th>
               </tr>
-            </thead>
-            <tbody>
+          </template>
               <template v-for="item in group.list" :key="item.id">
                 <tr
-                  class="cursor-pointer border-t border-tint/10 transition hover:bg-tint/5"
-                  :class="expanded.has(item.id) ? 'bg-tint/5' : ''"
+                  class="cursor-pointer transition"
+                  :class="expanded.has(item.id) ? ROW_TINT : ROW_HOVER"
                   :aria-expanded="expanded.has(item.id)"
                   @click="toggle(item.id)"
                 >
-                  <td class="px-3 py-2">
-                    <button
-                      type="button"
-                      class="cursor-pointer text-left text-ink underline decoration-dotted decoration-tint/40 underline-offset-4 hover:text-accent active:text-accent"
-                      :title="`${item.target.name}：看持股與清單`"
-                      @click.stop="emit('open', item.id)"
-                    >
-                      {{ item.target.name }}
-                    </button>
-                    <span class="ml-2 text-caption text-ink-muted">{{ item.target.code || item.target.symbol }}</span>
-                    <span v-if="item.quantity <= 0" class="ml-2 text-caption text-ink-muted">沒持股</span>
+                  <td>
+                    <StockNameCell :name="item.target.name" :code="item.target.code || item.target.symbol" action="個股分析" @open="emit('open', item.id)">
+                      <template v-if="item.quantity <= 0">．沒持股</template>
+                    </StockNameCell>
                   </td>
-                  <td class="whitespace-nowrap px-3 py-2 text-right text-ink-soft">{{ item.fills!.filledCount }}/{{ item.fills!.total }}</td>
-                  <td class="whitespace-nowrap px-3 py-2 text-right text-ink-soft">
+                  <td class="whitespace-nowrap text-ink-soft">{{ item.fills!.filledCount }}/{{ item.fills!.total }}</td>
+                  <td class="whitespace-nowrap text-ink-soft">
                     {{ item.fills!.avgDays === null ? '—' : `${formatNumber(item.fills!.avgDays, 1)} 天` }}
                   </td>
                   <!-- 上：除息日、下：每股股利（2026-11-10 使用者要求上下排） -->
-                  <td class="whitespace-nowrap px-3 py-2">
+                  <td class="whitespace-nowrap">
                     <span class="block text-ink-soft">{{ shortDate(item.fills!.events[0]!.exDate) }}</span>
                     <span class="block text-caption text-accent">每股 {{ formatNumber(item.fills!.events[0]!.perShare, 4) }}</span>
                   </td>
-                  <td class="whitespace-nowrap px-3 py-2 font-semibold" :class="daysClass(item.fills!.events[0]!)">{{ resultText(item.fills!.events[0]!) }}</td>
-                  <td class="px-3 py-2">
+                  <td class="whitespace-nowrap font-semibold" :class="daysClass(item.fills!.events[0]!)">{{ resultText(item.fills!.events[0]!) }}</td>
+                  <td>
                     <div class="flex gap-1">
                       <span
                         v-for="event in item.fills!.events"
@@ -191,42 +181,38 @@ function daysClass(event: IncomeFillEvent) {
                       </span>
                     </div>
                   </td>
-                  <td class="px-2 py-2 text-center text-ink-muted">
+                  <td class="px-2 text-center text-ink-muted">
                     <span class="inline-block transition" :class="expanded.has(item.id) ? 'rotate-90' : ''" aria-hidden="true">▸</span>
                   </td>
                 </tr>
                 <!-- 展開：每一次的明細 -->
-                <tr v-if="expanded.has(item.id)" class="bg-sink/10">
-                  <td colspan="7" class="px-3 pb-3 pt-1">
-                    <table class="w-full max-w-3xl text-left text-caption tabular-nums">
-                      <thead class="text-ink-muted">
+                <tr v-if="expanded.has(item.id)" :class="ROW_SINK">
+                  <td colspan="7" class="pb-3 pt-1">
+                    <DataTable variant="compact" table-class="max-w-3xl">
+                      <template #head>
                         <tr>
-                          <th class="py-1 pr-4 font-normal">除息日</th>
-                          <th class="py-1 pr-4 text-right font-normal">每股股利</th>
-                          <th class="py-1 pr-4 text-right font-normal">除息前收盤</th>
-                          <th class="py-1 pr-4 font-normal">填息日</th>
-                          <th class="py-1 text-right font-normal">天數</th>
+                          <th>除息日</th>
+                          <th>每股股利</th>
+                          <th>除息前收盤</th>
+                          <th>填息日</th>
+                          <th>天數</th>
                         </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="event in item.fills!.events" :key="event.exDate" class="border-t border-tint/10">
-                          <td class="py-1 pr-4 text-ink-soft">{{ yearDate(event.exDate) }}</td>
-                          <td class="py-1 pr-4 text-right text-accent">{{ formatNumber(event.perShare, 4) }}</td>
-                          <td class="py-1 pr-4 text-right text-ink-muted">{{ formatNumber(event.preClose, 2) }}</td>
-                          <td class="py-1 pr-4">
+                      </template>
+                        <tr v-for="event in item.fills!.events" :key="event.exDate">
+                          <td class="text-ink-soft">{{ yearDate(event.exDate) }}</td>
+                          <td class="text-accent">{{ formatNumber(event.perShare, 4) }}</td>
+                          <td class="text-ink-muted">{{ formatNumber(event.preClose, 2) }}</td>
+                          <td>
                             <span v-if="event.filledOn" class="text-ink-soft">{{ yearDate(event.filledOn) }}</span>
                             <span v-else class="text-danger">還沒填，差 {{ formatNumber(event.gap, 2) }}（{{ formatNumber(event.gapPct, 1) }}%）</span>
                           </td>
-                          <td class="whitespace-nowrap py-1 text-right font-semibold" :class="daysClass(event)">{{ daysText(event) }}</td>
+                          <td class="whitespace-nowrap font-semibold" :class="daysClass(event)">{{ daysText(event) }}</td>
                         </tr>
-                      </tbody>
-                    </table>
+                    </DataTable>
                   </td>
                 </tr>
               </template>
-            </tbody>
-          </table>
-        </div>
+        </DataTable>
         <ListPager
           :page="group.page"
           :page-size="group.size"

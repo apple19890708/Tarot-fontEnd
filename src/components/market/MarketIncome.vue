@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onMounted, ref, watch } from 'vue'
 
+import DataTable from '../DataTable.vue'
 import HelpTip from '../HelpTip.vue'
 import RefreshButton from '../RefreshButton.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
@@ -12,11 +13,11 @@ import MarketGroupManager from './MarketGroupManager.vue'
 import MarketHoldings from './MarketHoldings.vue'
 import WatchAddForm from './WatchAddForm.vue'
 import WatchItemDialog from './WatchItemDialog.vue'
+import StockAnalysisDialog from './StockAnalysisDialog.vue'
 import IncomeMonthDialog from './IncomeMonthDialog.vue'
 import { monthEntries } from '../../lib/incomeMonthEntries'
 import IncomeConcentration from './IncomeConcentration.vue'
 import IncomeFills from './IncomeFills.vue'
-import IncomeGrowth from './IncomeGrowth.vue'
 import IncomeForecastCheck from './IncomeForecastCheck.vue'
 import IncomeYearReport from './IncomeYearReport.vue'
 import { deleteWatch, fetchIncome, fetchMarketSettings, fetchNotifyStatus, saveExDividendReminder, setWatchGroups, updateWatchHoldings } from '../../lib/api'
@@ -29,6 +30,7 @@ import { usePaged } from '../../lib/usePaged'
 import { useStoredToggle } from '../../lib/useStoredToggle'
 import ListPager from '../ListPager.vue'
 import type { IncomeAnnualized, IncomeBreakdown, IncomeEntitlementEvent, IncomeFrequency, IncomeItem, IncomeReport, MarketWatchGroup, MarketWatchItem } from '../../types'
+import StockNameCell from '../StockNameCell.vue'
 
 // 股利獲利與預測（v20）：自選清單的持股損益、未來 12 個月的股利預估（依除息月）、每檔的殖利率。
 // 數字全部由後端算（GET /api/market/income），這裡只負責排版、切清單、換卡片／表格。
@@ -372,11 +374,17 @@ const monthCards = computed(() =>
 )
 // 卡片上最多放幾個代號，其他寫「+N」
 const CARD_CHIPS = 4
+// 點股票名稱一律開個股分析（2026-11-11 使用者要求，和股市總覽、自訂追蹤一致）；編輯持股與清單改用旁邊的按鈕（selectedId）
+const analysisFor = ref<{ id: string; name: string } | null>(null)
+function openAnalysis(id: string) {
+  const item = items.value.find((entry) => entry.id === id)
+  if (item) analysisFor.value = { id: item.id, name: item.target.name }
+}
 const openMonth = ref<string | null>(null)
 const openCard = computed(() => monthCards.value.find((card) => card.month === openMonth.value) ?? null)
 function openMonthItem(id: string) {
   openMonth.value = null
-  selectedId.value = id
+  openAnalysis(id)
 }
 
 const MONTH_SKELETON = 12
@@ -629,34 +637,32 @@ async function toggleReminder() {
       <template v-else>
         <!-- ── 摘要 ── -->
         <!-- 桌機：一個市場一列、指標排成欄（2026-11-10 使用者要求：只有一張卡時左邊一小塊、右邊全空） -->
-        <div v-if="summaryCards.length" class="hidden overflow-x-auto border-2 border-tint/10 lg:block">
-          <table class="w-full text-body tabular-nums">
-            <thead class="bg-tint/5 text-caption text-ink-muted">
+        <div v-if="summaryCards.length" class="hidden border-2 border-tint/10 lg:block">
+          <DataTable frameless>
+            <template #head>
               <tr>
-                <th scope="col" class="px-3 py-2 text-left font-normal">市場</th>
-                <th scope="col" class="px-3 py-2 text-right font-normal">總報酬（賺賠＋股利）</th>
-                <th scope="col" class="px-3 py-2 text-right font-normal"><span class="inline-flex items-center gap-1">平均每年<HelpTip term="xirr" /></span></th>
-                <th v-for="label in SUMMARY_COLUMNS" :key="label" scope="col" class="px-3 py-2 text-right font-normal">{{ label }}</th>
-                <th scope="col" class="px-3 py-2 text-right font-normal"><span class="inline-flex items-center gap-1">預估一年股利<HelpTip term="incomeDeduction" /></span></th>
+                <th scope="col">市場</th>
+                <th scope="col">總報酬（賺賠＋股利）</th>
+                <th scope="col"><span class="inline-flex items-center gap-1">平均每年<HelpTip term="xirr" /></span></th>
+                <th v-for="label in SUMMARY_COLUMNS" :key="label" scope="col">{{ label }}</th>
+                <th scope="col"><span class="inline-flex items-center gap-1">預估一年股利<HelpTip term="incomeDeduction" /></span></th>
               </tr>
-            </thead>
-            <tbody>
+            </template>
               <template v-for="card in summaryCards" :key="card.key">
-                <tr class="border-t border-tint/10">
-                  <th scope="row" class="px-3 py-2.5 text-left font-normal">
+                <tr>
+                  <th scope="row">
                     <span class="block font-semibold text-ink">{{ card.title }}</span>
                     <span class="block text-caption text-ink-muted">{{ card.note }}</span>
                   </th>
-                  <td class="whitespace-nowrap px-3 py-2.5 text-right text-subtitle font-semibold" :class="trendClass(card.data.totalReturn)">{{ signedMoney(card.data.totalReturn, card.market) }}</td>
-                  <td class="whitespace-nowrap px-3 py-2.5 text-right" :class="!card.data.annualized || card.data.annualized.pct === null ? 'text-ink-muted' : trendClass(card.data.annualized.pct)">
+                  <td class="whitespace-nowrap text-subtitle font-semibold" :class="trendClass(card.data.totalReturn)">{{ signedMoney(card.data.totalReturn, card.market) }}</td>
+                  <td class="whitespace-nowrap" :class="!card.data.annualized || card.data.annualized.pct === null ? 'text-ink-muted' : trendClass(card.data.annualized.pct)">
                     {{ card.data.annualized ? annualizedText(card.data.annualized) : '—' }}
                   </td>
-                  <td v-for="row in summaryRows(card)" :key="row.label" class="whitespace-nowrap px-3 py-2.5 text-right" :class="row.tone || 'text-ink-soft'">{{ row.value }}</td>
-                  <td class="whitespace-nowrap px-3 py-2.5 text-right text-accent">{{ money(card.data.annualNet, card.market) }}</td>
+                  <td v-for="row in summaryRows(card)" :key="row.label" class="whitespace-nowrap" :class="row.tone || 'text-ink-soft'">{{ row.value }}</td>
+                  <td class="whitespace-nowrap text-accent">{{ money(card.data.annualNet, card.market) }}</td>
                 </tr>
               </template>
-            </tbody>
-          </table>
+          </DataTable>
           <!-- 報酬怎麼來的：放在表格外面、一直顯示成一行算式（2026-11-10 使用者回報：放在表格裡展開會撐寬表格、冒出橫向捲軸而抖動，右邊箭頭也不要） -->
           <div v-for="card in summaryCards.filter((c) => c.data.breakdown)" :key="card.key" class="border-t border-tint/10 px-3 py-2 text-body">
             <dl class="flex flex-wrap items-baseline gap-x-4 gap-y-1 tabular-nums">
@@ -825,11 +831,8 @@ async function toggleReminder() {
         <!-- ── 預估準不準（正式公布後比較；舊版後端沒有 forecastChecks 就不顯示）── -->
         <IncomeForecastCheck v-if="report.forecastChecks" :checks="report.forecastChecks" />
 
-        <!-- ── 股利成長（v20 2.9.7）── -->
-        <IncomeGrowth :items="items" @open="(id) => (selectedId = id)" />
-
         <!-- ── 填息追蹤（v20 階段 7）── -->
-        <IncomeFills :items="items" @open="(id) => (selectedId = id)" />
+        <IncomeFills :items="items" @open="openAnalysis" />
 
         <!-- ── 每檔持股 ── -->
         <section v-if="held.length" class="space-y-2">
@@ -843,11 +846,12 @@ async function toggleReminder() {
             <article v-for="item in heldPageItems" :key="item.id" class="space-y-2 border-2 border-tint/10 bg-tint/5 p-3">
               <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <p class="min-w-0">
-                  <button type="button" class="cursor-pointer text-left underline decoration-dotted decoration-tint/40 underline-offset-4 hover:text-accent active:text-accent text-subtitle font-semibold text-ink" :title="`${item.target.name}：編輯持股、清單`" @click="selectedId = item.id">
+                  <button type="button" class="cursor-pointer text-left underline decoration-dotted decoration-tint/40 underline-offset-4 hover:text-accent active:text-accent text-subtitle font-semibold text-ink" :title="`${item.target.name}：個股分析`" @click="openAnalysis(item.id)">
                     {{ item.target.name }}
                   </button>
                   <span class="ml-2 text-caption text-ink-muted">{{ item.target.code || item.target.symbol }}</span>
                 </p>
+                <button type="button" class="cursor-pointer border border-tint/15 px-2 py-0.5 text-button text-ink-muted transition hover:bg-tint/10 hover:text-ink active:translate-x-[1px] active:translate-y-[1px]" @click="selectedId = item.id">編輯持股</button>
                 <p class="flex flex-wrap gap-1.5 text-caption">
                   <span v-if="item.quantity === 0" class="border border-tint/20 px-1.5 text-ink-muted">已出清</span>
                   <span v-if="item.projection" class="border border-tint/20 px-1.5 text-ink-muted">{{ FREQUENCY_LABELS[item.projection.frequency] }}</span>
@@ -901,55 +905,50 @@ async function toggleReminder() {
           </div>
 
           <!-- 表格：手機欄位放不下，表格自己橫向捲動 -->
-          <div v-else class="overflow-x-auto border-2 border-tint/10">
-            <table class="w-full min-w-[70rem] text-left text-body tabular-nums">
-              <thead class="bg-tint/5 text-caption text-ink-muted">
+          <DataTable v-else table-class="min-w-[70rem]">
+            <template #head>
                 <tr>
-                  <th class="px-3 py-2 font-normal">股票</th>
-                  <th class="px-3 py-2 text-right font-normal">張／股數</th>
-                  <th class="px-3 py-2 text-right font-normal">均價</th>
-                  <th class="px-3 py-2 text-right font-normal">投入成本</th>
-                  <th class="px-3 py-2 text-right font-normal">市值</th>
-                  <th class="px-3 py-2 text-right font-normal">還沒賣的</th>
-                  <th class="px-3 py-2 text-right font-normal">已賣掉的</th>
-                  <th class="px-3 py-2 text-right font-normal">已記股利</th>
-                  <th class="px-3 py-2 text-right font-normal">總報酬</th>
-                  <th class="px-3 py-2 text-right font-normal"><span class="inline-flex items-center gap-1">平均每年<HelpTip term="xirr" /></span></th>
-                  <th class="px-3 py-2 text-right font-normal">一年股利</th>
-                  <th class="px-3 py-2 text-right font-normal"><span class="inline-flex items-center gap-1">成本殖利率<HelpTip term="yieldOnCost" /></span></th>
-                  <th class="px-3 py-2 text-right font-normal"><span class="inline-flex items-center gap-1">現價殖利率<HelpTip term="currentYield" /></span></th>
+                  <th>股票</th>
+                  <th>張／股數</th>
+                  <th>均價</th>
+                  <th>投入成本</th>
+                  <th>市值</th>
+                  <th>還沒賣的</th>
+                  <th>已賣掉的</th>
+                  <th>已記股利</th>
+                  <th>總報酬</th>
+                  <th><span class="inline-flex items-center gap-1">平均每年<HelpTip term="xirr" /></span></th>
+                  <th>一年股利</th>
+                  <th><span class="inline-flex items-center gap-1">成本殖利率<HelpTip term="yieldOnCost" /></span></th>
+                  <th><span class="inline-flex items-center gap-1">現價殖利率<HelpTip term="currentYield" /></span></th>
+                  <th><span class="sr-only">編輯</span></th>
                 </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in heldPageItems" :key="item.id" class="border-t border-tint/10">
-                  <td class="max-w-[14em] px-3 py-2">
-                    <button type="button" class="cursor-pointer text-left underline decoration-dotted decoration-tint/40 underline-offset-4 hover:text-accent active:text-accent block max-w-full truncate text-ink" :title="`${item.target.name}：編輯持股、清單`" @click="selectedId = item.id">
-                      {{ item.target.name }}
-                    </button>
-                    <span class="block text-caption text-ink-muted">
-                      {{ item.target.code || item.target.symbol }}<template v-if="item.projection">．{{ FREQUENCY_LABELS[item.projection.frequency] }}</template><template v-if="item.quantity === 0">．已出清</template>
+            </template>
+                <tr v-for="item in heldPageItems" :key="item.id">
+                  <td>
+                    <StockNameCell :name="item.target.name" :code="item.target.code || item.target.symbol" action="個股分析" @open="openAnalysis(item.id)">
+                      <template v-if="item.projection">．{{ FREQUENCY_LABELS[item.projection.frequency] }}</template><template v-if="item.quantity === 0">．已出清</template>
                       <span v-if="item.dividendStatus === 'failed'" class="text-warn">．股利資料抓不到</span>
-                    </span>
+                    </StockNameCell>
                   </td>
-                  <td class="whitespace-nowrap px-3 py-2 text-right text-ink-soft">{{ formatNumber(item.quantity, 3) }} {{ unitOf(item) }}</td>
-                  <td class="px-3 py-2 text-right text-warn">{{ item.position?.avgCost ? formatNumber(item.position.avgCost) : '—' }}</td>
-                  <td class="px-3 py-2 text-right text-ink-soft">{{ money(item.position?.costBasis, item.target.market) }}</td>
-                  <td class="px-3 py-2 text-right text-ink-soft">{{ money(item.position?.marketValue, item.target.market) }}</td>
-                  <td class="whitespace-nowrap px-3 py-2 text-right" :class="trendClass(item.position?.unrealized)">
+                  <td class="whitespace-nowrap text-ink-soft">{{ formatNumber(item.quantity, 3) }} {{ unitOf(item) }}</td>
+                  <td class="text-warn">{{ item.position?.avgCost ? formatNumber(item.position.avgCost) : '—' }}</td>
+                  <td class="text-ink-soft">{{ money(item.position?.costBasis, item.target.market) }}</td>
+                  <td class="text-ink-soft">{{ money(item.position?.marketValue, item.target.market) }}</td>
+                  <td class="whitespace-nowrap" :class="trendClass(item.position?.unrealized)">
                     {{ signedMoney(item.position?.unrealized, item.target.market) }}
                     <span class="block text-caption">{{ formatSigned(item.position?.unrealizedPct, '%') }}</span>
                   </td>
-                  <td class="px-3 py-2 text-right" :class="trendClass(item.position?.realized)">{{ signedMoney(item.position?.realized, item.target.market) }}</td>
-                  <td class="px-3 py-2 text-right text-ink-soft">{{ money(item.position?.dividends, item.target.market) }}</td>
-                  <td class="px-3 py-2 text-right font-semibold" :class="trendClass(item.position?.totalReturn)">{{ signedMoney(item.position?.totalReturn, item.target.market) }}</td>
-                  <td class="whitespace-nowrap px-3 py-2 text-right" :class="item.annualized?.pct == null ? 'text-caption text-ink-muted' : trendClass(item.annualized.pct)">{{ annualizedText(item.annualized) }}</td>
-                  <td class="px-3 py-2 text-right text-accent">{{ money(item.projection?.annualNet, item.target.market) }}</td>
-                  <td class="px-3 py-2 text-right text-ink-soft">{{ pctText(item.yieldOnCost) }}</td>
-                  <td class="px-3 py-2 text-right text-ink-soft">{{ pctText(item.currentYield) }}</td>
+                  <td :class="trendClass(item.position?.realized)">{{ signedMoney(item.position?.realized, item.target.market) }}</td>
+                  <td class="text-ink-soft">{{ money(item.position?.dividends, item.target.market) }}</td>
+                  <td class="font-semibold" :class="trendClass(item.position?.totalReturn)">{{ signedMoney(item.position?.totalReturn, item.target.market) }}</td>
+                  <td class="whitespace-nowrap" :class="item.annualized?.pct == null ? 'text-caption text-ink-muted' : trendClass(item.annualized.pct)">{{ annualizedText(item.annualized) }}</td>
+                  <td class="text-accent">{{ money(item.projection?.annualNet, item.target.market) }}</td>
+                  <td class="text-ink-soft">{{ pctText(item.yieldOnCost) }}</td>
+                  <td class="text-ink-soft">{{ pctText(item.currentYield) }}</td>
+                  <td><button type="button" class="whitespace-nowrap cursor-pointer border border-tint/15 px-2 py-0.5 text-button text-ink-muted transition hover:bg-tint/10 hover:text-ink active:translate-x-[1px] active:translate-y-[1px]" @click="selectedId = item.id">編輯持股</button></td>
                 </tr>
-              </tbody>
-            </table>
-          </div>
+          </DataTable>
           <ListPager v-model:page="heldPage" v-model:page-size="heldPageSize" :total="heldTotal" />
           <p class="text-caption text-ink-muted">台股金額是元、美股是美元。「還沒賣的」已經扣掉現在賣出要付的手續費與稅。</p>
         </section>
@@ -1000,7 +999,8 @@ async function toggleReminder() {
               <button
                 type="button"
                 class="cursor-pointer text-left text-subtitle font-semibold text-ink underline decoration-dotted decoration-tint/40 underline-offset-4 hover:text-accent active:text-accent"
-                @click="selectedId = row.item.id"
+                :title="`${row.item.target.name}：個股分析`"
+                @click="openAnalysis(row.item.id)"
               >
                 {{ row.item.target.name }}
               </button>
@@ -1105,18 +1105,21 @@ async function toggleReminder() {
           <ul class="divide-y divide-tint/10 border-2 border-tint/10 text-body">
             <li v-for="item in watchingPageItems" :key="item.id" class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 px-3 py-2">
               <span class="min-w-0">
-                <button type="button" class="cursor-pointer text-left underline decoration-dotted decoration-tint/40 underline-offset-4 hover:text-accent active:text-accent text-ink" :title="`${item.target.name}：記錄買進、改清單`" @click="selectedId = item.id">
+                <button type="button" class="cursor-pointer text-left underline decoration-dotted decoration-tint/40 underline-offset-4 hover:text-accent active:text-accent text-ink" :title="`${item.target.name}：個股分析`" @click="openAnalysis(item.id)">
                   {{ item.target.name }}
                 </button>
                 <span class="ml-2 text-caption text-ink-muted">
                   {{ item.target.code || item.target.symbol }}<template v-if="item.projection">．{{ FREQUENCY_LABELS[item.projection.frequency] }}</template>
                 </span>
               </span>
-              <span v-if="item.dividendStatus === 'failed'" class="text-caption text-warn">股利資料暫時抓不到</span>
-              <span v-else class="tabular-nums text-ink-soft">
-                <span class="text-accent">{{ money(item.projection?.annualPerUnit, item.target.market) }}</span>
-                {{ item.target.market === 'tw' ? '元' : '美元' }}／{{ item.target.market === 'tw' ? '張' : '股' }}
-                <span class="ml-2 text-ink-muted">現價殖利率 {{ pctText(item.currentYield) }}</span>
+              <span class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span v-if="item.dividendStatus === 'failed'" class="text-caption text-warn">股利資料暫時抓不到</span>
+                <span v-else class="tabular-nums text-ink-soft">
+                  <span class="text-accent">{{ money(item.projection?.annualPerUnit, item.target.market) }}</span>
+                  {{ item.target.market === 'tw' ? '元' : '美元' }}／{{ item.target.market === 'tw' ? '張' : '股' }}
+                  <span class="ml-2 text-ink-muted">現價殖利率 {{ pctText(item.currentYield) }}</span>
+                </span>
+                <button type="button" class="cursor-pointer border border-tint/15 px-2 py-0.5 text-button text-ink-muted transition hover:bg-tint/10 hover:text-ink active:translate-x-[1px] active:translate-y-[1px]" @click="selectedId = item.id">記錄買進</button>
               </span>
             </li>
           </ul>
@@ -1128,6 +1131,8 @@ async function toggleReminder() {
 
       </template>
     </template>
+    <!-- 個股分析（點股票名稱） -->
+    <StockAnalysisDialog v-if="analysisFor" :watch-id="analysisFor.id" :name="analysisFor.name" @close="analysisFor = null" />
     <!-- 一檔的詳細：編輯持股（沿用自訂追蹤的 MarketHoldings）、勾選清單、移除追蹤 -->
     <WatchItemDialog v-if="selectedItem" :title="`${selectedItem.target.name} · 持股與清單`" @close="selectedId = null">
       <div class="space-y-4">

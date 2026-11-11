@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import DataTable from '../DataTable.vue'
 import { formatNumber, vsPrevClass } from '../../lib/marketChart'
+import { ROW_HOVER_STRONG } from '../../lib/table'
+import StockNameCell from '../StockNameCell.vue'
 
 // 股市總覽與自訂股票追蹤的表格檢視：一列一檔——商品、市價（有持股時下面一行是均價）、漲跌（箭頭＋漲跌＋百分比）、［有持股時：持有、損益］、開盤、最高、最低、成交量。
 // 漲紅跌綠；開高低和昨收比（高紅、低綠、一樣白）。窄螢幕時「商品」那一欄固定在左邊，其他欄左右捲。點一列開個股分析（由父元件開）
@@ -30,36 +33,33 @@ const arrow = (value: number | null) => (!value ? '' : value > 0 ? '▲' : '▼'
 // 昨收＝市價－漲跌（開高低上色用）
 const prevClose = (row: StockTableRow) => (row.price !== null && row.change !== null ? row.price - row.change : null)
 
-// 固定在左邊的商品欄：要有實心底，捲過去的欄才不會從底下透出來；右邊一條線分隔
-const STICKY = 'sticky left-0 z-10 bg-surface shadow-[2px_0_0_var(--c-line)]'
 </script>
 
 <template>
-  <div class="overflow-x-auto border-2 border-tint/10">
-    <table class="w-full text-body tabular-nums" :class="showHolding ? 'min-w-[52rem]' : 'min-w-[40rem]'">
-      <thead>
-        <tr class="border-b-2 border-tint/10 text-caption text-ink-muted">
-          <th scope="col" class="px-3 py-2 text-left font-normal" :class="STICKY">商品</th>
+  <DataTable :table-class="showHolding ? 'min-w-[52rem]' : 'min-w-[40rem]'">
+    <template #head>
+        <tr>
+          <th scope="col">商品</th>
           <!-- 有持股時市價、均價放同一欄（上市價、下均價），方便直接比較 -->
-          <th scope="col" class="px-3 py-2 text-right font-normal">
+          <th scope="col">
             市價<span v-if="showHolding" class="block">均價</span>
           </th>
-          <th scope="col" class="px-3 py-2 text-right font-normal">漲跌</th>
+          <th scope="col">漲跌</th>
           <template v-if="showHolding">
-            <th scope="col" class="px-3 py-2 text-right font-normal">持有</th>
-            <th scope="col" class="px-3 py-2 text-right font-normal">損益</th>
+            <th scope="col">持有</th>
+            <th scope="col">損益</th>
           </template>
-          <th scope="col" class="px-3 py-2 text-right font-normal">開盤</th>
-          <th scope="col" class="px-3 py-2 text-right font-normal">最高</th>
-          <th scope="col" class="px-3 py-2 text-right font-normal">最低</th>
-          <th scope="col" class="px-3 py-2 text-right font-normal">成交量</th>
+          <th scope="col">開盤</th>
+          <th scope="col">最高</th>
+          <th scope="col">最低</th>
+          <th scope="col">成交量</th>
         </tr>
-      </thead>
-      <tbody>
+    </template>
         <tr
           v-for="row in rows"
           :key="row.key"
-          class="group cursor-pointer border-b border-tint/5 transition last:border-b-0 hover:bg-tint/10"
+          class="cursor-pointer transition"
+          :class="ROW_HOVER_STRONG"
           tabindex="0"
           :aria-label="`${row.name} 個股分析`"
           @click="emit('open', row.key)"
@@ -68,15 +68,14 @@ const STICKY = 'sticky left-0 z-10 bg-surface shadow-[2px_0_0_var(--c-line)]'
           <!-- 名稱一行不斷開，代號放第二行。名稱限制寬度、超過用 … 截斷（滑過看全名）：
                美股英文全名（Micron Technology, Inc.）會把固定的商品欄撐到半個手機寬，其他欄被擠出畫面。
                手機 7.5em、平板 12em；桌機（lg 以上）表格夠寬，放到 20em 讓英文全名完整顯示。用 em 才會跟著字級變寬 -->
-          <th scope="row" class="px-3 py-2 text-left font-normal group-hover:bg-[color-mix(in_oklab,var(--c-surface)_90%,var(--c-tint))]" :class="STICKY">
-            <span class="block max-w-[7.5em] truncate whitespace-nowrap font-semibold text-ink sm:max-w-[12em] lg:max-w-[20em]" :title="row.name">{{ row.name }}</span>
-            <span class="block text-caption text-ink-muted">{{ row.code }}</span>
+          <th scope="row">
+            <StockNameCell :name="row.name" :code="row.code" />
           </th>
-          <td class="whitespace-nowrap px-3 py-2 text-right">
+          <td class="whitespace-nowrap">
             <span class="block" :class="tone(row.change)">{{ formatNumber(row.price) }}</span>
             <span v-if="row.holding" class="block text-caption text-ink-soft">{{ formatNumber(row.holding.avgCost) }}</span>
           </td>
-          <td class="whitespace-nowrap px-3 py-2 text-right" :class="tone(row.change)">
+          <td class="whitespace-nowrap" :class="tone(row.change)">
             <!-- 上下兩行：上面箭頭＋漲跌，下面百分比 -->
             <template v-if="row.change !== null">
               <span class="block"><span class="mr-0.5 text-caption" aria-hidden="true">{{ arrow(row.change) }}</span>{{ formatNumber(Math.abs(row.change)) }}</span>
@@ -86,8 +85,8 @@ const STICKY = 'sticky left-0 z-10 bg-surface shadow-[2px_0_0_var(--c-line)]'
           </td>
           <!-- 持股：持有數量、未實現損益（上下兩行：金額、百分比）；均價在市價欄 -->
           <template v-if="showHolding">
-            <td class="whitespace-nowrap px-3 py-2 text-right text-ink-soft">{{ row.holding?.quantity ?? '—' }}</td>
-            <td class="whitespace-nowrap px-3 py-2 text-right" :class="tone(row.holding?.pnl ?? null)">
+            <td class="whitespace-nowrap text-ink-soft">{{ row.holding?.quantity ?? '—' }}</td>
+            <td class="whitespace-nowrap" :class="tone(row.holding?.pnl ?? null)">
               <template v-if="row.holding && row.holding.pnl !== null">
                 <span class="block">{{ row.holding.pnl > 0 ? '+' : '' }}{{ formatNumber(Math.round(row.holding.pnl), 0) }}</span>
                 <span v-if="row.holding.pnlPct !== null" class="block text-caption">{{ row.holding.pnlPct > 0 ? '+' : '' }}{{ formatNumber(row.holding.pnlPct) }}%</span>
@@ -95,12 +94,10 @@ const STICKY = 'sticky left-0 z-10 bg-surface shadow-[2px_0_0_var(--c-line)]'
               <template v-else>—</template>
             </td>
           </template>
-          <td class="px-3 py-2 text-right" :class="vsPrevClass(row.open, prevClose(row))">{{ formatNumber(row.open) }}</td>
-          <td class="px-3 py-2 text-right" :class="vsPrevClass(row.high, prevClose(row))">{{ formatNumber(row.high) }}</td>
-          <td class="px-3 py-2 text-right" :class="vsPrevClass(row.low, prevClose(row))">{{ formatNumber(row.low) }}</td>
-          <td class="whitespace-nowrap px-3 py-2 text-right text-ink-soft">{{ row.volume ?? '—' }}</td>
+          <td :class="vsPrevClass(row.open, prevClose(row))">{{ formatNumber(row.open) }}</td>
+          <td :class="vsPrevClass(row.high, prevClose(row))">{{ formatNumber(row.high) }}</td>
+          <td :class="vsPrevClass(row.low, prevClose(row))">{{ formatNumber(row.low) }}</td>
+          <td class="whitespace-nowrap text-ink-soft">{{ row.volume ?? '—' }}</td>
         </tr>
-      </tbody>
-    </table>
-  </div>
+  </DataTable>
 </template>
