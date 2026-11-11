@@ -10,7 +10,22 @@ import DividendStockPicker from './DividendStockPicker.vue'
 import IncomeCompare from './IncomeCompare.vue'
 import { axis, CHART_COLORS, formatNumber, legendOptions } from '../../lib/marketChart'
 import { ROW_TINT } from '../../lib/table'
-import { annualNet, capitalFor, payoutsOf, priceTwdOf, simulate, yieldOf, type YieldBasis, type SimDeductions, type SimHolding, type SimParams, type TaxMode } from '../../lib/incomeSim'
+import {
+  annualNet,
+  BASIS_OPTIONS,
+  BRACKET_OPTIONS,
+  capitalFor,
+  payoutsOf,
+  priceTwdOf,
+  simulate,
+  TAX_OPTIONS,
+  yieldOf,
+  type YieldBasis,
+  type SimDeductions,
+  type SimHolding,
+  type SimParams,
+  type TaxMode,
+} from '../../lib/incomeSim'
 import type { DividendProfile, IncomeItem, IncomeReport } from '../../types'
 
 // 存股試算 2.0（v20 2.9.9，2026-11-11 使用者要求「全部做」）：純前端的計算機，用使用者輸入的假設算給他看，不存資料、不是預測。
@@ -155,17 +170,6 @@ const deductions = computed<SimDeductions>(() => ({
   taxBracket: Number(inputs.value.taxBracket) || 0.12,
 }))
 
-const TAX_OPTIONS: { value: TaxMode; label: string }[] = [
-  { value: 'none', label: '不計' },
-  { value: 'combined', label: '合併計稅' },
-  { value: 'separate', label: '分離課稅 28%' },
-]
-const BRACKET_OPTIONS = ['0.05', '0.12', '0.2', '0.3', '0.4'].map((value) => ({ value, label: `級距 ${Math.round(Number(value) * 100)}%` }))
-const BASIS_OPTIONS: { value: YieldBasis; label: string }[] = [
-  { value: 'average', label: '多年平均' },
-  { value: 'recent', label: '近 12 個月' },
-]
-
 // ---- 1. 反推：每月想領多少（扣款後）----
 const reverse = computed(() => {
   const want = num(inputs.value.monthlyWant, { min: 1, max: 1e8 })
@@ -186,7 +190,7 @@ const reverse = computed(() => {
 })
 
 // ---- 2. 滾動：三個情境 ----
-// 共用條件（試算與「比較兩檔」都用）：金額、年數、通膨、再投入、扣款；不合法是 null
+// 試算的條件：金額、年數、通膨、再投入、扣款；不合法是 null（「比較兩檔」有自己的一組，不共用）
 const sharedParams = computed(() => {
   const start = num(inputs.value.start, { max: 1e10 })
   const monthly = num(inputs.value.monthlyInvest, { max: 1e8 })
@@ -416,8 +420,8 @@ const LABEL_CLASS = 'inline-flex w-[8.5em] shrink-0 items-center gap-1 text-ink-
       <p v-else class="text-caption text-ink-muted">金額要是數字、年數 1～40、股價漲幅與股利成長 −20～30%、通膨 0～20%。</p>
     </section>
 
-    <!-- 3. 比較兩檔（2026-11-11 使用者要求）：共用上面的條件 -->
-    <IncomeCompare :base="sharedParams" :yield-basis="inputs.yieldBasis" />
+    <!-- 3. 比較兩檔（2026-11-11 使用者要求）：條件自己一套，和上面的試算分開（使用者：上下分開，不要混為一談） -->
+    <IncomeCompare :settings="report.settings" class="border-t-2 border-tint/10 pt-4" />
 
     <p class="text-caption text-ink-muted">
       試算不是預測：殖利率、股價、配息都會變，配息也可能減少。股利依配息頻率入帳，當月新投入的錢下個月才開始領；沒算手續費與匯率變動。所得稅以國稅局為準。

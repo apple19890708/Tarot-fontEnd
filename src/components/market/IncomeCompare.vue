@@ -3,17 +3,64 @@ import { computed, ref, watch } from 'vue'
 
 import DataTable from '../DataTable.vue'
 import HelpTip from '../HelpTip.vue'
+import SelectField from '../SelectField.vue'
+import CheckboxField from '../CheckboxField.vue'
 import DividendStockPicker from './DividendStockPicker.vue'
 import { formatNumber } from '../../lib/marketChart'
-import { payoutsOf, simulate, yieldOf, type SimParams, type YieldBasis } from '../../lib/incomeSim'
-import type { DividendProfile, IncomeFrequency } from '../../types'
+import { BASIS_OPTIONS, BRACKET_OPTIONS, payoutsOf, simulate, TAX_OPTIONS, yieldOf, type TaxMode, type YieldBasis } from '../../lib/incomeSim'
+import type { DividendProfile, IncomeFrequency, IncomeSettings } from '../../types'
 
 // 存股試算的「比較兩檔」（2026-11-11 使用者要求：左右兩個框，選兩支股票、自行設定條件比較獲利，針對結果算優劣）。
-// - 共用條件（一開始有、每月投入、存幾年、再投入、通膨、扣款、殖利率基準）沿用上面的試算，比較才公平
-// - 每一檔各自的假設：股價年漲幅、股利年成長（不同股票的成長性不同）
+// - 條件自己一套（一開始有、每月投入、存幾年、再投入、通膨、所得稅、殖利率基準），和上面的試算分開
+//   （2026-11-11 使用者：「上下分開，不要混為一談」；原本沿用上面的設定，看的人找不到在哪裡改）
+// - 兩檔共用這一套條件，比較才公平；每一檔各自的假設只有股價年漲幅、股利年成長（不同股票的成長性不同）
 // - 結果用同一個 simulate（lib/incomeSim.ts）算；優劣是拿兩邊的數字比，不是預測
-// base：上面的共用條件（輸入不合法時是 null）
-const props = defineProps<{ base: Omit<SimParams, 'holdings' | 'priceGrowth' | 'dividendGrowth'> | null; yieldBasis: YieldBasis }>()
+// settings：二代健保與美股預扣（後端的扣款設定）
+const props = defineProps<{ settings: IncomeSettings }>()
+
+// 比較用的共同條件（存在自己的 key，不讀寫試算的 market-income-sim）
+interface CompareInputs {
+  start: string
+  monthlyInvest: string
+  years: string
+  inflationOn: boolean
+  inflation: string
+  reinvest: boolean
+  yieldBasis: YieldBasis
+  taxMode: TaxMode
+  taxBracket: string
+}
+const INPUTS_KEY = 'market-income-compare-inputs'
+const INPUT_DEFAULTS: CompareInputs = {
+  start: '0',
+  monthlyInvest: '10000',
+  years: '10',
+  inflationOn: true,
+  inflation: '2',
+  reinvest: true,
+  yieldBasis: 'average',
+  taxMode: 'none',
+  taxBracket: '0.12',
+}
+function readInputs(): CompareInputs {
+  try {
+    return { ...INPUT_DEFAULTS, ...(JSON.parse(localStorage.getItem(INPUTS_KEY) || '{}') as Partial<CompareInputs>) }
+  } catch {
+    return { ...INPUT_DEFAULTS }
+  }
+}
+const inputs = ref<CompareInputs>(readInputs())
+watch(
+  inputs,
+  (value) => {
+    try {
+      localStorage.setItem(INPUTS_KEY, JSON.stringify(value))
+    } catch {
+      // 存不了只是下次不記得
+    }
+  },
+  { deep: true },
+)
 
 interface SideInput {
   market: 'tw' | 'us'
@@ -52,18 +99,30 @@ const num = (text: string, min: number, max: number) => {
 }
 const FREQUENCY_LABELS: Record<IncomeFrequency, string> = { monthly: '月配', quarterly: '季配', semiannual: '半年配', annual: '年配', none: '沒有配息' }
 
+// 兩檔共用的條件；輸入不合法是 null
+const base = computed(() => {
+  const v = inputs.value
+  const start = num(v.start, 0, 1e10)
+  const monthly = num(v.monthlyInvest, 0, 1e8)
+  const years = num(v.years, 1, 40)
+  const inflation = v.inflationOn ? num(v.inflation, 0, 20) : 0
+  if (start === null || monthly === null || !years || inflation === null) return null
+  const deductions = { ...props.settings, taxMode: v.taxMode, taxBracket: Number(v.taxBracket) || 0.12 }
+  return { start, monthly, years, inflation, reinvest: v.reinvest, deductions }
+})
+
 // 每一邊的試算結果；選了股票、條件合法才有
 const results = computed(() =>
   sides.value.map((side, index) => {
     const pf = profiles.value[index]
-    const base = props.base
-    if (!pf || !base) return null
-    const y = yieldOf(pf, props.yieldBasis)
+    const shared = base.value
+    if (!pf || !shared) return null
+    const y = yieldOf(pf, inputs.value.yieldBasis)
     const priceGrowth = num(side.priceGrowth, -20, 30)
     const dividendGrowth = num(side.dividendGrowth, -20, 30)
     if (!y || priceGrowth === null || dividendGrowth === null) return null
     if (!pf.price || (pf.target.market === 'us' && !pf.usdTwd)) return null
-    const rows = simulate({ ...base, priceGrowth, dividendGrowth, holdings: [{ weight: 1, yieldPct: y.pct, payouts: payoutsOf(pf.frequency), market: pf.target.market }] })
+    const rows = simulate({ ...shared, priceGrowth, dividendGrowth, holdings: [{ weight: 1, yieldPct: y.pct, payouts: payoutsOf(pf.frequency), market: pf.target.market }] })
     const last = rows[rows.length - 1]!
     const gross = rows.reduce((sum, row) => sum + row.dividendsGross, 0)
     const deducted = rows.reduce((sum, row) => sum + row.deducted, 0)
@@ -108,13 +167,13 @@ const rows = computed(() => {
   return [
     line('殖利率（扣款前）', a.yield.pct, b.yield.pct, (v) => pct(v, 2), null),
     line(`${years} 年後資產`, a.last.value, b.last.value, money, 'higher'),
-    ...(props.base?.reinvest ? [] : [line('這段期間領出', a.last.cashOut, b.last.cashOut, money, 'higher')]),
+    ...(base.value?.reinvest ? [] : [line('這段期間領出', a.last.cashOut, b.last.cashOut, money, 'higher')]),
     line('總報酬（扣掉自己投入）', a.gain, b.gain, money, 'higher'),
     line('總報酬率', a.gainPct ?? 0, b.gainPct ?? 0, (v) => pct(v), 'higher'),
     line('期間領到的股利（扣款前）', a.gross, b.gross, money, 'higher'),
     line('被扣的健保與稅', a.deducted, b.deducted, money, 'lower'),
     line('之後每月可領（扣款後）', a.last.monthlyIncome, b.last.monthlyIncome, money, 'higher'),
-    ...(props.base && props.base.inflation > 0 ? [line('每月可領（今天的錢）', a.last.realMonthlyIncome, b.last.realMonthlyIncome, money, 'higher')] : []),
+    ...(base.value && base.value.inflation > 0 ? [line('每月可領（今天的錢）', a.last.realMonthlyIncome, b.last.realMonthlyIncome, money, 'higher')] : []),
   ]
 })
 
@@ -165,6 +224,7 @@ const analysis = computed(() => {
   return { conclusion, points }
 })
 
+const LABEL_CLASS = 'inline-flex w-[8.5em] shrink-0 items-center gap-1 text-ink-muted'
 const INPUT_CLASS =
   'min-w-0 w-0 flex-1 border-2 border-tint/10 bg-tint/5 px-2.5 py-1.5 text-body tabular-nums text-ink outline-none placeholder:text-ink-muted focus:border-accent-hue/40'
 const TONE_CLASS = { ok: 'text-ok', warn: 'text-warn', info: 'text-ink-soft' } as const
@@ -173,7 +233,35 @@ const TONE_CLASS = { ok: 'text-ok', warn: 'text-warn', info: 'text-ink-soft' } a
 <template>
   <section class="space-y-3">
     <p class="flex items-center gap-1 font-semibold text-ink">比較兩檔<HelpTip term="simCompare" /></p>
-    <p class="text-caption text-ink-muted">一開始有、每月投入、存幾年、再投入、通膨、扣款與殖利率基準，都用上面的設定；股價漲幅與股利成長每一檔各自填。</p>
+    <p class="text-caption text-ink-muted">這一段的條件自己設定，和上面的試算互不影響。下面的條件兩檔共用；股價漲幅與股利成長每一檔各自填。</p>
+
+    <!-- 兩檔共用的條件（和上面的試算分開存） -->
+    <div class="space-y-2 border-2 border-tint/10 bg-tint/5 p-3">
+      <p class="text-ink-muted">比較條件</p>
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <label class="flex items-center gap-2"><span :class="LABEL_CLASS">一開始有</span><input v-model="inputs.start" inputmode="numeric" :class="INPUT_CLASS" aria-label="比較：一開始有多少元" /><span class="w-[1em] text-ink-muted">元</span></label>
+        <label class="flex items-center gap-2"><span :class="LABEL_CLASS">每月投入</span><input v-model="inputs.monthlyInvest" inputmode="numeric" :class="INPUT_CLASS" aria-label="比較：每月投入多少元" /><span class="w-[1em] text-ink-muted">元</span></label>
+        <label class="flex items-center gap-2"><span :class="LABEL_CLASS">存幾年</span><input v-model="inputs.years" inputmode="numeric" :class="INPUT_CLASS" aria-label="比較：存幾年" /><span class="w-[1em] text-ink-muted">年</span></label>
+        <label class="flex items-center gap-2"><span :class="LABEL_CLASS">每年通膨<HelpTip term="simInflation" /></span><input v-model="inputs.inflation" inputmode="decimal" :disabled="!inputs.inflationOn" :class="INPUT_CLASS" class="disabled:opacity-50" aria-label="比較：每年通膨" /><span class="w-[1em] text-ink-muted">%</span></label>
+        <div class="flex min-w-0 items-center gap-2">
+          <span :class="LABEL_CLASS">殖利率用哪一段<HelpTip term="simYieldBasis" /></span>
+          <SelectField v-model="inputs.yieldBasis" :options="BASIS_OPTIONS" label="比較：殖利率用哪一段" variant="pixel" hide-label class="min-w-0 flex-1" />
+        </div>
+        <!-- 合併計稅多一個級距下拉：兩個下拉放不下標籤右邊時（手機）整組換到下一行 -->
+        <div class="flex min-w-0 flex-wrap items-center gap-2">
+          <span :class="LABEL_CLASS">股利所得稅<HelpTip term="simDeduction" /></span>
+          <div class="flex min-w-0 flex-1 gap-2" :class="inputs.taxMode === 'combined' ? 'min-w-[13rem]' : ''">
+            <SelectField v-model="inputs.taxMode" :options="TAX_OPTIONS" label="比較：股利所得稅" variant="pixel" hide-label class="min-w-0 flex-1" />
+            <SelectField v-if="inputs.taxMode === 'combined'" v-model="inputs.taxBracket" :options="BRACKET_OPTIONS" label="比較：合併計稅級距" variant="pixel" hide-label class="min-w-0 flex-1" />
+          </div>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-x-4 gap-y-1">
+        <CheckboxField v-model="inputs.reinvest">領到的股利再投入（不領出來花）</CheckboxField>
+        <CheckboxField v-model="inputs.inflationOn">換算成今天的錢</CheckboxField>
+      </div>
+      <p v-if="!base" class="text-caption text-warn">金額要是數字、年數 1～40、通膨 0～20%。</p>
+    </div>
 
     <!-- 左右兩個框（手機上下排） -->
     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -227,7 +315,6 @@ const TONE_CLASS = { ok: 'text-ok', warn: 'text-warn', info: 'text-ink-soft' } a
         <p class="text-caption text-ink-muted">優劣是拿這組條件算出來的數字比較，不是預測；條件一改，結論可能就不同。</p>
       </div>
     </template>
-    <p v-else-if="!base" class="text-caption text-ink-muted">上面的金額或年數有錯，先修正才能比較。</p>
-    <p v-else class="text-caption text-ink-muted">左右各選一檔股票，就會列出比較。</p>
+    <p v-else-if="base" class="text-caption text-ink-muted">左右各選一檔股票，就會列出比較。</p>
   </section>
 </template>

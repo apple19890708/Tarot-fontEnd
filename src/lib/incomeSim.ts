@@ -181,6 +181,18 @@ export function capitalFor(want: number, holdings: SimHolding[], d: SimDeduction
 // ---- 試算與比較共用的小工具 ----
 export type YieldBasis = 'average' | 'recent'
 
+// 下拉選項（試算與比較兩檔各自有一組設定，選項共用）
+export const TAX_OPTIONS: { value: TaxMode; label: string }[] = [
+  { value: 'none', label: '不計' },
+  { value: 'combined', label: '合併計稅' },
+  { value: 'separate', label: '分離課稅 28%' },
+]
+export const BRACKET_OPTIONS = ['0.05', '0.12', '0.2', '0.3', '0.4'].map((value) => ({ value, label: `級距 ${Math.round(Number(value) * 100)}%` }))
+export const BASIS_OPTIONS: { value: YieldBasis; label: string }[] = [
+  { value: 'average', label: '多年平均' },
+  { value: 'recent', label: '近 12 個月' },
+]
+
 // 殖利率用哪一段（未扣款，%）：多年平均沒有時退回近 12 個月。股利頁清單的股票與自選一檔（dividend-profile）都有這兩個欄位
 export function yieldOf(source: { dividendAverage?: { months: number; yieldPct: number | null } | null; currentYield: number | null }, basis: YieldBasis) {
   const average = source.dividendAverage?.yieldPct

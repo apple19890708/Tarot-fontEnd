@@ -1594,14 +1594,17 @@ export interface IncomeSettings {
   nhiThreshold: number
   usWithholding: number
 }
-// 已公告（證交所預告或 Yahoo 先列出）／本月已除息（實際）／推估（近 12 個月平均）
-export type IncomeSource = 'announced' | 'exDone' | 'estimated'
+// 已公告（證交所預告、公司公告的除息交易日，或 Yahoo 先列出）／本月已除息（實際）／推估（最近一次配息）／
+// 董事會已決議（金額確定、除息日還沒訂；2026-11-11 起，舊版後端沒有）
+export type IncomeSource = 'announced' | 'exDone' | 'estimated' | 'decided'
 export interface IncomeMonthCash {
   perShare: number
   source: IncomeSource
   exDate: string | null
   // 推估的月曆日期（去年同一次加一年、避開週末）；推不出來或不是推估時沒有
   estimatedDate?: string | null
+  // 董事會決議日（source 'decided' 才有）
+  decidedAt?: string
   gross: number | null
   deduction: number | null
   net: number | null
@@ -1628,6 +1631,9 @@ export interface IncomeProjection {
   annualGross: number | null
   annualNet: number | null
   hasEstimate: boolean
+  // 推估怎麼算（latest：最近一次配息）、這一檔過去用同樣方法估準不準（近 3 年，誤差在 10% 內幾次）；舊版後端沒有
+  estimateMethod?: 'latest'
+  estimateCheck?: { tested: number; within10: number } | null
 }
 export interface IncomeEntitlementEvent {
   type: 'cash' | 'stock'
@@ -1789,8 +1795,10 @@ export interface IncomeCalendarEntry {
   cash: IncomeMonthCash | null
   stock: IncomeMonthStock | null
   date: string | null
-  // 推估的日期（虛線）
+  // 推估的金額（虛線）
   estimated: boolean
+  // 日期是推的（推估，或董事會已決議但除息日還沒訂）
+  dateGuessed: boolean
   // 已經過去的除息（實際紀錄）；held 是「當時有沒有持股」，heldKnown 為 false 時算不出來（買賣沒填日期）
   past: boolean
   heldKnown: boolean

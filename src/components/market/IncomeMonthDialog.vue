@@ -19,7 +19,12 @@ function onKeydown(event: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
-const SOURCE_LABELS: Record<IncomeSource, string> = { announced: '已公告', exDone: '已除息', estimated: '推估' }
+const SOURCE_LABELS: Record<IncomeSource, string> = { announced: '已公告', exDone: '已除息', estimated: '推估', decided: '董事會已決議' }
+// 推估的可信度：這一檔過去用同樣方法（最近一次配息）估，誤差在 10% 內幾次
+const checkText = (entry: IncomeCalendarEntry) => {
+  const check = entry.item.projection?.estimateCheck
+  return check ? `這檔過去 ${check.tested} 次有 ${check.within10} 次誤差在 10% 內` : null
+}
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
 const title = `${props.month.slice(0, 4)} 年 ${Number(props.month.slice(5))} 月`
 const dayText = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8))}（${WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`
@@ -75,13 +80,15 @@ const otherEntries = computed(() => props.entries.filter((entry) => !entry.held 
                   </span>
                   <!-- 推估怎麼算的放在 ?（2026-11-10 使用者要求，每一檔都寫一次太佔空間） -->
                   <HelpTip v-if="entry.estimated" class="self-center" term="estimatedDividend" />
+                  <HelpTip v-else-if="entry.cash?.source === 'decided'" class="self-center" term="decidedDividend" />
                 </p>
                 <!-- 除息日：推估的日期用去年同一次推；推不出來寫日期未定 -->
                 <p class="text-ink-soft">
                   除息日
-                  <span class="tabular-nums" :class="entry.estimated ? 'text-ink-muted' : 'text-ink'">{{ entry.date ? dayText(entry.date) : '日期未定' }}</span>
-                  <span v-if="entry.date && entry.estimated" class="text-caption text-ink-muted">（推估）</span>
+                  <span class="tabular-nums" :class="entry.dateGuessed ? 'text-ink-muted' : 'text-ink'">{{ entry.date ? dayText(entry.date) : '日期未定' }}</span>
+                  <span v-if="entry.date && entry.dateGuessed" class="text-caption text-ink-muted">（推估）</span>
                 </p>
+                <p v-if="entry.estimated && checkText(entry)" class="text-caption text-ink-muted">{{ checkText(entry) }}</p>
                 <!-- 過去的：當時有持股就寫應收（和「應收股利對照」同一份計算）；未來的寫預估實領 -->
                 <p v-if="entry.cash" class="text-ink-soft">
                   現金股利每股 {{ formatNumber(entry.cash.perShare, 4) }}<template v-if="entry.held">，{{ entry.past ? '當時應收' : '預估實領' }}

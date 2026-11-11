@@ -9,8 +9,10 @@ function projectedEntry(item: IncomeItem, projectionIndex: number): IncomeCalend
   const entry = item.projection?.months[projectionIndex]
   if (!entry || (!entry.cash && !entry.stock)) return null
   const estimated = entry.cash?.source === 'estimated' && !entry.cash.exDate
-  const date = entry.cash?.exDate ?? entry.stock?.exDate ?? (estimated ? entry.cash?.estimatedDate ?? null : null)
-  return { item, cash: entry.cash, stock: entry.stock, date, estimated, held: item.quantity > 0, past: false, heldKnown: true }
+  // 董事會已決議：金額確定，除息日還沒訂 → 日期和推估一樣用推的
+  const dateGuessed = (entry.cash?.source === 'estimated' || entry.cash?.source === 'decided') && !entry.cash.exDate
+  const date = entry.cash?.exDate ?? entry.stock?.exDate ?? (dateGuessed ? entry.cash?.estimatedDate ?? null : null)
+  return { item, cash: entry.cash, stock: entry.stock, date, estimated, dateGuessed, held: item.quantity > 0, past: false, heldKnown: true }
 }
 
 // 同一天的現金股利和配股合成一筆
@@ -32,6 +34,7 @@ function pastEntries(item: IncomeItem, inMonth: (date: string) => boolean): Inco
       stock: stockEvent ? { exDate: date, ratio: stockEvent.ratio ?? 0, addShares: stockOwed?.addShares ?? 0, addQuantity: stockOwed?.addQuantity ?? 0 } : null,
       date,
       estimated: false,
+      dateGuessed: false,
       held: Boolean(cashOwed || stockOwed),
       past: true,
       heldKnown,
