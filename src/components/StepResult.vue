@@ -109,10 +109,8 @@ const saveLabel = computed(() => {
   return isLoggedIn.value ? '保存紀錄' : '保存紀錄（需登入）'
 })
 
-// AI 回覆是 Markdown；轉 HTML、DOMPurify 清理、方向表上色都在 renderAiMarkdown
-const narrationHtml = computed(() =>
-  renderAiMarkdown(props.narrationText),
-)
+// AI 回覆是 Markdown；轉 HTML、DOMPurify 清理、方向表上色、分區卡片都在 renderAiMarkdown
+const narrationHtml = computed(() => renderAiMarkdown(props.narrationText, { sections: true }))
 
 // 這次結果已經是一筆紀錄：首頁按過保存，或是在「我的紀錄」裡回顧
 const isRecorded = computed(() => props.isRecord || props.saveStatus === 'saved')
@@ -302,7 +300,7 @@ function formatSuit(suit: string | null) {
       <article
         v-for="(entry, index) in reading.cards"
         :key="`${entry.position?.key ?? index}-${entry.card.id}`"
-        class="flex h-[24rem] min-w-0 flex-col border-2 bg-sink/45 p-4 transition hover:-translate-y-0.5 sm:h-[26rem] sm:p-5"
+        class="flex h-[24rem] min-w-0 flex-col border-2 bg-sink/45 p-4 sm:h-[26rem] sm:p-5"
         :class="reading.analysis?.theme.focusIndex === index ? 'border-accent-hue/40' : 'border-tint/10'"
       >
         <div class="flex min-w-0 flex-shrink-0 items-start justify-between gap-3">
@@ -477,7 +475,7 @@ function formatSuit(suit: string | null) {
         <div
           v-if="narrationText"
           :class="AI_TABLE_CLASS"
-          class="mt-4 min-w-0 space-y-4 break-words text-sm leading-7 text-ink/90 [&_pre]:overflow-x-auto sm:text-base sm:leading-8 [&_h2]:mt-8 [&_h2]:border-t [&_h2]:border-tint/10 [&_h2]:pt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-accent [&_h3]:mt-6 [&_h3]:font-semibold [&_h3]:text-ink [&_li]:my-1 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_strong]:font-semibold [&_strong]:text-accent [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6 [&_ul]:marker:text-warn"
+          class="mt-4 min-w-0 space-y-4 break-words text-body leading-7 text-ink/90 [&_pre]:overflow-x-auto sm:leading-8 [&_h2]:text-subtitle [&_h2]:font-semibold [&_h2]:text-accent [&_h3]:mt-6 [&_h3]:font-semibold [&_h3]:text-ink [&_li]:my-1 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_strong]:font-semibold [&_strong]:text-accent [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6 [&_ul]:marker:text-warn"
           v-html="narrationHtml"
         />
 
@@ -502,22 +500,40 @@ function formatSuit(suit: string | null) {
           解讀完成後也要能重新產生（原本只有停止、失敗時才有按鈕）。
           已是紀錄時，新的那篇完整產生後會直接取代紀錄裡原本那篇，不另開一筆
         -->
+        <!--
+          不限有沒有開通：重新整理後救回的解讀是「已完成」（2026-11-12 起，以前救回是「已停止」），
+          這時登入可能已經過期，只在開通時才顯示的話整列會不見（2026-11-12 使用者回報「重新產生的畫面沒了」）
+        -->
         <div
-          v-else-if="narrationStatus === 'done' && canUseAi"
+          v-else-if="narrationStatus === 'done'"
           class="mt-5 flex flex-wrap items-center gap-3 border-t border-tint/10 pt-4"
         >
-          <span class="text-sm leading-7 text-ink-muted">
-            <template v-if="narrationSaved === true">已更新到這筆紀錄。</template>
-            <template v-else-if="narrationSaved === false">這篇沒有存進紀錄，可以再產生一次。</template>
-            {{ isRecorded ? '重新產生的解讀完成後，會取代紀錄裡的這一篇。' : '不滿意可以重新產生一篇。' }}
-          </span>
-          <button
-            class="cursor-pointer border-2 border-accent-hue/30 bg-accent-hue/10 px-4 py-1.5 text-[14px] font-medium text-accent transition hover:bg-accent-hue/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
-            type="button"
-            @click="regenerateNarration"
-          >
-            重新產生
-          </button>
+          <template v-if="canUseAi">
+            <span class="text-sm leading-7 text-ink-muted">
+              <template v-if="narrationSaved === true">已更新到這筆紀錄。</template>
+              <template v-else-if="narrationSaved === false">這篇沒有存進紀錄，可以再產生一次。</template>
+              {{ isRecorded ? '重新產生的解讀完成後，會取代紀錄裡的這一篇。' : '不滿意可以重新產生一篇。' }}
+            </span>
+            <button
+              class="cursor-pointer border-2 border-accent-hue/30 bg-accent-hue/10 px-4 py-1.5 text-[14px] font-medium text-accent transition hover:bg-accent-hue/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+              type="button"
+              @click="regenerateNarration"
+            >
+              重新產生
+            </button>
+          </template>
+          <!-- 未登入（例如登入過期）：按了先存結果、帶去登入頁，回來還是這一組牌 -->
+          <template v-else-if="!isLoggedIn">
+            <span class="text-sm leading-7 text-ink-muted">登入已過期或還沒登入，登入後可以重新產生一篇。</span>
+            <button
+              class="cursor-pointer border-2 border-accent-hue/30 bg-accent-hue/10 px-4 py-1.5 text-[14px] font-medium text-accent transition hover:bg-accent-hue/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
+              type="button"
+              @click="emit('requestNarration')"
+            >
+              重新產生（需登入）
+            </button>
+          </template>
+          <span v-else class="text-sm leading-7 text-ink-muted">AI 解讀尚未開通，無法重新產生；請聯絡管理者。</span>
         </div>
 
         <div

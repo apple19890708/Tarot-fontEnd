@@ -21,6 +21,7 @@ import {
 import { canUseAi, canUseStock } from '../lib/auth'
 import { smoothScrollTo } from '../lib/motion'
 import { installWashi } from '../lib/pixelArt'
+import { spreadForReading } from '../lib/readingSpread'
 import type { MarketSnapshot, MarketStatus, NarrationStatus, ReadingDetail, ReadingSummary, Spread } from '../types'
 
 // 右側的紀錄是和紙菜單，紋理要在畫出來之前放進 CSS 變數
@@ -102,9 +103,7 @@ const skeletonCardCount = computed(() => selectedSummary.value?.cardCount || 3)
 const skeletonPanelCount = computed(() => Math.min(skeletonCardCount.value, 2))
 
 // 結果頁的排列圖需要完整牌陣定義，結果本身只帶 key
-const detailSpread = computed(
-  () => spreads.value.find((spread) => spread.key === detail.value?.reading.spread.key) || null,
-)
+const detailSpread = computed(() => spreadForReading(spreads.value, detail.value?.reading))
 
 
 let listRequestId = 0

@@ -28,9 +28,80 @@ const NUMERIC = /^[-+−–]?[\d,]+(?:\.\d+)?\s*%?(?:（[-+−–]?[\d,.]+\s*%?�
 // 不能直接把 table 設成 block 來捲：那樣外框撐滿整行、表格本身只照內容寬，桌機右邊空一大塊（2026-11-12 使用者回報）
 const TABLE_WRAP = 'relative overflow-x-auto border-2 border-tint/10'
 
-export function renderAiMarkdown(markdown: string) {
+// 塔羅解讀的分區排版（2026-11-12 使用者要求「排版與歸納好看一點」）：
+// - 第一行的牌面（「**權杖十逆｜星星逆｜命運之輪正**」）拆成一排標籤
+// - 第一個 ## 之前的開場包成結論框
+// - 每個 ## 一節包成一張卡片；「最後的判斷」用金色外框強調；「位置｜牌名」的標題把位置縮成小字
+// 只改外框與排列，文字仍是 AI 產生的原文
+const CARD_CHIPS = 'flex flex-wrap gap-2'
+const CARD_CHIP = 'border-2 border-accent-hue/30 bg-accent-hue/10 px-2.5 py-0.5 text-caption font-semibold text-accent'
+const INTRO_BOX = 'space-y-2 border-l-4 border-accent-hue/60 bg-accent-hue/5 px-4 py-3 text-ink'
+const SECTION_BOX = 'min-w-0 space-y-3 border-2 border-tint/10 bg-tint/5 px-4 py-4 sm:px-5'
+const FINAL_BOX = 'min-w-0 space-y-3 border-2 border-accent-hue/40 bg-accent-hue/5 px-4 py-4 sm:px-5'
+const HEADING_PLACE = 'mr-2 text-caption font-normal text-ink-muted'
+
+function arrangeSections(fragment: DocumentFragment) {
+  const nodes = [...fragment.childNodes]
+  const sections: { heading: HTMLElement; nodes: Node[] }[] = []
+  const intro: Node[] = []
+  for (const node of nodes) {
+    if (node instanceof HTMLElement && node.tagName === 'H2') sections.push({ heading: node, nodes: [] })
+    else if (sections.length) sections[sections.length - 1]!.nodes.push(node)
+    else intro.push(node)
+  }
+  const parts: Node[] = []
+
+  // 開場：第一段只有一個粗體、裡面用「｜」隔開 → 牌面標籤
+  const introElements = intro.filter((node): node is HTMLElement => node instanceof HTMLElement)
+  const first = introElements[0]
+  const strong = first?.tagName === 'P' && first.childElementCount === 1 ? first.querySelector(':scope > strong') : null
+  if (first && strong && strong.textContent?.includes('｜') && first.textContent?.trim() === strong.textContent.trim()) {
+    const chips = document.createElement('div')
+    chips.className = CARD_CHIPS
+    for (const name of strong.textContent.split('｜').map((text) => text.trim()).filter(Boolean)) {
+      const chip = document.createElement('span')
+      chip.className = CARD_CHIP
+      chip.textContent = name
+      chips.append(chip)
+    }
+    parts.push(chips)
+    intro.splice(intro.indexOf(first), 1)
+  }
+  if (intro.some((node) => node.textContent?.trim())) {
+    const box = document.createElement('div')
+    box.className = INTRO_BOX
+    box.append(...intro)
+    parts.push(box)
+  }
+
+  for (const { heading, nodes: body } of sections) {
+    const title = heading.textContent?.trim() ?? ''
+    // 「第 1 張｜權杖十逆」「現況｜寶劍二逆」：位置縮成小字，牌名當標題
+    const bar = title.indexOf('｜')
+    if (bar > 0 && heading.childElementCount === 0) {
+      const place = document.createElement('span')
+      place.className = HEADING_PLACE
+      place.textContent = title.slice(0, bar).trim()
+      heading.textContent = title.slice(bar + 1).trim()
+      heading.prepend(place)
+    }
+    const section = document.createElement('section')
+    section.className = title.startsWith('最後的判斷') ? FINAL_BOX : SECTION_BOX
+    section.append(heading, ...body)
+    parts.push(section)
+  }
+  fragment.replaceChildren(...parts)
+}
+
+// 粗體先自己轉成 <strong>：Markdown 規定結尾的 ** 前面是標點時，後面要接空白或標點才算結尾，
+// 中文「**結論。**後面的說明」會整段顯示成星號（2026-11-12 塔羅解讀要求每節第一句粗體時發現）。
+// 只轉同一行內成對的 **，寫到一半還沒收尾的照原樣顯示；之後一樣經過 DOMPurify
+const BOLD = /\*\*(?=\S)([^*\n]+?)\*\*/g
+
+export function renderAiMarkdown(markdown: string, options: { sections?: boolean } = {}) {
   if (!markdown) return ''
-  const fragment = DOMPurify.sanitize(marked.parse(markdown, { async: false }), { RETURN_DOM_FRAGMENT: true })
+  const html = marked.parse(markdown.replace(BOLD, '<strong>$1</strong>'), { async: false })
+  const fragment = DOMPurify.sanitize(html, { RETURN_DOM_FRAGMENT: true })
   fragment.querySelectorAll('table').forEach((table) => {
     const isLadder = table.querySelector('thead th')?.textContent?.trim() === '類型'
     table.querySelectorAll('td').forEach((cell) => {
@@ -51,6 +122,7 @@ export function renderAiMarkdown(markdown: string) {
     table.replaceWith(wrap)
     wrap.append(table)
   })
+  if (options.sections) arrangeSections(fragment)
   const box = document.createElement('div')
   box.append(fragment)
   return box.innerHTML

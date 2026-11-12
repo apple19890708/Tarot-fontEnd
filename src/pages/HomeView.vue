@@ -21,6 +21,7 @@ import { refreshHealth } from '../lib/health'
 import { installPixelCardBack } from '../lib/pixelArt'
 import { resetSceneBus, sceneBus } from '../lib/sceneBus'
 import { clearResultSnapshot, RESULT_SNAPSHOT_KEY } from '../lib/resultSnapshot'
+import { spreadForReading } from '../lib/readingSpread'
 import type {
   CardSummary,
   CustomPosition,
@@ -186,10 +187,8 @@ const errorMessage = ref('')
 const isLoading = ref(false)
 const isBootstrapping = ref(true)
 
-// 結果回傳的 spread 只有基本欄位，排列圖需要完整定義（positions / layout），所以用 key 查回來
-const resultSpread = computed(
-  () => spreads.value.find((spread) => spread.key === reading.value?.spread.key) || null,
-)
+// 結果回傳的 spread 只有基本欄位，排列圖需要完整定義（positions / layout）：用 key 查回來，自選牌用抽到的牌組一個
+const resultSpread = computed(() => spreadForReading(spreads.value, reading.value))
 
 // 後端狀態改由 top bar（App.vue）載入與顯示，這裡只載牌陣
 async function bootstrap() {
