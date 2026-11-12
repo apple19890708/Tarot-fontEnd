@@ -508,6 +508,21 @@ export interface MarketIndicators {
   high60: number | null
   low60: number | null
   volumeRatio: number | null
+  // 以下是規則版本 4 的後端才有（舊版後端沒有，一律可選）
+  // 近 14 日平均真實波幅（一天平均波動），出場點用
+  atr14?: number | null
+  // 半年線、年線、一年高低點
+  ma120?: number | null
+  ma240?: number | null
+  high250?: number | null
+  low250?: number | null
+  // 支撐壓力的價位來源：成交密集區、未回補缺口、前波高低點（歷史太短時為 null）
+  levels?: {
+    volumeNodes: { price: number; weight: number }[]
+    gaps: { side: 'support' | 'resistance'; price: number; date: string | null }[]
+    swingHighs: number[]
+    swingLows: number[]
+  } | null
 }
 
 export interface MarketItem {
@@ -837,8 +852,12 @@ export interface MarketSignal {
 
 export interface MarketLevel {
   price: number
-  // 這個價位來自哪裡，例如「MA20」「近 20 日低點」
+  // 這個價位來自哪裡，例如「MA20」「成交密集區」「近 20 日低點」
   label: string
+  // 支撐的強弱（規則版本 4，舊版後端沒有）：strong 過去比較守得住、weak 常直接跌破；壓力一律 normal
+  strength?: 'strong' | 'normal' | 'weak'
+  // 強弱的白話說明（後端產生）；一般的為 null
+  note?: string | null
 }
 
 export interface MarketAnalysis {

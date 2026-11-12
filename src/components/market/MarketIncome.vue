@@ -1142,7 +1142,19 @@ async function toggleReminder() {
           <span v-if="selectedItem.price" class="tabular-nums text-ink-soft">現價 {{ formatNumber(selectedItem.price) }}</span>
         </p>
 
-        <MarketHoldings v-if="holdingsItem" v-model:editing="editingHoldings" :item="holdingsItem" />
+        <template v-if="holdingsItem">
+          <MarketHoldings v-model:editing="editingHoldings" :item="holdingsItem" />
+          <!-- 進入編輯的按鈕：MarketHoldings 只有「顯示／編輯」兩種畫面，開關由外層提供（自訂追蹤也是）。
+               2026-11-12 使用者回報：這裡少了這顆按鈕，彈窗只能改清單、不能改買賣紀錄 -->
+          <button
+            v-if="!editingHoldings"
+            type="button"
+            class="cursor-pointer border-2 border-tint/15 px-3 py-1.5 text-button text-ink-muted transition hover:bg-tint/10 hover:text-ink active:translate-x-[1px] active:translate-y-[1px] font-pixel"
+            @click="editingHoldings = true"
+          >
+            {{ holdingsItem.trades.length || holdingsItem.dividends.length ? '編輯買賣與股利紀錄' : '記錄持股' }}
+          </button>
+        </template>
         <p v-else class="text-body text-ink-muted">
           後端還是舊版，這裡不能編輯持股，請到
           <router-link :to="{ query: { tab: 'watch' } }" class="text-warn hover:underline" @click="selectedId = null">自訂股票追蹤</router-link>

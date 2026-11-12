@@ -259,17 +259,21 @@ function indicatorRows(item: MarketItem) {
                 <span class="text-right text-caption text-ink-muted">{{ level.label }}</span>
               </li>
             </ul>
-            <p v-else class="mt-2 text-body text-ink-muted">現價在近 60 日的參考價位之上</p>
+            <p v-else class="mt-2 text-body text-ink-muted">上方沒有參考價位（現價是近期最高）</p>
           </div>
           <div class="border-2 border-down-hue/15 bg-down-hue/5 p-3">
             <p class="flex items-center gap-1.5 text-body font-medium text-down-ink">下方支撐 <HelpTip term="supportResistance" /></p>
             <ul v-if="item.analysis.supports.length" class="mt-2 space-y-1 text-body">
               <li v-for="level in item.analysis.supports" :key="level.price" class="flex justify-between gap-3">
                 <span class="tabular-nums text-ink">{{ num(level.price) }}</span>
-                <span class="text-right text-caption text-ink-muted">{{ level.label }}</span>
+                <!-- 強弱說明由後端給（note）：比較守得住用支撐色、容易跌破用提醒色 -->
+                <span class="text-right text-caption text-ink-muted">
+                  {{ level.label }}
+                  <span v-if="level.note" class="block" :class="level.strength === 'strong' ? 'text-down-ink' : 'text-warn'">{{ level.note }}</span>
+                </span>
               </li>
             </ul>
-            <p v-else class="mt-2 text-body text-ink-muted">現價在近 60 日的參考價位之下</p>
+            <p v-else class="mt-2 text-body text-ink-muted">下方沒有參考價位（現價是近期最低）</p>
           </div>
         </div>
 

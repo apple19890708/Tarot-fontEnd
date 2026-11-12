@@ -246,6 +246,8 @@ const TONE_CLASS = { ok: 'text-ok', warn: 'text-warn', info: 'text-ink-soft' } a
         <div class="flex min-w-0 items-center gap-2">
           <span :class="LABEL_CLASS">殖利率用哪一段<HelpTip term="simYieldBasis" /></span>
           <SelectField v-model="inputs.yieldBasis" :options="BASIS_OPTIONS" label="比較：殖利率用哪一段" variant="pixel" hide-label class="min-w-0 flex-1" />
+          <!-- 佔住單位欄的寬度，下拉右緣才和上面輸入框對齊（2026-11-12 使用者回報下拉比輸入框長） -->
+          <span class="w-[1em] shrink-0" aria-hidden="true" />
         </div>
         <!-- 合併計稅多一個級距下拉：兩個下拉放不下標籤右邊時（手機）整組換到下一行 -->
         <div class="flex min-w-0 flex-wrap items-center gap-2">
@@ -254,6 +256,7 @@ const TONE_CLASS = { ok: 'text-ok', warn: 'text-warn', info: 'text-ink-soft' } a
             <SelectField v-model="inputs.taxMode" :options="TAX_OPTIONS" label="比較：股利所得稅" variant="pixel" hide-label class="min-w-0 flex-1" />
             <SelectField v-if="inputs.taxMode === 'combined'" v-model="inputs.taxBracket" :options="BRACKET_OPTIONS" label="比較：合併計稅級距" variant="pixel" hide-label class="min-w-0 flex-1" />
           </div>
+          <span class="w-[1em] shrink-0" aria-hidden="true" />
         </div>
       </div>
       <div class="flex flex-wrap gap-x-4 gap-y-1">

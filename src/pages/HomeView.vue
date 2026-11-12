@@ -12,6 +12,7 @@ import {
   fetchCards,
   fetchSpreads,
   saveReadingRecord,
+  updateReadingNarration,
   fetchMarketSnapshot,
   streamNarration,
 } from '../lib/api'
@@ -164,6 +165,8 @@ const narrationStatus = ref<NarrationStatus>('idle')
 const narrationError = ref('')
 // 最近一次解讀有沒有存回紀錄（null＝還沒保存成紀錄，或後端沒回報）
 const narrationSaved = ref<boolean | null>(null)
+// 最近一次完整產生的解讀用的模型（自動保存、補存時一起送）
+const narrationModel = ref('')
 // 股市諮詢的行情與技術指標：結果頁一出來就查，AI 解讀時再換成 AI 用的那一份
 const marketSnapshot = ref<MarketSnapshot | null>(null)
 const marketStatus = ref<MarketStatus>('idle')
@@ -335,11 +338,14 @@ async function loadNarration(current: ReadingResponse) {
   narrationText.value = ''
   narrationError.value = ''
   narrationSaved.value = null
+  narrationModel.value = ''
   // 行情不清掉：AI 開始寫之前畫面上照樣有數字，收到 AI 用的那一份再換掉
   narrationStatus.value = 'loading'
+  // 開始時已經保存過，後端寫完會自己存回那一筆；寫的過程中才保存的，要等完成後由前端補存
+  const readingIdAtStart = savedReadingId.value
 
   try {
-    const { saved } = await streamNarration(current, {
+    const { model, saved } = await streamNarration(current, {
       signal: controller.signal,
       domain: domainParam.value,
       // 已經保存過才有 id；後端會在完整產生後把解讀存回那筆紀錄
@@ -363,6 +369,8 @@ async function loadNarration(current: ReadingResponse) {
     if (controller === narrationController) {
       narrationStatus.value = 'done'
       narrationSaved.value = saved
+      narrationModel.value = model || ''
+      void autoSaveNarration(current, { readingIdAtStart, saved })
     }
   } catch (error) {
     // 被停止或被新的請求取代時，狀態已由呼叫端處理
@@ -392,6 +400,9 @@ interface ResultSnapshot {
   question: string
   domain: QuestionDomain | ''
   narrationText: string
+  // 解讀是不是完整產生的（舊快照沒有）：還原成「已停止」的話，之後保存不會帶上解讀
+  narrationDone?: boolean
+  narrationModel?: string
   // 已經保存成紀錄的話，登入回來不要又變成沒存過
   savedReadingId: string
   savedAt: number
@@ -408,6 +419,8 @@ function saveResultSnapshot() {
       question: question.value,
       domain: selectedDomain.value,
       narrationText: narrationText.value,
+      narrationDone: narrationStatus.value === 'done',
+      narrationModel: narrationModel.value,
       savedReadingId: savedReadingId.value,
       savedAt: Date.now(),
     }
@@ -441,8 +454,11 @@ function restoreResultSnapshot() {
     saveStatus.value = snapshot.savedReadingId ? 'saved' : 'idle'
     saveError.value = ''
     // AI 寫到一半被中斷的文字也留著，狀態標成已停止，使用者可以再按一次繼續
+    narrationModel.value = snapshot.narrationModel || ''
     narrationStatus.value = snapshot.narrationText
-      ? 'stopped'
+      ? snapshot.narrationDone
+        ? 'done'
+        : 'stopped'
       : snapshot.reading.analysis
         ? 'ready'
         : 'idle'
@@ -455,7 +471,7 @@ function restoreResultSnapshot() {
 }
 
 // 結果或 AI 文字一變就存檔，這樣重新整理也救得回來
-watch([reading, narrationText], saveResultSnapshot)
+watch([reading, narrationText, narrationStatus], saveResultSnapshot)
 
 function requestNarration() {
   // AI 解讀限 admin 與被開通的會員；未登入時不擋按鈕，改把人帶去登入頁並記住現在的位置
@@ -494,7 +510,42 @@ function customPositionsOf(current: ReadingResponse) {
     : undefined
 }
 
-// 占卜結果預設不留存，按了才存。未登入時先存快照再帶去登入頁，回來還是同一組牌。
+// AI 解讀完成後自動保存（2026-11-12 使用者要求）：
+// - 還沒保存過：直接建立一筆紀錄，連同這篇解讀
+// - 開始前就保存過：後端已經存回那一筆（saved 為 true），不用再做
+// - 寫的過程中才按保存（那次請求沒有紀錄 id），或後端存回失敗：用 PUT 補存到那一筆
+// 原因：以前只有「先保存再分析」或「分析完再保存」才會存到解讀；分析途中按保存、或分析完離開頁面再回來保存，
+// 畫面顯示已保存，紀錄裡卻沒有 AI 解讀
+async function autoSaveNarration(current: ReadingResponse, { readingIdAtStart, saved }: { readingIdAtStart: string; saved: boolean | null }) {
+  if (!isLoggedIn.value || reading.value !== current || !narrationText.value) return
+  // 使用者剛按的保存還在送：等它完成後由 handleSaveReading 補存解讀
+  if (saveStatus.value === 'saving') return
+  if (readingIdAtStart && readingIdAtStart === savedReadingId.value && saved === true) return
+  if (savedReadingId.value) {
+    await syncNarrationToRecord(savedReadingId.value)
+    return
+  }
+  await handleSaveReading()
+}
+
+// 把目前這篇完整的解讀存到指定的紀錄（帶上這組牌，後端確認是同一組才存）
+async function syncNarrationToRecord(id: string) {
+  const current = reading.value
+  if (!current) return
+  try {
+    await updateReadingNarration(id, {
+      text: narrationText.value,
+      model: narrationModel.value || undefined,
+      market: marketSnapshot.value,
+      cards: current.cards.map((entry) => ({ id: entry.card.id, orientation: entry.orientation })),
+    })
+    if (id === savedReadingId.value) narrationSaved.value = true
+  } catch {
+    if (id === savedReadingId.value) narrationSaved.value = false
+  }
+}
+
+// 占卜結果預設不留存，按了才存（AI 解讀完成時也會自動呼叫）。未登入時先存快照再帶去登入頁，回來還是同一組牌。
 async function handleSaveReading() {
   const current = reading.value
   if (!current || saveStatus.value === 'saving' || saveStatus.value === 'saved') {
@@ -510,6 +561,8 @@ async function handleSaveReading() {
   saveStatus.value = 'saving'
   saveError.value = ''
 
+  // 送出時解讀還沒完成（還在寫）：存好之後如果已經寫完，要補存解讀
+  const includesNarration = narrationStatus.value === 'done' && Boolean(narrationText.value)
   try {
     const { id } = await saveReadingRecord({
       question: current.question,
@@ -518,13 +571,19 @@ async function handleSaveReading() {
       spreadKey: current.spread.key,
       positions: customPositionsOf(current),
       // 分析之後由後端重算，但 AI 解讀無法重算，已經產生好的要一起存
-      narration:
-        narrationStatus.value === 'done' && narrationText.value
-          ? { text: narrationText.value, market: marketSnapshot.value }
-          : undefined,
+      narration: includesNarration
+        ? { text: narrationText.value, model: narrationModel.value || undefined, market: marketSnapshot.value }
+        : undefined,
     })
+    // 存的過程中換了一組牌（重抽、重新開始）：這筆紀錄已經不是畫面上這一組，不要記成目前的
+    if (reading.value !== current) return
     savedReadingId.value = id
     saveStatus.value = 'saved'
+    if (includesNarration) {
+      narrationSaved.value = true
+    } else if (narrationStatus.value === 'done' && narrationText.value) {
+      await syncNarrationToRecord(id)
+    }
   } catch (error) {
     saveError.value = error instanceof Error ? error.message : '保存失敗，請稍後再試一次'
     saveStatus.value = 'error'
@@ -540,6 +599,7 @@ function onReadingReady(result: ReadingResponse) {
   narrationError.value = ''
   narrationStatus.value = result.analysis ? 'ready' : 'idle'
   narrationSaved.value = null
+  narrationModel.value = ''
   marketSnapshot.value = null
   marketStatus.value = 'idle'
   marketError.value = ''

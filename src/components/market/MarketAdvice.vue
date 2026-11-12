@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import HelpTip from '../HelpTip.vue'
+import MarketAdviceLevel from './MarketAdviceLevel.vue'
 
 import { addMarketAlert } from '../../lib/marketAlerts'
 import { formatNumber } from '../../lib/marketChart'
@@ -42,11 +43,10 @@ async function setAlert(condition: 'above' | 'below', price: number, note: strin
   }
 }
 
-function alertLabel(condition: 'above' | 'below', price: number) {
+// 按鈕的狀態；失敗時回到 idle（可以再按一次），錯誤訊息由 alertError 另外顯示
+function alertStatus(condition: 'above' | 'below', price: number): 'idle' | 'saving' | 'saved' {
   const state = alertState.value[`${condition}-${price}`]
-  if (state === 'saving') return '設定中…'
-  if (state === 'saved') return '已設提醒'
-  return '設提醒'
+  return state === 'saving' || state === 'saved' ? state : 'idle'
 }
 
 function alertError(condition: MarketAlert['condition'], price: number) {
@@ -123,74 +123,67 @@ const groups = computed(() => {
     <p class="text-body text-ink-soft/90">{{ view.summary }}</p>
 
     <!-- 長期的關鍵價位：只有年線 -->
-    <div v-if="mode === 'long' && long" class="grid gap-3 sm:grid-cols-2">
+    <div v-if="mode === 'long' && long" class="grid gap-3 lg:grid-cols-2">
       <div class="border-2 border-accent-hue/20 bg-accent-hue/5 p-3">
         <p class="flex items-center gap-1.5 text-body text-accent">關鍵價位：年線 <HelpTip term="yearLine" /></p>
-        <p class="mt-1 text-subtitle font-semibold tabular-nums text-ink">{{ formatNumber(long.keyLevel.price) }}</p>
-        <p v-if="item" class="text-caption text-ink-muted">
-          現價 {{ formatNumber(item.quote.price) }}，{{ item.quote.price >= long.keyLevel.price ? '在年線之上' : '在年線之下' }}
-        </p>
-        <button
-          v-if="item"
-          class="mt-2 cursor-pointer border-2 border-accent-hue/30 px-2 py-0.5 text-button text-accent transition hover:bg-accent-hue/10 disabled:cursor-default disabled:opacity-60 font-pixel"
-          type="button"
-          :disabled="['saving', 'saved'].includes(alertState[`${yearLineCondition}-${long.keyLevel.price}`] ?? '')"
-          @click="setAlert(yearLineCondition, long.keyLevel.price, yearLineNote)"
-        >
-          {{ alertLabel(yearLineCondition, long.keyLevel.price) }}
-        </button>
-        <p v-if="alertError(yearLineCondition, long.keyLevel.price)" class="mt-1 text-caption text-danger">
-          {{ alertError(yearLineCondition, long.keyLevel.price) }}
-        </p>
+        <MarketAdviceLevel
+          class="mt-1"
+          :price="long.keyLevel.price"
+          :label="item ? `現價 ${formatNumber(item.quote.price)}，${item.quote.price >= long.keyLevel.price ? '在年線之上' : '在年線之下'}` : undefined"
+          tone="accent"
+          :can-alert="!!item"
+          :state="alertStatus(yearLineCondition, long.keyLevel.price)"
+          :error="alertError(yearLineCondition, long.keyLevel.price)"
+          @alert="setAlert(yearLineCondition, long.keyLevel.price, yearLineNote)"
+        />
       </div>
-      <div class="border-2 border-tint/10 bg-tint/5 p-3">
-        <p class="flex items-center gap-1.5 text-body text-ink-muted">建議部位 <HelpTip term="position" /></p>
-        <p class="mt-1 text-body font-medium text-ink">{{ long.positionSize }}</p>
+      <!-- 建議部位：手機標題與內容同一行（省高度），sm 以上上下排 -->
+      <div class="flex items-baseline justify-between gap-3 border-2 border-tint/10 bg-tint/5 p-3 sm:block">
+        <p class="flex shrink-0 items-center gap-1.5 text-body text-ink-muted">建議部位 <HelpTip term="position" /></p>
+        <p class="text-right text-body font-medium text-ink sm:mt-1 sm:text-left">{{ long.positionSize }}</p>
       </div>
     </div>
 
     <!-- 短中期的關鍵價位 -->
-    <div v-else class="grid gap-3 sm:grid-cols-3">
+    <div v-else class="grid gap-3 lg:grid-cols-3">
       <div class="border-2 border-down-hue/20 bg-down-hue/5 p-3">
         <p class="flex items-center gap-1.5 text-body text-down-ink">{{ advice.levels.stopLossLabel }} <HelpTip term="stopLoss" /></p>
-        <p class="mt-1 text-subtitle font-semibold tabular-nums text-ink">{{ formatNumber(advice.levels.stopLoss.price) }}</p>
-        <p class="text-caption text-ink-muted">{{ advice.levels.stopLoss.label }}</p>
-        <button
-          v-if="item"
-          class="mt-2 cursor-pointer border-2 border-down-hue/30 px-2 py-0.5 text-button text-down-ink transition hover:bg-down-hue/10 disabled:cursor-default disabled:opacity-60 font-pixel"
-          type="button"
-          :disabled="['saving', 'saved'].includes(alertState[`below-${advice.levels.stopLoss.price}`] ?? '')"
-          @click="setAlert('below', advice.levels.stopLoss.price, `${advice.levels.stopLossLabel}：${advice.levels.stopLoss.label}`)"
-        >
-          {{ alertLabel('below', advice.levels.stopLoss.price) }}
-        </button>
-        <p v-if="alertError('below', advice.levels.stopLoss.price)" class="mt-1 text-caption text-danger">
-          {{ alertError('below', advice.levels.stopLoss.price) }}
-        </p>
+        <MarketAdviceLevel
+          class="mt-1"
+          :price="advice.levels.stopLoss.price"
+          :label="advice.levels.stopLoss.label"
+          tone="down"
+          :can-alert="!!item"
+          :state="alertStatus('below', advice.levels.stopLoss.price)"
+          :error="alertError('below', advice.levels.stopLoss.price)"
+          @alert="setAlert('below', advice.levels.stopLoss.price, `${advice.levels.stopLossLabel}：${advice.levels.stopLoss.label}`)"
+        />
       </div>
       <div class="border-2 border-up-hue/20 bg-up-hue/5 p-3">
         <p class="flex items-center gap-1.5 text-body text-danger">{{ advice.levels.targetsLabel }} <HelpTip term="targets" /></p>
-        <template v-if="advice.levels.targets.length">
-          <div v-for="target in advice.levels.targets" :key="target.price" class="mt-1">
-            <span class="text-subtitle font-semibold tabular-nums text-ink">{{ formatNumber(target.price) }}</span>
-            <span class="ml-2 text-caption text-ink-muted">{{ target.label }}</span>
-            <button
-              v-if="item"
-              class="ml-2 cursor-pointer border-2 border-up-hue/30 px-2 py-0.5 text-button text-up-ink transition hover:bg-up-hue/10 disabled:cursor-default disabled:opacity-60 font-pixel"
-              type="button"
-              :disabled="['saving', 'saved'].includes(alertState[`above-${target.price}`] ?? '')"
-              @click="setAlert('above', target.price, `${advice.levels.targetsLabel}：${target.label}`)"
-            >
-              {{ alertLabel('above', target.price) }}
-            </button>
-            <p v-if="alertError('above', target.price)" class="mt-1 text-caption text-danger">{{ alertError('above', target.price) }}</p>
-          </div>
-        </template>
+        <!-- 好幾個目標價：一個一列，列之間用細線分開 -->
+        <div v-if="advice.levels.targets.length" class="mt-1 divide-y divide-tint/10">
+          <MarketAdviceLevel
+            v-for="target in advice.levels.targets"
+            :key="target.price"
+            class="py-1.5 first:pt-0 last:pb-0"
+            :price="target.price"
+            :label="target.label"
+            tone="up"
+            :can-alert="!!item"
+            :state="alertStatus('above', target.price)"
+            :error="alertError('above', target.price)"
+            @alert="setAlert('above', target.price, `${advice.levels.targetsLabel}：${target.label}`)"
+          />
+        </div>
         <p v-else class="mt-1 text-body text-ink-muted">—</p>
       </div>
+      <!-- 建議部位：手機標題與內容同一行（省高度），sm 以上上下排 -->
       <div class="border-2 border-tint/10 bg-tint/5 p-3">
-        <p class="flex items-center gap-1.5 text-body text-ink-muted">建議部位 <HelpTip term="position" /></p>
-        <p class="mt-1 text-body font-medium text-ink">{{ advice.positionSize }}</p>
+        <div class="flex items-baseline justify-between gap-3 sm:block">
+          <p class="flex shrink-0 items-center gap-1.5 text-body text-ink-muted">建議部位 <HelpTip term="position" /></p>
+          <p class="text-right text-body font-medium text-ink sm:mt-1 sm:text-left">{{ advice.positionSize }}</p>
+        </div>
         <p v-if="advice.levels.riskReward !== null" class="mt-1 text-caption text-ink-muted">
           風險報酬比 <span class="tabular-nums" :class="advice.levels.riskReward >= 1.5 ? 'text-danger' : 'text-ink-muted'">{{ advice.levels.riskReward }}</span>
           <HelpTip class="ml-1" term="riskReward" />
@@ -238,7 +231,7 @@ const groups = computed(() => {
       長期建議由固定規則計算：年線的位置與方向、近一年和大盤比、過去一直抱著的報酬，台股個股再加上估值與營收。歷史表現不代表未來，存股前請再確認公司基本面。
     </p>
     <p v-else class="text-caption text-ink-muted">
-      這份建議由固定規則計算：技術面、在這檔標的有歷史優勢的訊號、表現最好的策略現在的狀態，以及（可靠時）機器學習模型。歷史表現不代表未來，停損請確實執行。
+      這份建議由固定規則計算：長期趨勢（年線、離一年高點）、均線排列、在這檔標的有歷史優勢的訊號、法人與融資。用歷史資料驗證過，偏多之後確實比較常漲，但差距不大；歷史表現不代表未來，出場點請確實執行。
     </p>
   </div>
 </template>

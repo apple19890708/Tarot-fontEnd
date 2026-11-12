@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import DOMPurify from 'dompurify'
-import { marked } from 'marked'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import { AI_TABLE_CLASS, renderAiMarkdown } from '../lib/aiMarkdown'
 import { canUseAi, isLoggedIn } from '../lib/auth'
 
 import BackToTop from './BackToTop.vue'
@@ -33,7 +32,7 @@ const props = defineProps<{
   isRecord?: boolean
   // 最近一次 AI 解讀有沒有存回紀錄（null＝沒有對應的紀錄或不知道）
   narrationSaved?: boolean | null
-  // 股市諮詢：結果頁改成「行情與技術指標 → AI 股市分析 → 牌面輔助」，不顯示一般塔羅的判斷依據與結語
+  // 股市諮詢：結果頁順序是「AI 股市分析 → 牌面輔助 → 牌義 → 行情與分析（最下面）」，不顯示一般塔羅的判斷依據與結語
   stockMode?: boolean
   market?: MarketSnapshot | null
   marketStatus?: MarketStatus
@@ -110,9 +109,9 @@ const saveLabel = computed(() => {
   return isLoggedIn.value ? '保存紀錄' : '保存紀錄（需登入）'
 })
 
-// AI 回覆是 Markdown；轉成 HTML 後一定要經過 DOMPurify 清理再用 v-html 顯示
+// AI 回覆是 Markdown；轉 HTML、DOMPurify 清理、方向表上色都在 renderAiMarkdown
 const narrationHtml = computed(() =>
-  props.narrationText ? DOMPurify.sanitize(marked.parse(props.narrationText, { async: false })) : '',
+  renderAiMarkdown(props.narrationText),
 )
 
 // 這次結果已經是一筆紀錄：首頁按過保存，或是在「我的紀錄」裡回顧
@@ -208,7 +207,7 @@ function formatSuit(suit: string | null) {
 
 <template>
   <!-- data-nav：浮動選單「跳到段落」的目標（見 lib/sectionNav.ts） -->
-  <!-- 用 flex + order：股市諮詢時把行情與 AI 分析排到牌面前面，區塊本身不必寫兩份 -->
+  <!-- 用 flex + order：股市諮詢時依序是 AI 分析、牌面輔助、牌義、行情與分析（最下面），區塊本身不必寫兩份 -->
   <div ref="rootEl" class="flex min-w-0 flex-col gap-4 sm:gap-6">
     <div class="space-y-3 border-b border-tint/10 pb-4 sm:space-y-4 sm:pb-6">
       <div class="flex min-w-0 flex-wrap items-end justify-between gap-4">
@@ -270,10 +269,13 @@ function formatSuit(suit: string | null) {
 
     </div>
 
+    <!-- 行情與分析：和個股分析彈窗同一種分頁排版（tabs），放在整頁最下面
+         （2026-11-12 使用者要求：快速占卜的結果頁還是舊的長條排版，改成和個股分析一樣、移到最下面） -->
     <MarketPanel
       v-if="stockMode"
       data-nav="行情與技術指標"
-      class="order-1"
+      class="order-5"
+      tabs
       :snapshot="market ?? null"
       :status="marketStatus ?? 'idle'"
       :error="marketError"
@@ -409,10 +411,10 @@ function formatSuit(suit: string | null) {
 
       <div v-if="narrationStatus === 'ready'" class="mt-4 space-y-4">
         <p v-if="stockMode" class="text-sm leading-7 text-ink-muted">
-          AI 會依據上方的即時行情與技術指標，寫出短線方向、支撐壓力與附觸發價位的操作情境，牌面只用來提醒操作心態。文字會陸續出現，隨時可以停止。
+          AI 會先逐張解讀這組牌對你這次操作的提醒，再依頁面最下面的即時行情與技術指標，寫出附觸發價位的操作情境與短線判斷。文字會陸續出現，隨時可以停止；完整寫完會自動存進「我的紀錄」。
         </p>
         <p v-else class="text-sm leading-7 text-ink-muted">
-          想要更完整的白話解讀嗎？AI 會把這組牌串成這件事接下來會怎麼發展，並給出具體的做法。文字會陸續出現，隨時可以停止。
+          想要更完整的白話解讀嗎？AI 會把這組牌串成這件事接下來會怎麼發展，並給出具體的做法。文字會陸續出現，隨時可以停止；完整寫完會自動存進「我的紀錄」。
         </p>
         <button
           v-if="canUseAi"
@@ -474,7 +476,8 @@ function formatSuit(suit: string | null) {
 
         <div
           v-if="narrationText"
-          class="mt-4 min-w-0 space-y-4 break-words text-sm leading-7 text-ink/90 [&_pre]:overflow-x-auto [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto sm:text-base sm:leading-8 [&_h2]:mt-8 [&_h2]:border-t [&_h2]:border-tint/10 [&_h2]:pt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-accent [&_h3]:mt-6 [&_h3]:font-semibold [&_h3]:text-ink [&_li]:my-1 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_strong]:font-semibold [&_strong]:text-accent [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6 [&_ul]:marker:text-warn"
+          :class="AI_TABLE_CLASS"
+          class="mt-4 min-w-0 space-y-4 break-words text-sm leading-7 text-ink/90 [&_pre]:overflow-x-auto sm:text-base sm:leading-8 [&_h2]:mt-8 [&_h2]:border-t [&_h2]:border-tint/10 [&_h2]:pt-6 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-accent [&_h3]:mt-6 [&_h3]:font-semibold [&_h3]:text-ink [&_li]:my-1 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_strong]:font-semibold [&_strong]:text-accent [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6 [&_ul]:marker:text-warn"
           v-html="narrationHtml"
         />
 
@@ -523,7 +526,7 @@ function formatSuit(suit: string | null) {
         >
           <span class="text-sm leading-7 text-ink-muted">
             <template v-if="narrationStatus === 'stopped'">已停止產生，以上是目前寫出的部分。</template>
-            <template v-else-if="stockMode">{{ narrationError }}可以先參考上方的行情與技術指標，或稍後再試一次。</template>
+            <template v-else-if="stockMode">{{ narrationError }}可以先參考頁面最下面的行情與技術指標，或稍後再試一次。</template>
             <template v-else>{{ narrationError }}可以先參考下方規則分析的結果，或稍後再試一次。</template>
           </span>
           <button

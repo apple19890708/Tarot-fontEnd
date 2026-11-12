@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from 'vue'
 
 import StockSearchInput from './StockSearchInput.vue'
+import StockAnalysisDialog from './StockAnalysisDialog.vue'
 import { fetchDividendProfile } from '../../lib/api'
 import { formatNumber } from '../../lib/marketChart'
 import type { DividendProfile, MarketSearchResult } from '../../types'
@@ -19,6 +20,8 @@ const searchText = ref(query.value)
 const status = ref<'idle' | 'loading' | 'error'>('idle')
 const error = ref('')
 let requestId = 0
+// 點名稱開的個股分析（不用先加入追蹤，用代號查）
+const analysisFor = ref<{ code: string; name: string } | null>(null)
 
 async function load(q: string) {
   const text = q.trim()
@@ -105,8 +108,20 @@ function problemOf(pf: DividendProfile) {
     <p v-if="status === 'error'" class="text-caption text-danger">{{ error }}</p>
     <p v-else-if="profile && problemOf(profile)" class="text-caption text-warn">{{ problemOf(profile) }}</p>
     <p v-else-if="profile" class="text-caption text-ink-muted">
-      {{ profile.target.name }} {{ profile.target.code || profile.target.symbol }}，現價 {{ formatNumber(profile.price) }}{{ profile.target.market === 'us' ? ' 美元' : ' 元' }}
+      <!-- 台股的名稱可以點開個股分析（2026-11-12 使用者要求）；個股分析只吃台股代號，美股維持純文字 -->
+      <button
+        v-if="profile.target.market === 'tw' && profile.target.code"
+        type="button"
+        class="cursor-pointer text-ink underline decoration-dotted decoration-tint/40 underline-offset-4 hover:text-accent active:text-accent"
+        :title="`${profile.target.name}：個股分析`"
+        @click="analysisFor = { code: profile.target.code, name: profile.target.name }"
+      >
+        {{ profile.target.name }}
+      </button>
+      <template v-else>{{ profile.target.name }}</template>
+      {{ profile.target.code || profile.target.symbol }}，現價 {{ formatNumber(profile.price) }}{{ profile.target.market === 'us' ? ' 美元' : ' 元' }}
     </p>
     <p v-else class="text-caption text-ink-muted">打代號或名稱，選下拉的候選或按「{{ submitLabel || '試算' }}」。不用先加入追蹤。</p>
+    <StockAnalysisDialog v-if="analysisFor" :code="analysisFor.code" :name="analysisFor.name" @close="analysisFor = null" />
   </div>
 </template>

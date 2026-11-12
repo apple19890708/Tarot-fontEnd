@@ -237,7 +237,9 @@ onMounted(() => {
           </div>
         </div>
 
-        <DataTable table-class="min-w-[40rem]">
+        <!-- 每一格都是短字或數字，整列不換行：標的欄的長名稱會把「偏空 信心中」擠成兩行（1024 以下，2026-11-12）。
+             名稱本身由 StockNameCell 截斷，表格比畫面寬時左右捲 -->
+        <DataTable table-class="min-w-[44rem] [&>tbody>tr]:whitespace-nowrap">
           <template #head>
               <tr>
                 <th>日期</th>

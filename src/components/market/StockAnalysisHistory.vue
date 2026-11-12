@@ -349,7 +349,8 @@ onMounted(loadList)
               <span class="transition group-open:rotate-90">›</span>分析依據（當時的行情與指標）
             </summary>
             <div class="border-t border-tint/10 p-3">
-              <MarketPanel :snapshot="savedSnapshot" status="ready" is-saved hide-refresh />
+              <!-- 和個股分析彈窗同一種分頁排版（2026-11-12 起，快速占卜的結果頁也是） -->
+              <MarketPanel :snapshot="savedSnapshot" status="ready" is-saved hide-refresh tabs />
             </div>
           </details>
         </template>

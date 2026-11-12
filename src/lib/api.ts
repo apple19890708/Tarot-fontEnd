@@ -686,6 +686,19 @@ export function saveReadingRecord(payload: {
   })
 }
 
+// 補存或更新一筆紀錄的 AI 解讀（2026-11-12）：AI 寫的過程中才按保存時，那次 AI 請求沒帶紀錄 id，後端不會存回，
+// AI 完成後由前端用這支補上；已經有解讀會被覆蓋
+// cards：這段解讀當時的牌與正逆位，後端和紀錄比對，不一樣就不存（409）
+export function updateReadingNarration(
+  id: string,
+  narration: { text: string; model?: string; market?: MarketSnapshot | null; cards: ManualCardPick[] },
+) {
+  return request<{ saved: boolean }>(`/api/readings/${id}/narration`, {
+    method: 'PUT',
+    body: JSON.stringify(narration),
+  })
+}
+
 export function fetchReadingHistory(params: { page?: number; pageSize?: number } = {}) {
   const query = new URLSearchParams()
   if (params.page) {

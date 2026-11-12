@@ -8,6 +8,7 @@ import MarketPredictionChart from './MarketPredictionChart.vue'
 import MarketStrategyChart from './MarketStrategyChart.vue'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { signalGlossaryKeys } from '../../lib/marketGlossary'
+import { ROW_TINT } from '../../lib/table'
 import type { MarketResearch, MarketSignalBacktest, MarketStrategyResult } from '../../types'
 
 // 歷史回測、策略比較、機器學習預測。數字全由後端算好，這裡只排版、貼標籤與上色。
@@ -145,21 +146,31 @@ const topFactors = computed(() => {
           </dd>
         </div>
         <div v-if="bestStrategy" class="space-y-1">
-          <dt class="text-ink-muted">照固定規則買賣，有比買了一直抱著好嗎？</dt>
-          <dd class="flex flex-wrap items-center gap-1.5">
+          <dt class="text-ink-muted">
+            照固定規則買賣，有比一直抱著好嗎？
+            <!-- 起算日要寫出來（2026-11-12 使用者問：自己 20 元買、現在 13 元，「一直抱著」是從哪天算？）：
+                 兩邊都是從回測起點那天收盤買進，不是使用者自己的買進價，不寫會被當成「我抱著會是這個報酬」 -->
+            <span v-if="research.strategies" class="block text-caption">
+              兩邊都從 {{ research.strategies.from }} 收盤買進起算，到 {{ research.strategies.to }}；不是你自己的買進價
+            </span>
+          </dt>
+          <!-- 兩個數字各一行、名稱靠左數字靠右，結論標籤在下面一行。原本寫成一整句（「…賺最多 +97.31%，一直抱著是 +267.34%」），
+               手機上句子從中間斷開、逗號掉到下一行開頭，數字也對不齊（2026-11-12 使用者回報） -->
+          <dd class="space-y-1">
             <!-- 「最賺」只在照規則買賣的做法裡比，買了一直抱著另外列，避免「最賺卻不如抱著」的矛盾說法 -->
-            <span class="text-ink">照規則買賣的做法裡，「{{ bestStrategy.label }}」賺最多</span>
-            <span class="tabular-nums" :class="trendClass(bestStrategy.totalReturn)">{{ formatSigned(bestStrategy.totalReturn, '%') }}</span>
-            <span v-if="buyHold" class="text-ink">
-              ，一直抱著是 <span class="tabular-nums" :class="trendClass(buyHold.totalReturn)">{{ formatSigned(buyHold.totalReturn, '%') }}</span>
-            </span>
-            <span
-              v-if="beatsBuyHold(bestStrategy) !== null"
-              class="border px-1.5 text-caption"
-              :class="beatsBuyHold(bestStrategy) ? EDGE_STYLES.better : EDGE_STYLES.worse"
-            >
-              {{ beatsBuyHold(bestStrategy) ? '照規則買賣比較好' : '一直抱著比較好' }}
-            </span>
+            <p class="flex items-baseline justify-between gap-3">
+              <span class="min-w-0 text-ink">照規則買賣最賺：{{ bestStrategy.label }}</span>
+              <span class="shrink-0 tabular-nums" :class="trendClass(bestStrategy.totalReturn)">{{ formatSigned(bestStrategy.totalReturn, '%') }}</span>
+            </p>
+            <p v-if="buyHold" class="flex items-baseline justify-between gap-3">
+              <span class="min-w-0 text-ink">買了一直抱著</span>
+              <span class="shrink-0 tabular-nums" :class="trendClass(buyHold.totalReturn)">{{ formatSigned(buyHold.totalReturn, '%') }}</span>
+            </p>
+            <p v-if="beatsBuyHold(bestStrategy) !== null">
+              <span class="border px-1.5 text-caption" :class="beatsBuyHold(bestStrategy) ? EDGE_STYLES.better : EDGE_STYLES.worse">
+                {{ beatsBuyHold(bestStrategy) ? '照規則買賣比較好' : '一直抱著比較好' }}
+              </span>
+            </p>
           </dd>
         </div>
         <div v-if="research.prediction" class="space-y-1">
@@ -285,7 +296,8 @@ const topFactors = computed(() => {
       </div>
 
       <ul class="space-y-2">
-        <li v-for="s in activeStrategies" :key="s.key" class="space-y-2.5 border-2 border-tint/10 bg-tint/5 p-3">
+        <!-- --sticky-bg：卡片是淡底（bg-tint/5），裡面小表固定的第一欄要用同一個顏色，否則是一塊比較深的方塊（ROW_TINT 同一個算法） -->
+        <li v-for="s in activeStrategies" :key="s.key" class="space-y-2.5 border-2 border-tint/10 p-3" :class="ROW_TINT">
           <!-- 標題列：名稱＋白話說明放進「?」；標籤（含現在該持有或空手）一律同一排換行，手機上不會只剩一個靠右的孤字 -->
           <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span class="flex items-center gap-1.5 font-semibold text-ink">
@@ -321,22 +333,24 @@ const topFactors = computed(() => {
 
           <!-- 停損版本與分段檢查：原本是一長串句子，手機上數字被拆行很難對照，改成「照規則／一直抱著」兩欄的小表。
                列名只寫白話，細節放第二行小字；數字一位小數、不換行，兩欄之間的間距由 DataTable 的精簡樣式給 -->
+          <!-- 第一欄有說明小字（停損的規則、分段日期），DataTable 預設第一欄不換行會把整張表撐寬、數字欄被推出卡片（2026-11-12 手機破版）。
+               這張表的第一欄改成可以換行，最少 8em；數字欄維持不換行 -->
           <DataTable variant="compact" class="text-ink-soft">
             <template #head>
               <tr>
-                <th>總共賺</th>
+                <th class="w-full">總共賺</th>
                 <th class="whitespace-nowrap align-top">照規則</th>
                 <th class="whitespace-nowrap align-top">一直抱著</th>
               </tr>
             </template>
               <!-- 全期間放第一列，下面的停損、分段都和它對照 -->
               <tr>
-                <td>全期間</td>
+                <td class="min-w-[8em] whitespace-normal">全期間</td>
                 <td class="whitespace-nowrap align-top" :class="trendClass(s.totalReturn)">{{ signed1(s.totalReturn) }}</td>
                 <td class="whitespace-nowrap align-top" :class="trendClass(buyHold?.totalReturn)">{{ signed1(buyHold?.totalReturn) }}</td>
               </tr>
               <tr v-if="s.withStop && stopRule">
-                <td>
+                <td class="min-w-[8em] whitespace-normal">
                   <span class="inline-flex items-center gap-1">加上停損 <HelpTip term="strategyStopLoss" /></span>
                   <span class="block text-ink-muted">
                     {{ stopRule }}<template v-if="s.withStop.stops !== undefined">，賣過 {{ s.withStop.stops }} 次</template>，最慘從高點跌
@@ -349,7 +363,7 @@ const topFactors = computed(() => {
               </tr>
               <template v-if="s.periods && research.strategies.splitDate">
                 <tr>
-                  <td>
+                  <td class="min-w-[8em] whitespace-normal">
                     <span class="inline-flex items-center gap-1">前段 <HelpTip term="strategySplit" /></span>
                     <span class="block text-ink-muted">{{ research.strategies.splitDate }} 以前</span>
                   </td>
@@ -357,7 +371,7 @@ const topFactors = computed(() => {
                   <td class="whitespace-nowrap align-top" :class="trendClass(s.periods.early.buyHold)">{{ signed1(s.periods.early.buyHold) }}</td>
                 </tr>
                 <tr>
-                  <td>
+                  <td class="min-w-[8em] whitespace-normal">
                     後段
                     <span class="block text-ink-muted">{{ research.strategies.splitDate }} 以後</span>
                   </td>
