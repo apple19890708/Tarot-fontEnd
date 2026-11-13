@@ -24,6 +24,8 @@ const LADDER_TONES: Record<string, string> = {
 const CURRENT_ROW = '[&>td]:bg-accent-hue/10'
 // 只有數字的格子（價位、漲跌幅）：不換行、等寬數字
 const NUMERIC = /^[-+−–]?[\d,]+(?:\.\d+)?\s*%?(?:（[-+−–]?[\d,.]+\s*%?）)?$/
+// 這個字數以內的格子當成標籤，不換行；更長的是說明，照常換行
+const SHORT_CELL_MAX = 8
 // 表格外包的捲動框：表格比畫面寬時在框裡左右捲，不把整頁撐寬。
 // 不能直接把 table 設成 block 來捲：那樣外框撐滿整行、表格本身只照內容寬，桌機右邊空一大塊（2026-11-12 使用者回報）
 const TABLE_WRAP = 'relative overflow-x-auto border-2 border-tint/10'
@@ -115,6 +117,10 @@ export function renderAiMarkdown(markdown: string, options: { sections?: boolean
       } else if (!cell.previousElementSibling) {
         // 第一欄是列標題。寫在這裡而不是容器的 [&_td:first-child]：那個選擇器權重較高，會蓋掉上面的漲跌色
         cell.className = 'whitespace-nowrap font-semibold text-ink'
+      } else if (text.length <= SHORT_CELL_MAX) {
+        // 短字（牌名「聖杯五逆」、價位來源這類標籤）不換行：手機上說明欄會把它擠成一字一行
+        //（牌面速覽的「牌」欄在 375 寬變成直排，2026-11-13 使用者回報）
+        cell.className = 'whitespace-nowrap'
       }
     })
     const wrap = document.createElement('div')
@@ -126,6 +132,59 @@ export function renderAiMarkdown(markdown: string, options: { sections?: boolean
   const box = document.createElement('div')
   box.append(fragment)
   return box.innerHTML
+}
+
+// 追問的延伸回答照標題切開，每一節放到對應的追問底下（2026-11-13 使用者要求「放在該追問問題的底下」）。
+// 後端提示詞（Tbackend 的 narrationService.js FOLLOW_UP_PROMPT）規定每次追問一節「## 追問 N｜…」、最後「## 綜合來看」。
+// 標題本身不留（追問的問題已經顯示在上面）；第一個標題之前的文字、或 AI 沒照標題寫的，一律歸到綜合來看，不會不見。
+// 只切開位置，文字仍是 AI 產生的原文
+export function splitFollowUpAnswer(markdown: string) {
+  const rounds: string[] = []
+  const summary: string[] = []
+  let target: string[] = summary
+  const roundLines: string[][] = []
+  for (const line of String(markdown || '').split(/\r?\n/)) {
+    const round = /^##\s*追問\s*(\d+)/.exec(line)
+    if (round) {
+      const index = Number(round[1]) - 1
+      roundLines[index] ??= []
+      target = roundLines[index]!
+      continue
+    }
+    if (/^##\s*綜合來看/.test(line)) {
+      target = summary
+      continue
+    }
+    target.push(line)
+  }
+  roundLines.forEach((lines, index) => {
+    rounds[index] = lines.join('\n').trim()
+  })
+  return { rounds, summary: summary.join('\n').trim() }
+}
+
+// 前 count 次追問已經寫好的段落（含標題），從追問 1 起連續都有才算；和後端 followUp.keepAnsweredSections 同一套規則。
+// 只回答新的追問時，畫面先留著這幾段，AI 新寫的接在後面（2026-11-13 使用者要求不要每次全部重寫）
+export function keepAnsweredSections(markdown: string, count: number) {
+  const sections = new Map<number, string[]>()
+  let current: number | null = null
+  for (const line of String(markdown || '').split(/\r?\n/)) {
+    const round = /^##\s*追問\s*(\d+)/.exec(line)
+    if (round) {
+      current = Number(round[1])
+      if (!sections.has(current)) sections.set(current, [])
+    } else if (/^##\s*綜合來看/.test(line) || /^#\s/.test(line)) {
+      current = null
+    }
+    if (current !== null) sections.get(current)!.push(line)
+  }
+  const kept: string[] = []
+  for (let number = 1; number <= count; number += 1) {
+    const lines = sections.get(number)
+    if (!lines || lines.slice(1).join('').trim() === '') break
+    kept.push(lines.join('\n').trim())
+  }
+  return { kept: kept.length, text: kept.join('\n\n') }
 }
 
 // AI 文字裡的表格樣式（放在包住 v-html 的元素上）：表頭淡底、儲存格內距與分隔線，全部靠左（同 DataTable）。

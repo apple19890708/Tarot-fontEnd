@@ -50,6 +50,7 @@ import type {
   MarketWatchItem,
   NarrationStreamEvent,
   QuestionDomain,
+  FollowUpRound,
   ReadingDetail,
   ReadingHistoryResponse,
   ReadingResponse,
@@ -679,6 +680,9 @@ export function saveReadingRecord(payload: {
   spreadKey?: string
   positions?: CustomPosition[]
   narration?: { text: string; model?: string; market?: MarketSnapshot | null }
+  // 保存前已經追問過的補充牌與 AI 延伸回答（舊版後端會忽略）
+  followUps?: FollowUpPayload[]
+  followUpNarration?: { text: string; model?: string }
 }) {
   return request<{ id: string; createdAt: string }>('/api/readings', {
     method: 'POST',
@@ -697,6 +701,111 @@ export function updateReadingNarration(
     method: 'PUT',
     body: JSON.stringify(narration),
   })
+}
+
+// ---- 抽牌追問（v23）----
+// 送給後端的追問：只要問題、牌 id 與正逆位
+export interface FollowUpPayload {
+  question: string
+  cards: ManualCardPick[]
+}
+
+export function toFollowUpPayload(followUps: FollowUpRound[]): FollowUpPayload[] {
+  return followUps.map((round) => ({
+    question: round.question,
+    cards: round.cards.map((entry) => ({ id: entry.card.id, orientation: entry.orientation })),
+  }))
+}
+
+const baseCardsOf = (reading: ReadingResponse): ManualCardPick[] =>
+  reading.cards.map((entry) => ({ id: entry.card.id, orientation: entry.orientation }))
+
+// 追問抽牌：後端從還沒出現過的牌裡抽（原牌陣與之前的補充牌不會再出現）。
+// picks：使用者自己在扇形牌堆抽的牌（正逆位洗牌時已決定）；有帶就用它，後端只檢查與補上牌義
+export function drawFollowUp(
+  reading: ReadingResponse,
+  followUps: FollowUpRound[],
+  question: string,
+  count: number,
+  picks?: ManualCardPick[],
+) {
+  return request<FollowUpRound>('/api/readings/follow-up/draw', {
+    method: 'POST',
+    body: JSON.stringify({ cards: baseCardsOf(reading), followUps: toFollowUpPayload(followUps), question, count, picks }),
+  })
+}
+
+// 更新已保存紀錄的追問（整批取代）。narration 有帶才會動延伸回答
+export function updateReadingFollowUps(
+  id: string,
+  payload: { cards: ManualCardPick[]; followUps: FollowUpPayload[]; narration?: { text: string; model?: string } | null },
+) {
+  return request<{ saved: boolean }>(`/api/readings/${id}/follow-ups`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+// 追問的 AI 延伸回答（串流）：原牌陣、先前的解讀與所有追問一起交給 AI
+export async function streamFollowUpNarration(
+  reading: ReadingResponse,
+  options: {
+    followUps: FollowUpRound[]
+    // 先前的 AI 解讀全文；沒有就不帶
+    narration?: string
+    // 前幾次追問已經有回答、要保留（只回答新的追問）；followUpText 是目前的延伸回答全文（還沒保存成紀錄時後端用它）
+    answeredRounds?: number
+    followUpText?: string
+    signal: AbortSignal
+    // 後端實際保留了前幾次的回答（可能比要求的少）；舊版後端不會呼叫
+    onStart?: (kept: number) => void
+    onDelta: (text: string) => void
+    domain?: QuestionDomain
+    readingId?: string
+  },
+): Promise<{ model: string; saved: boolean | null }> {
+  const response = await fetch(`${API_BASE_URL}/api/readings/follow-up/narrate`, {
+    method: 'POST',
+    // 不走 request()，Authorization 要自己帶
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({
+      question: reading.question,
+      spreadKey: reading.spread.key,
+      positions: reading.cards.every((entry) => entry.position)
+        ? reading.cards.map((entry) => ({ label: entry.position!.label, prompt: entry.position!.prompt }))
+        : undefined,
+      domain: options.domain,
+      readingId: options.readingId,
+      cards: baseCardsOf(reading),
+      followUps: toFollowUpPayload(options.followUps),
+      narration: options.narration || undefined,
+      answeredRounds: options.answeredRounds || undefined,
+      followUpText: options.answeredRounds ? options.followUpText || undefined : undefined,
+    }),
+    signal: options.signal,
+  })
+
+  if (!response.ok || !response.body) {
+    const payload = (await response.json().catch(() => null)) as { message?: string } | null
+    if (response.status === 401) {
+      notifyUnauthorized()
+      throw new UnauthorizedError(payload?.message || '請先登入後再使用 AI 追問。')
+    }
+    throw new Error(payload?.message || 'AI 追問暫時無法使用')
+  }
+
+  for await (const event of ndjsonEvents<NarrationStreamEvent>(response.body, 'AI 追問')) {
+    if (event.type === 'start') {
+      options.onStart?.(event.kept)
+    } else if (event.type === 'delta') {
+      options.onDelta(event.text)
+    } else if (event.type === 'done') {
+      return { model: event.model, saved: event.saved ?? null }
+    } else if (event.type === 'error') {
+      throw new Error(event.message)
+    }
+  }
+  throw new Error('AI 追問連線意外中斷，請再試一次。')
 }
 
 export function fetchReadingHistory(params: { page?: number; pageSize?: number } = {}) {

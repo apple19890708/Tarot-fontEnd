@@ -5,6 +5,7 @@ import { AI_TABLE_CLASS, renderAiMarkdown } from '../lib/aiMarkdown'
 import { canUseAi, isLoggedIn } from '../lib/auth'
 
 import BackToTop from './BackToTop.vue'
+import FollowUpPanel from './FollowUpPanel.vue'
 import MarketPanel from './MarketPanel.vue'
 import PixelChevron from './PixelChevron.vue'
 import QuantPanel from './QuantPanel.vue'
@@ -14,6 +15,7 @@ import SpreadLayout from './SpreadLayout.vue'
 import { cardImageUrl } from '../lib/cardStyle'
 import { prefersReducedMotion, smoothScrollTo } from '../lib/motion'
 import { provideSectionNav, type SectionNavItem } from '../lib/sectionNav'
+import type { FollowUpController } from '../lib/useFollowUps'
 import type { Element, MarketSnapshot, MarketStatus, NarrationStatus, ReadingResponse, SaveStatus, Spread } from '../types'
 
 const props = defineProps<{
@@ -39,6 +41,8 @@ const props = defineProps<{
   marketError?: string
   // 回顧紀錄時顯示的是當時存下來的行情
   marketIsSaved?: boolean
+  // 抽牌追問（v23）：補充牌區在 AI 解讀下面，AI 的回答放在各個追問底下（都在 FollowUpPanel 裡）。沒給就不顯示
+  followUp?: FollowUpController
 }>()
 
 const emit = defineEmits<{
@@ -254,6 +258,7 @@ function formatSuit(suit: string | null) {
       <p class="text-base font-medium leading-relaxed text-accent sm:text-xl">
         {{ reading.question || '未填寫問題，這次抽牌以當下整體能量為主。' }}
       </p>
+
 
       <p
         v-if="saveError"
@@ -556,6 +561,17 @@ function formatSuit(suit: string | null) {
       </div>
       </div>
     </div>
+
+    <!-- 抽牌追問：補充牌、追問輸入與專屬的 AI 追問按鈕。放在 AI 解讀（這組牌想說的事）下面：
+         先看完原本的解讀再追問（2026-11-14 使用者要求；原本接在牌陣下面）。
+         未登入時按 AI 追問，和 AI 解讀走同一條路：外層先存好結果再帶去登入頁 -->
+    <FollowUpPanel
+      v-if="followUp"
+      data-nav="追問與補充牌"
+      :class="{ 'order-2': stockMode }"
+      :follow-up="followUp"
+      @request-login="emit('requestNarration')"
+    />
 
     <!-- 原生 details 收合時沒辦法做動畫，改用 grid-rows 0fr↔1fr 展開收合，不必量高度 -->
     <!-- 股市諮詢不顯示一般塔羅的判斷依據與結語：那一頁的主體是行情與技術分析 -->

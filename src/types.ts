@@ -290,6 +290,17 @@ export interface AnalysisQuant {
   text: string
 }
 
+// 是非題（會不會、是否、能不能、有沒有…）的答案。文字與答案都由後端算，前端只用 verdict 決定顏色
+export interface AnalysisYesNo {
+  // 「會」在這題指的是：事情變動、維持、不好的事發生、好的事發生
+  yesMeans: 'change' | 'stay' | 'unfavorable' | 'favorable'
+  verdict: 'yes' | 'leanYes' | 'unclear' | 'leanNo' | 'no'
+  verdictLabel: string
+  text: string
+  // 每張牌把答案往「會」（正）或「不會」（負）拉多少
+  contributions: { index: number; value: number; share: number }[]
+}
+
 export interface ReadingAnalysis {
   theme: AnalysisTheme
   pairs: AnalysisPair[]
@@ -300,6 +311,8 @@ export interface ReadingAnalysis {
   uncertainties: AnalysisNote[]
   quant?: AnalysisQuant | null
   question?: AnalysisQuestion | null
+  // 規則 12：是非題的答案；不是是非題時為 null。舊版後端沒有
+  yesNo?: AnalysisYesNo | null
   positions?: AnalysisPositionFinding[]
   numberStage?: AnalysisNumberStage | null
   weights?: AnalysisWeights
@@ -336,6 +349,8 @@ export type NarrationStreamEvent =
   // 股市問題才有，排在第一個：AI 解讀時查到的報價與技術指標（舊版後端沒有這個事件）
   | { type: 'market'; snapshot: MarketSnapshot }
   | { type: 'delta'; text: string }
+  // 追問的延伸回答才有，排在 delta 前面：保留了前幾次追問已經寫好的回答（舊版後端沒有這個事件）
+  | { type: 'start'; kept: number }
   // saved：有指定紀錄時是否已存回那筆（null＝沒有指定紀錄；舊版後端沒有這個欄位）
   | { type: 'done'; model: string; saved?: boolean | null }
   | { type: 'error'; message: string }
@@ -1488,7 +1503,28 @@ export interface ReadingDetail {
   domain: QuestionDomain | null
   reading: ReadingResponse
   narration: SavedNarration | null
+  // 抽牌追問（v23）；舊版後端沒有這兩個欄位
+  followUps?: FollowUpRound[]
+  // rounds：這篇延伸回答寫的時候涵蓋了幾次追問（0 或沒有＝不知道，當成全部涵蓋）
+  followUpNarration?: { text: string; model: string; rounds?: number; createdAt: string } | null
 }
+
+// ===== 抽牌追問（v23）=====
+// 占卜完針對同一件事再問、再抽 1～3 張補充牌，最多三次。補充牌沒有牌陣位置
+export type FollowUpCard = Omit<ReadingCard, 'position'>
+
+export interface FollowUpRound {
+  question: string
+  cards: FollowUpCard[]
+  createdAt?: string
+}
+
+// 追問的 AI 延伸回答的狀態（沒有 ready：有沒有按鈕看的是有沒有追問）
+export type FollowUpStatus = 'idle' | 'loading' | 'streaming' | 'done' | 'stopped' | 'error'
+
+export const FOLLOW_UP_MAX_ROUNDS = 3
+export const FOLLOW_UP_MAX_CARDS = 3
+export const FOLLOW_UP_QUESTION_MAX = 200
 
 // 結果頁「保存紀錄」的狀態
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'

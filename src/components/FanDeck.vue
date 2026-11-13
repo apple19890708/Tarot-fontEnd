@@ -276,12 +276,38 @@ function start() {
   }
 }
 
+// 半徑要讓整個扇形放得進牌堆的寬度。牌本身不接受點擊，只有牌堆這一層判斷點到哪張，
+// 畫到牌堆外面的牌點了沒反應（追問的補充牌區比整頁窄，手機上左右各五張點不到，2026-11-14 使用者回報）。
+// 斷點給的是上限（--fan-r-base），實際用的 --fan-r 依容器寬度縮小
+const fitRadius = ref<number | null>(null)
+let resizeObserver: ResizeObserver | null = null
+
+function updateFitRadius() {
+  const el = fanEl.value
+  if (!el) return
+  const base = Number.parseFloat(getComputedStyle(el).getPropertyValue('--fan-r-base')) || 0
+  // 牌寬照斷點：手機 38、平板 50、桌機 62（同 template 的 w-[…]）。
+  // 最外側那張的牌頂在 半徑 × sin(半角)，牌身斜放再往外凸約四分之一張；只要靜止時的牌在牌堆裡就點得到，
+  // 抬起時凸出去的那一點不用算（原本連抬起都算進去，留了四分之三張，手機上扇形縮得太小，2026-11-14 使用者回報）
+  const cardWidth = window.matchMedia('(min-width: 1024px)').matches ? 62 : window.matchMedia('(min-width: 640px)').matches ? 50 : 38
+  const halfAngle = (FAN_ANGLE / 2) * (Math.PI / 180)
+  const fit = (el.clientWidth / 2 - cardWidth * 0.25) / Math.sin(halfAngle)
+  fitRadius.value = base > 0 && fit > 0 ? Math.min(base, fit) : null
+}
+
 onMounted(() => {
   ctx = gsap.context(() => {}, fanEl.value ?? undefined)
+  updateFitRadius()
+  if (fanEl.value && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(updateFitRadius)
+    resizeObserver.observe(fanEl.value)
+  }
   start()
 })
 
 onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  resizeObserver = null
   activeTimeline?.kill()
   ctx?.revert()
   ctx = null
@@ -581,8 +607,9 @@ const statusText = computed(() => {
   -->
   <div
     ref="fanEl"
-    class="relative mx-auto h-[200px] w-full touch-pan-y select-none outline-none [--fan-r:190px] focus-visible:ring-2 focus-visible:ring-amber-200/30 sm:h-[240px] sm:[--fan-r:260px] lg:h-[300px] lg:[--fan-r:330px]"
+    class="relative mx-auto h-[200px] w-full touch-pan-y select-none outline-none [--fan-r-base:190px] [--fan-r:190px] focus-visible:ring-2 focus-visible:ring-amber-200/30 sm:h-[240px] sm:[--fan-r-base:260px] sm:[--fan-r:260px] lg:h-[300px] lg:[--fan-r-base:330px] lg:[--fan-r:330px]"
     :class="hoverIndex !== null && isPickable(hoverIndex) ? 'cursor-pointer' : ''"
+    :style="fitRadius ? { '--fan-r': `${fitRadius}px` } : undefined"
     role="group"
     aria-label="牌堆：用左右鍵選牌，Enter 抽出"
     tabindex="0"

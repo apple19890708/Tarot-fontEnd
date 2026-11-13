@@ -15,6 +15,7 @@ import {
   updateReadingNarration,
   fetchMarketSnapshot,
   streamNarration,
+  toFollowUpPayload,
 } from '../lib/api'
 import { canUseAi, canUseStock, isLoggedIn, onLogout } from '../lib/auth'
 import { refreshHealth } from '../lib/health'
@@ -22,11 +23,13 @@ import { installPixelCardBack } from '../lib/pixelArt'
 import { resetSceneBus, sceneBus } from '../lib/sceneBus'
 import { clearResultSnapshot, RESULT_SNAPSHOT_KEY } from '../lib/resultSnapshot'
 import { spreadForReading } from '../lib/readingSpread'
+import { useFollowUps } from '../lib/useFollowUps'
 import type {
   CardSummary,
   CustomPosition,
   DeckCard,
   DrawMode,
+  FollowUpRound,
   ManualCardPick,
   NarrationStatus,
   MarketSnapshot,
@@ -182,6 +185,19 @@ let narrationController: AbortController | null = null
 const savedReadingId = ref('')
 const saveStatus = ref<SaveStatus>('idle')
 const saveError = ref('')
+
+// 抽牌追問（v23）：針對同一件事再問、再抽補充牌，AI 把原牌陣和補充牌一起回答。
+// 延伸回答寫完時如果還沒保存成紀錄，和 AI 解讀一樣自動保存（已登入才存）
+const followUp = useFollowUps({
+  reading,
+  readingId: savedReadingId,
+  domain: domainParam,
+  // 只把完整寫完的解讀交給 AI 對照；寫到一半或已停止的不給
+  baseNarration: computed(() => (narrationStatus.value === 'done' ? narrationText.value : '')),
+  onNarrationDone: () => {
+    if (isLoggedIn.value) return handleSaveReading()
+  },
+})
 
 const errorMessage = ref('')
 const isLoading = ref(false)
@@ -405,6 +421,11 @@ interface ResultSnapshot {
   // 已經保存成紀錄的話，登入回來不要又變成沒存過
   savedReadingId: string
   savedAt: number
+  // 抽牌追問（舊快照沒有）：補充牌與已經寫好的延伸回答
+  followUps?: FollowUpRound[]
+  followUpText?: string
+  followUpModel?: string
+  followUpAnswered?: number
 }
 
 function saveResultSnapshot() {
@@ -422,6 +443,11 @@ function saveResultSnapshot() {
       narrationModel: narrationModel.value,
       savedReadingId: savedReadingId.value,
       savedAt: Date.now(),
+      followUps: followUp.rounds,
+      // 只留完整寫完的延伸回答；寫到一半的重新整理後不還原
+      followUpText: followUp.narrationStatus === 'done' ? followUp.narrationText : '',
+      followUpModel: followUp.narrationModel,
+      followUpAnswered: followUp.answeredRounds,
     }
     sessionStorage.setItem(RESULT_SNAPSHOT_KEY, JSON.stringify(snapshot))
   } catch {
@@ -454,6 +480,12 @@ function restoreResultSnapshot() {
     saveError.value = ''
     // AI 寫到一半被中斷的文字也留著，狀態標成已停止，使用者可以再按一次繼續
     narrationModel.value = snapshot.narrationModel || ''
+    followUp.restore({
+      rounds: snapshot.followUps,
+      narrationText: snapshot.followUpText,
+      narrationModel: snapshot.followUpModel,
+      answeredRounds: snapshot.followUpAnswered,
+    })
     narrationStatus.value = snapshot.narrationText
       ? snapshot.narrationDone
         ? 'done'
@@ -470,7 +502,10 @@ function restoreResultSnapshot() {
 }
 
 // 結果或 AI 文字一變就存檔，這樣重新整理也救得回來
-watch([reading, narrationText, narrationStatus], saveResultSnapshot)
+watch(
+  [reading, narrationText, narrationStatus, () => followUp.rounds.length, () => followUp.narrationStatus],
+  saveResultSnapshot,
+)
 
 function requestNarration() {
   // AI 解讀限 admin 與被開通的會員；未登入時不擋按鈕，改把人帶去登入頁並記住現在的位置
@@ -562,6 +597,9 @@ async function handleSaveReading() {
 
   // 送出時解讀還沒完成（還在寫）：存好之後如果已經寫完，要補存解讀
   const includesNarration = narrationStatus.value === 'done' && Boolean(narrationText.value)
+  // 送出當下的追問；存的過程中又追問或延伸回答才寫完的，存好之後補一次
+  const sentFollowUps = followUp.rounds.length
+  const sentFollowUpText = followUp.narrationStatus === 'done' && sentFollowUps > 0 ? followUp.narrationText : ''
   try {
     const { id } = await saveReadingRecord({
       question: current.question,
@@ -573,6 +611,9 @@ async function handleSaveReading() {
       narration: includesNarration
         ? { text: narrationText.value, model: narrationModel.value || undefined, market: marketSnapshot.value }
         : undefined,
+      // 保存前已經追問過的補充牌與延伸回答一起存
+      followUps: sentFollowUps > 0 ? toFollowUpPayload(followUp.rounds) : undefined,
+      followUpNarration: sentFollowUpText ? { text: sentFollowUpText, model: followUp.narrationModel || undefined } : undefined,
     })
     // 存的過程中換了一組牌（重抽、重新開始）：這筆紀錄已經不是畫面上這一組，不要記成目前的
     if (reading.value !== current) return
@@ -582,6 +623,12 @@ async function handleSaveReading() {
       narrationSaved.value = true
     } else if (narrationStatus.value === 'done' && narrationText.value) {
       await syncNarrationToRecord(id)
+    }
+    const followUpTextNow = followUp.narrationStatus === 'done' ? followUp.narrationText : ''
+    if (followUp.rounds.length !== sentFollowUps || followUpTextNow !== sentFollowUpText) {
+      await followUp.syncToRecord(Boolean(followUpTextNow))
+    } else if (sentFollowUpText) {
+      followUp.synced = true
     }
   } catch (error) {
     saveError.value = error instanceof Error ? error.message : '保存失敗，請稍後再試一次'
@@ -594,6 +641,7 @@ async function handleSaveReading() {
 function onReadingReady(result: ReadingResponse) {
   reading.value = result
   cancelNarration()
+  followUp.reset()
   narrationText.value = ''
   narrationError.value = ''
   narrationStatus.value = result.analysis ? 'ready' : 'idle'
@@ -692,6 +740,7 @@ async function handleManualSubmit() {
 // 回到步驟 1：結果直接丟棄，不跳確認
 function restart() {
   cancelNarration()
+  followUp.reset()
   clearResultSnapshot()
   reading.value = null
   narrationText.value = ''
@@ -713,6 +762,7 @@ function restart() {
 // 重抽：保留問題與牌陣，只清結果與已選的牌，牌堆重洗
 async function redraw() {
   cancelNarration()
+  followUp.reset()
   clearResultSnapshot()
   reading.value = null
   narrationText.value = ''
@@ -903,6 +953,7 @@ onBeforeUnmount(resetSceneBus)
               @refresh-market="loadMarket"
               :save-status="saveStatus"
               :save-error="saveError"
+              :follow-up="followUp"
               @save-reading="handleSaveReading"
               @restart="restart"
               @redraw="redraw"

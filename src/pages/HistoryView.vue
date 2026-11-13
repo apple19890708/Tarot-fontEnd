@@ -7,6 +7,7 @@ import ReadingHistoryIndex from '../components/ReadingHistoryIndex.vue'
 import RecordListShell from '../components/RecordListShell.vue'
 import SkeletonBlock from '../components/SkeletonBlock.vue'
 import StepResult from '../components/StepResult.vue'
+import { useFollowUps } from '../lib/useFollowUps'
 import FinanceNewsAnalysisHistory from '../components/market/FinanceNewsAnalysisHistory.vue'
 import StockAnalysisHistory from '../components/market/StockAnalysisHistory.vue'
 import {
@@ -94,6 +95,15 @@ let marketRequestId = 0
 const marketIsSaved = ref(false)
 let narrationController: AbortController | null = null
 
+// 抽牌追問（v23）：紀錄裡存下來的補充牌與延伸回答；在這裡也可以繼續追問，會直接存回這筆紀錄。
+// 要寫在下面 immediate 的 watch(selectedId) 前面：loadDetail 一開始就會用到它
+const followUp = useFollowUps({
+  reading: computed(() => detail.value?.reading ?? null),
+  readingId: computed(() => detail.value?.id ?? ''),
+  domain: computed(() => detail.value?.domain || undefined),
+  baseNarration: computed(() => (narrationStatus.value === 'done' ? narrationText.value : '')),
+})
+
 const isEmpty = computed(() => isListLoaded.value && readings.value.length === 0)
 
 // 內容還沒載到之前，先用清單裡那一筆的張數決定骨架要排幾張牌，骨架才貼近真正的版面
@@ -167,6 +177,7 @@ let detailRequestId = 0
 
 async function loadDetail(id: string) {
   cancelNarration()
+  followUp.reset()
   const requestId = (detailRequestId += 1)
   detail.value = null
   detailError.value = ''
@@ -187,6 +198,14 @@ async function loadDetail(id: string) {
       return
     }
     detail.value = response
+    // 舊版後端沒有追問欄位，restore 會當成沒有追問
+    followUp.restore({
+      rounds: response.followUps,
+      narrationText: response.followUpNarration?.text,
+      narrationModel: response.followUpNarration?.model,
+      // 之後又追問過的話，這篇還沒包含新的補充牌，畫面要提示
+      answeredRounds: response.followUpNarration?.rounds || undefined,
+    })
     // 當初用過 AI 就直接顯示存下來的那一份；沒用過的留著「請 AI 解讀」的選項
     if (response.narration) {
       narrationText.value = response.narration.text
@@ -211,6 +230,7 @@ async function loadDetail(id: string) {
 
 function resetDetail() {
   cancelNarration()
+  followUp.reset()
   detailRequestId += 1
   detail.value = null
   detailError.value = ''
@@ -598,6 +618,7 @@ onBeforeUnmount(() => {
               :market-status="marketStatus"
               :market-error="marketError"
               :market-is-saved="marketIsSaved"
+              :follow-up="followUp"
               @refresh-market="refreshMarket"
               is-record
               hide-flow-actions
