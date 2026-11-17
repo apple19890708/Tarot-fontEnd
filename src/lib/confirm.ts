@@ -10,6 +10,8 @@ export interface ConfirmOptions {
   cancelText?: string
   // 刪除、移除這類無法復原的動作：確定按鈕用紅色，鍵盤焦點預設停在「取消」
   danger?: boolean
+  // 只是告知、不需要選擇：只有一顆確定按鈕（例如 Google 登入後告知舊密碼已停用）
+  alert?: boolean
 }
 
 interface PendingConfirm extends ConfirmOptions {

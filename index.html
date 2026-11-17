@@ -9,7 +9,25 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0f1526" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Orange_Tarot</title>
+    <!-- SEO 與分享預覽（v24 第六節）。文案改 src/seo.json；__SITE_URL__ 由打包後的 scripts/seo-pages.mjs 換成網站的完整網址
+         （分享預覽的機器人不吃相對路徑），公開頁也由它各複製一份、換上自己的標題與描述 -->
+    <title>Tarot Bar｜小酌一杯，抽一張牌</title>
+    <meta name="description" content="小酌一杯，抽一張牌。今晚的心事，讓牌替你說說看——線上塔羅占卜，附牌與牌的組合分析與 AI 解讀。" />
+    <link rel="canonical" href="__SITE_URL__" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Tarot Bar" />
+    <meta property="og:locale" content="zh_TW" />
+    <meta property="og:title" content="Tarot Bar｜小酌一杯，抽一張牌" />
+    <meta property="og:description" content="小酌一杯，抽一張牌。今晚的心事，讓牌替你說說看——線上塔羅占卜，附牌與牌的組合分析與 AI 解讀。" />
+    <meta property="og:url" content="__SITE_URL__" />
+    <meta property="og:image" content="__SITE_URL__og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="像素風的馬丁尼，杯緣插著半片橘子，旁邊寫著 Tarot Bar" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Tarot Bar｜小酌一杯，抽一張牌" />
+    <meta name="twitter:description" content="小酌一杯，抽一張牌。今晚的心事，讓牌替你說說看——線上塔羅占卜，附牌與牌的組合分析與 AI 解讀。" />
+    <meta name="twitter:image" content="__SITE_URL__og-image.png" />
     <!-- 日夜模式：畫面出來前先套好，避免白天模式先閃一下黑夜（和 src/lib/theme.ts 同一個 key） -->
     <script>
       try {

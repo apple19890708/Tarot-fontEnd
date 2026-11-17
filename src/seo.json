@@ -1,0 +1,28 @@
+{
+  "$comment": "SEO 文案（v24 第六節）：網站名稱、標語、各公開頁的標題與描述。router 換頁時用、打包後 scripts/seo-pages.mjs 產生每頁 HTML 與 sitemap 也用，只改這裡。",
+  "siteName": "Tarot Bar",
+  "slogan": "小酌一杯，抽一張牌",
+  "description": "小酌一杯，抽一張牌。今晚的心事，讓牌替你說說看——線上塔羅占卜，附牌與牌的組合分析與 AI 解讀。",
+  "pages": [
+    {
+      "path": "",
+      "title": "Tarot Bar｜小酌一杯，抽一張牌",
+      "description": "小酌一杯，抽一張牌。今晚的心事，讓牌替你說說看——線上塔羅占卜，附牌與牌的組合分析與 AI 解讀。"
+    },
+    {
+      "path": "login",
+      "title": "登入｜Tarot Bar",
+      "description": "登入 Tarot Bar，保留每一次的占卜紀錄，並使用 AI 解讀與抽牌追問。"
+    },
+    {
+      "path": "register",
+      "title": "註冊｜Tarot Bar",
+      "description": "免費註冊 Tarot Bar，小酌一杯、抽一張牌，占卜紀錄幫你留著。"
+    },
+    {
+      "path": "privacy",
+      "title": "隱私權政策｜Tarot Bar",
+      "description": "Tarot Bar 會收集哪些資料、怎麼使用，以及怎麼刪除你的帳號與紀錄。"
+    }
+  ]
+}

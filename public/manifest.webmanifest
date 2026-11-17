@@ -1,7 +1,7 @@
 {
-  "name": "Orange Tarot",
-  "short_name": "Orange Tarot",
-  "description": "塔羅占卜與股市追蹤",
+  "name": "Tarot Bar",
+  "short_name": "Tarot Bar",
+  "description": "小酌一杯，抽一張牌。塔羅占卜與股市追蹤",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

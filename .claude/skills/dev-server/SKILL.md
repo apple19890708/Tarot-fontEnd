@@ -23,6 +23,8 @@ API_PROXY_TARGET=http://localhost:4100 npx vite --port 5180 --strictPort
 
 背景執行並記下 PID。`--strictPort` 讓 port 被佔用時直接失敗，而不是悄悄換號。dev server 的 base 是 `/`（`vite.config.ts` 的 `/Tarot-fontEnd/` 只在 build 生效）。
 
+**要看打包後的結果（`dist/`，例如 CSP、各頁的 HTML）時不要用 `vite preview`**：preview 的 base 是 `/`，打包出來的路徑卻是 `/Tarot-fontEnd/…`，JS 和 manifest 全部回成 index.html，畫面一片空白、看起來像 CSP 擋掉了（2026-11-17 測 CSP 時誤判過）；preview 也會套用 dev 的 proxy，打到使用者 4000 的後端。改成把 `dist` 複製到 scratchpad 的 `site/Tarot-fontEnd/`，在 `site` 裡跑 `python -m http.server 5180 --bind 127.0.0.1`，再用無頭 Chrome `--dump-dom --enable-logging=stderr` 看畫面與 console（CSP 違規會出現 `Refused to …`）。
+
 ## 3. 收尾（必做）
 
 ```bash

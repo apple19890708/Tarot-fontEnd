@@ -8,6 +8,7 @@ import type {
   AdminUserFilter,
   AdminUserSort,
   AdminUsersResponse,
+  AccountInfo,
   AuthResponse,
   AuthUser,
   CardSummary,
@@ -156,8 +157,9 @@ export function fetchHealth() {
 
 // ===== 會員與權限（v12）=====
 
+// verificationSent：註冊後有沒有寄出驗證信（v24 3-1，舊版後端沒有）
 export function registerRequest(payload: { email: string; password: string; displayName?: string }) {
-  return request<AuthResponse>('/api/auth/register', {
+  return request<AuthResponse & { verificationSent?: boolean }>('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -170,9 +172,10 @@ export function loginRequest(payload: { email: string; password: string }) {
   })
 }
 
-// Google 登入／註冊（v17 規格 I）：credential 是 Google 給的 ID token，後端驗證後回和一般登入一樣的 token＋user
+// Google 登入／註冊（v17 規格 I）：credential 是 Google 給的 ID token，後端驗證後回和一般登入一樣的 token＋user。
+// passwordCleared：這次綁 Google 時，信箱沒驗證過的舊密碼被停用了（v24 1-1，舊版後端沒有這個欄位）
 export function googleLoginRequest(credential: string) {
-  return request<AuthResponse & { created?: boolean }>('/api/auth/google', {
+  return request<AuthResponse & { created?: boolean; passwordCleared?: boolean }>('/api/auth/google', {
     method: 'POST',
     body: JSON.stringify({ credential }),
   })
@@ -205,6 +208,41 @@ export function fetchMe() {
 // 登出所有裝置：後端把帳號的憑證版本號加 1，所有已登入的裝置（含這一台）都要重新登入
 export function logoutAllRequest() {
   return request<{ ok: true }>('/api/auth/logout-all', { method: 'POST' })
+}
+
+// ---- 信箱驗證（v24 3-1）----
+// 點驗證信的連結：不需要登入
+export function verifyEmailRequest(token: string) {
+  return request<{ ok: true; email: string }>('/api/auth/verify-email', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  })
+}
+
+// 重寄驗證信（帳號設定頁）
+export function resendVerificationRequest() {
+  return request<{ sent: boolean; verified?: boolean; email?: string }>('/api/auth/resend-verification', { method: 'POST' })
+}
+
+// ---- 帳號設定頁（v24 階段 2）----
+export function fetchAccount() {
+  return request<{ account: AccountInfo }>('/api/auth/account')
+}
+
+// 改密碼：成功後其他裝置登出，回一個新的 token 給這台繼續用。舊密碼錯回 400（不是 401，不會被當成登出）
+export function changePasswordRequest(payload: { currentPassword: string; newPassword: string }) {
+  return request<{ token: string }>('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+// 刪除帳號：有密碼的帳號帶 password；只有 Google 的帳號帶重新登入拿到的 credential
+export function deleteAccountRequest(payload: { password?: string; credential?: string }) {
+  return request<{ ok: true }>('/api/auth/me', {
+    method: 'DELETE',
+    body: JSON.stringify(payload),
+  })
 }
 
 // 開通／收回某個會員的 AI 解析權限（admin 專用）

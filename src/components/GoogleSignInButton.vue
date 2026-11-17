@@ -5,7 +5,8 @@ import { googleClientId, loadGoogleIdentity } from '../lib/googleIdentity'
 
 // 「使用 Google 登入／註冊」按鈕：按鈕本身由 Google 的腳本畫（規定不能自己畫），這裡只負責載入與接回 credential。
 // 沒設定 VITE_GOOGLE_CLIENT_ID 時整個元件不顯示
-const props = defineProps<{ mode?: 'signin' | 'signup' }>()
+// divider：上面要不要放「或」分隔線（登入、註冊頁要；帳號設定頁的刪除確認不要）
+const props = withDefaults(defineProps<{ mode?: 'signin' | 'signup'; divider?: boolean }>(), { divider: true })
 const emit = defineEmits<{ credential: [value: string] }>()
 
 const container = ref<HTMLElement | null>(null)
@@ -40,7 +41,7 @@ onMounted(async () => {
 <template>
   <div v-if="googleClientId" class="space-y-3">
     <!-- 「或」分隔線 -->
-    <div class="flex items-center gap-3 text-caption text-ink-muted">
+    <div v-if="props.divider" class="flex items-center gap-3 text-caption text-ink-muted">
       <span class="h-px flex-1 bg-tint/10" />
       或
       <span class="h-px flex-1 bg-tint/10" />

@@ -20,7 +20,7 @@ function onKeydown(event: KeyboardEvent) {
   // 焦點只在兩顆按鈕之間切換
   if (event.key === 'Tab') {
     event.preventDefault()
-    const next = document.activeElement === cancelButton.value ? confirmButton.value : cancelButton.value
+    const next = document.activeElement === cancelButton.value ? confirmButton.value : (cancelButton.value ?? confirmButton.value)
     next?.focus()
   }
 }
@@ -61,6 +61,7 @@ onBeforeUnmount(() => {
         <p id="confirm-dialog-message" class="whitespace-pre-line px-4 py-4 text-sm leading-7 text-ink-soft">{{ confirmState.message }}</p>
         <div class="flex justify-end gap-2 border-t border-tint/10 px-4 py-3">
           <button
+            v-if="!confirmState.alert"
             ref="cancelButton"
             type="button"
             class="cursor-pointer border-2 border-tint/15 px-3 py-1 font-pixel text-[14px] text-ink-soft transition hover:bg-tint/10 active:translate-x-[2px] active:translate-y-[2px]"

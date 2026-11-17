@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { canUseStock, isLoggedIn, onSessionExpired, restore, session } from '../lib/auth'
+import { applySeo } from '../lib/seo'
 
 const HomeView = () => import('../pages/HomeView.vue')
 const RoutesAdmin = () => import('../pages/RoutesAdmin.vue')
@@ -12,6 +13,8 @@ const MarketTrackView = () => import('../pages/MarketTrackView.vue')
 const ForgotPasswordView = () => import('../pages/ForgotPasswordView.vue')
 const ResetPasswordView = () => import('../pages/ResetPasswordView.vue')
 const PrivacyView = () => import('../pages/PrivacyView.vue')
+const AccountView = () => import('../pages/AccountView.vue')
+const VerifyEmailView = () => import('../pages/VerifyEmailView.vue')
 
 // meta.auth：要登入；meta.role：要指定角色；meta.guest：已登入就不該再看到（登入／註冊頁）
 // meta.wide：資料多的頁面，桌機的內容區放寬到 1600px（一般頁面 1280px）
@@ -19,15 +22,20 @@ const PrivacyView = () => import('../pages/PrivacyView.vue')
 // meta.stock：要有金融股市權限（admin 或被開通的會員），例如股市追蹤
 // meta.scene：像素世界的場景（city 街景、door 居酒屋門口、interior 店內）；沒寫就是 sky 星夜
 // meta.sceneDim：背景壓暗多少（0～1）；沒寫是 0.15（要讀資料的頁面，背景只當畫框）
+// meta.noindex：不給搜尋引擎收錄（v24 4-4）；要登入（auth／role）的頁面一律不收錄，不用另外寫
 const routes = [
   { path: '/', name: 'home', component: HomeView, meta: { title: '占卜', scene: 'city', sceneDim: 0 } },
   { path: '/history', name: 'history', component: HistoryView, meta: { auth: true, title: '我的紀錄', scene: 'interior' } },
   { path: '/market', name: 'market', component: MarketTrackView, meta: { auth: true, stock: true, title: '股市追蹤', scene: 'interior', wide: true } },
   { path: '/login', name: 'login', component: LoginView, meta: { guest: true, title: '登入', scene: 'door', sceneDim: 0.1 } },
   { path: '/register', name: 'register', component: RegisterView, meta: { guest: true, title: '註冊', scene: 'door', sceneDim: 0.1 } },
-  { path: '/forgot-password', name: 'forgot-password', component: ForgotPasswordView, meta: { guest: true, title: '忘記密碼', scene: 'door', sceneDim: 0.1 } },
+  { path: '/forgot-password', name: 'forgot-password', component: ForgotPasswordView, meta: { guest: true, noindex: true, title: '忘記密碼', scene: 'door', sceneDim: 0.1 } },
+  // 帳號設定（v24）：從導覽列點自己的名字進來，不另外列在導覽列
+  { path: '/account', name: 'account', component: AccountView, meta: { auth: true, hidden: true, title: '帳號設定', scene: 'interior' } },
+  // 驗證信箱（v24 3-1）：從驗證信的連結進來，登不登入都能打開，所以不能用 guest
+  { path: '/verify-email', name: 'verify-email', component: VerifyEmailView, meta: { hidden: true, noindex: true, title: '驗證信箱', scene: 'door', sceneDim: 0.1 } },
   { path: '/privacy', name: 'privacy', component: PrivacyView, meta: { hidden: true, title: '隱私權政策', scene: 'interior' } },
-  { path: '/reset-password', name: 'reset-password', component: ResetPasswordView, meta: { hidden: true, title: '設定新密碼', scene: 'door', sceneDim: 0.1 } },
+  { path: '/reset-password', name: 'reset-password', component: ResetPasswordView, meta: { hidden: true, noindex: true, title: '設定新密碼', scene: 'door', sceneDim: 0.1 } },
   { path: '/routes', name: 'routes-admin', component: RoutesAdmin, meta: { role: 'admin', title: '路由管理' } },
   { path: '/admin/users', name: 'admin-users', component: AdminUsers, meta: { role: 'admin', title: '會員' } },
 ]
@@ -65,6 +73,9 @@ router.beforeEach(async (to) => {
 
   return true
 })
+
+// 換頁後更新標題、描述、canonical、noindex（v24 第六節）
+router.afterEach((to) => applySeo(to))
 
 // 守衛只在換頁時檢查。已經停在要登入的頁面上時 token 過期（任何請求收到 401），
 // 登入狀態會被清掉卻不會換頁，畫面就停在「請先登入」的錯誤上。

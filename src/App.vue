@@ -137,8 +137,9 @@ function signOut() {
 		<header class="on-scene relative border-b-2 border-frame bg-surface/85">
 			<div class="mx-auto flex min-w-0 items-center justify-between gap-4 px-5 py-3">
 				<div class="min-w-0 leading-tight">
-					<p class="text-[10px] uppercase tracking-[0.3em] text-accent">Tarot Divination Studio</p>
-					<p class="font-pixel text-[12px] text-ink">塔羅占卜</p>
+					<!-- 網站名稱 Tarot Bar、標語「小酌一杯，抽一張牌」（v24 第六節，2026-11-17 使用者決定） -->
+					<p class="text-[10px] tracking-[0.3em] text-accent">小酌一杯，抽一張牌</p>
+					<p class="font-pixel text-[12px] text-ink">Tarot Bar</p>
 					<p class="truncate text-[11px] text-ink-muted sm:text-xs">{{ healthLabel }}</p>
 				</div>
 
@@ -185,10 +186,11 @@ function signOut() {
 						<router-link v-for="r in navRoutes" :key="r.name" :to="r.path" class="font-pixel text-[12px] transition" :class="navClass(r.name, r.tier)">{{ r.label }}</router-link>
 
 						<template v-if="isLoggedIn">
-							<span class="font-pixel text-[12px] text-ink-muted">
+							<!-- 點自己的名字進帳號設定（v24）：改密碼、登出所有裝置、刪除帳號 -->
+							<router-link to="/account" title="帳號設定" class="font-pixel text-[12px] transition" :class="navClass('account', 'member')">
 								{{ currentUser?.displayName }}
 								<span v-if="isAdmin" class="ml-1 border-2 border-accent-hue/40 bg-accent-hue/10 px-1.5 py-0.5 font-pixel text-[12px] text-accent">admin</span>
-							</span>
+							</router-link>
 							<button class="cursor-pointer text-left font-pixel text-[14px] text-ink-soft transition hover:text-danger sm:text-center" @click="signOut">登出</button>
 						</template>
 						<template v-else>

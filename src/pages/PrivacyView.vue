@@ -41,7 +41,12 @@ const UPDATED = '2026-11-07'
     <section class="space-y-2">
       <h2 class="text-base font-semibold text-accent">刪除資料與聯絡方式</h2>
       <p>
-        想刪除帳號與所有紀錄，或對這份政策有疑問，請寄信到
+        想刪除帳號與所有紀錄，登入後點右上角自己的名字，到
+        <router-link to="/account" class="text-warn hover:underline">帳號設定</router-link>
+        最下面的「刪除帳號」，帳號和所有紀錄會立刻刪除。
+      </p>
+      <p>
+        自己刪不了，或對這份政策有疑問，請寄信到
         <a :href="`mailto:${CONTACT}`" class="text-warn hover:underline">{{ CONTACT }}</a>。
       </p>
     </section>

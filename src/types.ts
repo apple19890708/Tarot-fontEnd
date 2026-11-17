@@ -372,12 +372,20 @@ export interface AuthUser {
   aiAccess?: boolean
   // 金融股市權限（股市諮詢、股市追蹤）：admin 一律 true，member 要由管理者開通；舊版後端沒有這個欄位
   stockAccess?: boolean
+  // 信箱驗證過沒有（v24 3-1）；舊版後端沒有這個欄位
+  emailVerified?: boolean
   createdAt?: string
 }
 
 export interface AuthResponse {
   token: string
   user: AuthUser
+}
+
+// 帳號設定頁（v24 階段 2）：登入方式決定要顯示「改密碼」還是「用忘記密碼設定一組」，刪帳號要輸入密碼還是重新 Google 登入
+export interface AccountInfo extends AuthUser {
+  emailVerified: boolean
+  loginMethods: { password: boolean; google: boolean }
 }
 
 // 管理頁的會員：多了登入、活動、停用狀態與登入方式（舊版後端沒有這些欄位，都設可選）
@@ -433,6 +441,11 @@ export interface AdminUserDetail {
       // admin 不限次數時是 null
       stockLimit: number | null
       newsLimit: number | null
+      // 塔羅 AI 解讀與追問（v24，舊版後端沒有）
+      tarotToday?: number | null
+      followUpToday?: number | null
+      tarotLimit?: number | null
+      followUpLimit?: number | null
       stockAnalyses: number | null
       newsAnalyses: number | null
     }
