@@ -7,6 +7,7 @@ import { canUseAi, isLoggedIn } from '../lib/auth'
 import BackToTop from './BackToTop.vue'
 import FollowUpPanel from './FollowUpPanel.vue'
 import MarketPanel from './MarketPanel.vue'
+import NarrationFeedback from './NarrationFeedback.vue'
 import PixelChevron from './PixelChevron.vue'
 import QuantPanel from './QuantPanel.vue'
 import ReadingAnalysisPanel from './ReadingAnalysisPanel.vue'
@@ -16,7 +17,16 @@ import { cardImageUrl } from '../lib/cardStyle'
 import { prefersReducedMotion, smoothScrollTo } from '../lib/motion'
 import { provideSectionNav, type SectionNavItem } from '../lib/sectionNav'
 import type { FollowUpController } from '../lib/useFollowUps'
-import type { Element, MarketSnapshot, MarketStatus, NarrationStatus, ReadingResponse, SaveStatus, Spread } from '../types'
+import type {
+  Element,
+  MarketSnapshot,
+  MarketStatus,
+  NarrationFeedback as NarrationFeedbackData,
+  NarrationStatus,
+  ReadingResponse,
+  SaveStatus,
+  Spread,
+} from '../types'
 
 const props = defineProps<{
   reading: ReadingResponse
@@ -43,6 +53,10 @@ const props = defineProps<{
   marketIsSaved?: boolean
   // 抽牌追問（v23）：補充牌區在 AI 解讀下面，AI 的回答放在各個追問底下（都在 FollowUpPanel 裡）。沒給就不顯示
   followUp?: FollowUpController
+  // 這次結果對應的紀錄 id（還沒保存是空字串）。有 id 才顯示 AI 解讀的回饋（v25）
+  readingId?: string
+  // 紀錄裡這篇解讀原本的回饋（回顧「我的紀錄」時才有）
+  narrationFeedback?: NarrationFeedbackData | null
 }>()
 
 const emit = defineEmits<{
@@ -75,6 +89,27 @@ watch(
 )
 
 const narrationEl = ref<HTMLElement | null>(null)
+
+// 回饋：重新產生後是新的一篇，回饋從頭來；換一筆紀錄時用那筆原本的回饋。
+// 用 key 換一個新的回饋元件，元件裡的狀態就不會帶到另一篇
+const feedbackInitial = ref<NarrationFeedbackData | null>(props.narrationFeedback ?? null)
+const feedbackRound = ref(0)
+watch(
+  () => props.narrationFeedback,
+  (value) => {
+    feedbackInitial.value = value ?? null
+  },
+)
+watch(
+  () => props.narrationStatus,
+  (status) => {
+    if (status === 'loading') {
+      feedbackInitial.value = null
+      feedbackRound.value += 1
+    }
+  },
+)
+const feedbackKey = computed(() => `${props.readingId}-${feedbackRound.value}-${feedbackInitial.value?.value ?? ''}`)
 
 function scrollToNarrationTop() {
   const el = narrationEl.value
@@ -513,6 +548,15 @@ function formatSuit(suit: string | null) {
           v-else-if="narrationStatus === 'done'"
           class="mt-5 flex flex-wrap items-center gap-3 border-t border-tint/10 pt-4"
         >
+          <!-- 回饋（v25）：已經是紀錄才有地方存，放在重新產生的上面一列 -->
+          <NarrationFeedback
+            v-if="readingId"
+            :key="feedbackKey"
+            class="w-full"
+            :reading-id="readingId"
+            target="narration"
+            :initial="feedbackInitial"
+          />
           <template v-if="canUseAi">
             <span class="text-sm leading-7 text-ink-muted">
               <template v-if="narrationSaved === true">已更新到這筆紀錄。</template>

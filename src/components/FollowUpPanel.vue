@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import FollowUpAnswer from './FollowUpAnswer.vue'
 import FollowUpFanDraw from './FollowUpFanDraw.vue'
+import NarrationFeedback from './NarrationFeedback.vue'
 import SkeletonBlock from './SkeletonBlock.vue'
 import { splitFollowUpAnswer } from '../lib/aiMarkdown'
 import { canUseAi, isLoggedIn } from '../lib/auth'
 import { cardImageUrl } from '../lib/cardStyle'
+import { smoothScrollTo } from '../lib/motion'
 import type { FollowUpController } from '../lib/useFollowUps'
 import { FOLLOW_UP_MAX_CARDS, FOLLOW_UP_MAX_ROUNDS, FOLLOW_UP_QUESTION_MAX, type ManualCardPick } from '../types'
 
@@ -36,6 +38,18 @@ const drawWay = ref<DrawWay>('fan')
 // 自己抽：按「開始抽牌」才展開牌堆（牌堆很高，不要一進頁面就擋住下面的內容）
 const fanOpen = ref(false)
 
+// 把畫面帶到第 N 次追問的開頭。
+// 原因（2026-11-19 使用者回報「追問完視窗自動往下，看不到剛才的追問」）：使用者這時看著的是下面的牌堆或按鈕，
+// 新的追問、AI 回答都插在它們上面，瀏覽器的捲動錨定（scroll anchoring）會讓眼前的元素維持在原位，
+// 結果新內容全被推到畫面上方看不見；牌堆收起來時整頁又變短，看起來像被往下帶。所以主動捲到那一次追問
+const panelEl = ref<HTMLElement | null>(null)
+async function scrollToRound(roundIndex: number) {
+  await nextTick()
+  const el = panelEl.value?.querySelector<HTMLElement>(`[data-round="${roundIndex}"]`)
+  if (!el) return
+  smoothScrollTo(el.getBoundingClientRect().top + window.scrollY - 16)
+}
+
 async function draw(picks?: ManualCardPick[]) {
   if (!canDraw.value) return
   const ok = await props.followUp.draw(question.value.trim(), picks?.length ?? count.value, picks)
@@ -43,7 +57,19 @@ async function draw(picks?: ManualCardPick[]) {
   if (ok) {
     question.value = ''
     fanOpen.value = false
+    // 抽完直接請 AI 回答，不用再按一次（2026-11-19 使用者要求）。
+    // 沒開通或沒登入時照舊停在這裡，由下面的按鈕說明要怎麼做；上一篇回答還在寫時，useFollowUps.ask 會略過，等寫完再按
+    if (canUseAi.value && !isAnswering.value) ask()
+    else void scrollToRound(props.followUp.rounds.length - 1)
   }
+}
+
+// 請 AI 回答：帶到這次要寫的第一個追問（新的追問；重新回答時是最後一次），看得到回答從那裡長出來
+function ask() {
+  const rounds = props.followUp.rounds.length
+  const target = hasNewRounds.value ? props.followUp.answeredRounds : props.followUp.narrationText ? rounds - 1 : 0
+  void props.followUp.ask()
+  void scrollToRound(Math.min(Math.max(target, 0), rounds - 1))
 }
 
 function startDraw() {
@@ -101,7 +127,7 @@ const orientationLabel = (orientation: 'upright' | 'reversed') => (orientation =
 </script>
 
 <template>
-  <section class="min-w-0 border-2 border-tint/10 bg-sink/45 p-3 sm:p-5">
+  <section ref="panelEl" class="min-w-0 border-2 border-tint/10 bg-sink/45 p-3 sm:p-5">
     <p class="text-[10px] uppercase tracking-[0.2em] text-ink-muted sm:text-xs sm:tracking-[0.3em]">Follow-up</p>
     <h3 class="mt-2 text-subtitle font-semibold text-ink">追問與補充牌</h3>
     <p class="mt-1 text-caption text-ink-muted">
@@ -113,6 +139,7 @@ const orientationLabel = (orientation: 'upright' | 'reversed') => (orientation =
       <li
         v-for="(round, roundIndex) in followUp.rounds"
         :key="roundIndex"
+        :data-round="roundIndex"
         class="min-w-0 border-2 border-tint/10 bg-tint/5 p-3 sm:p-4"
       >
         <p class="text-caption text-ink-muted">追問 {{ roundIndex + 1 }}</p>
@@ -200,6 +227,16 @@ const orientationLabel = (orientation: 'upright' | 'reversed') => (orientation =
     <!-- 專屬的 AI 追問按鈕：有補充牌才出現。放在所有追問與綜合來看的正下方，
          看完回答就能按「重新回答」，不用越過下一次追問的輸入區（2026-11-13 使用者要求） -->
     <div v-if="followUp.rounds.length > 0" class="mt-4 flex flex-wrap items-center gap-3 border-t border-tint/10 pt-4">
+      <!-- 回饋（v25）：已經是紀錄、每一次追問都有回答時才顯示（有新的追問還沒回答時不顯示，2026-11-19 使用者回報）；
+           重新回答後是新的一篇，用 key 換一個新的 -->
+      <NarrationFeedback
+        v-if="followUp.readingId && followUp.narrationStatus === 'done' && followUp.narrationText && !hasNewRounds"
+        :key="`${followUp.readingId}-${followUp.answerVersion}`"
+        class="w-full"
+        :reading-id="followUp.readingId"
+        target="followUp"
+        :initial="followUp.feedback"
+      />
       <template v-if="isAnswering">
         <span class="text-caption text-ink-muted" aria-live="polite">
           {{ followUp.narrationStatus === 'loading' ? '正在整理追問的回答…' : 'AI 正在撰寫，回答會出現在每個追問底下…' }}
@@ -216,7 +253,7 @@ const orientationLabel = (orientation: 'upright' | 'reversed') => (orientation =
         <button
           type="button"
           class="grid h-9 cursor-pointer items-center border-2 border-accent-hue/40 bg-accent-hue/15 px-5 text-button font-medium text-accent transition hover:bg-accent-hue/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
-          @click="followUp.ask()"
+          @click="ask()"
         >
           <span
             v-for="(label, key) in AI_LABELS"

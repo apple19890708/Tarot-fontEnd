@@ -954,6 +954,7 @@ onBeforeUnmount(resetSceneBus)
               :save-status="saveStatus"
               :save-error="saveError"
               :follow-up="followUp"
+              :reading-id="savedReadingId"
               @save-reading="handleSaveReading"
               @restart="restart"
               @redraw="redraw"

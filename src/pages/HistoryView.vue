@@ -205,6 +205,7 @@ async function loadDetail(id: string) {
       narrationModel: response.followUpNarration?.model,
       // 之後又追問過的話，這篇還沒包含新的補充牌，畫面要提示
       answeredRounds: response.followUpNarration?.rounds || undefined,
+      feedback: response.followUpNarration?.feedback ?? null,
     })
     // 當初用過 AI 就直接顯示存下來的那一份；沒用過的留著「請 AI 解讀」的選項
     if (response.narration) {
@@ -619,6 +620,8 @@ onBeforeUnmount(() => {
               :market-error="marketError"
               :market-is-saved="marketIsSaved"
               :follow-up="followUp"
+              :reading-id="detail.id"
+              :narration-feedback="detail.narration?.feedback ?? null"
               @refresh-market="refreshMarket"
               is-record
               hide-flow-actions

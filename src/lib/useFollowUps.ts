@@ -7,6 +7,7 @@ import {
   type FollowUpRound,
   type FollowUpStatus,
   type ManualCardPick,
+  type NarrationFeedback,
   type QuestionDomain,
   type ReadingResponse,
 } from '../types'
@@ -39,6 +40,10 @@ export function useFollowUps(options: FollowUpOptions) {
   const narrationError = ref('')
   // 延伸回答寫的時候有幾次追問：之後又追問的話，畫面提示「還沒包含新的追問」
   const answeredRounds = ref(0)
+  // 延伸回答的回饋（v25）：從紀錄還原；重新回答（寫出新的一篇）時清掉
+  const feedback = ref<NarrationFeedback | null>(null)
+  // 每寫出一篇新的回答就加 1，回饋元件用它當 key
+  const answerVersion = ref(0)
   // 最近一次同步到紀錄的結果（null＝沒有對應的紀錄或還沒同步）
   const synced = ref<boolean | null>(null)
 
@@ -67,16 +72,25 @@ export function useFollowUps(options: FollowUpOptions) {
     narrationError.value = ''
     answeredRounds.value = 0
     synced.value = null
+    feedback.value = null
+    answerVersion.value += 1
   }
 
   // 從紀錄或快照還原
-  function restore(saved: { rounds?: FollowUpRound[]; narrationText?: string; narrationModel?: string; answeredRounds?: number }) {
+  function restore(saved: {
+    rounds?: FollowUpRound[]
+    narrationText?: string
+    narrationModel?: string
+    answeredRounds?: number
+    feedback?: NarrationFeedback | null
+  }) {
     reset()
     rounds.value = saved.rounds ?? []
     narrationText.value = rounds.value.length > 0 ? saved.narrationText || '' : ''
     narrationModel.value = saved.narrationModel || ''
     narrationStatus.value = narrationText.value ? 'done' : 'idle'
     answeredRounds.value = narrationText.value ? saved.answeredRounds ?? rounds.value.length : 0
+    feedback.value = narrationText.value ? saved.feedback ?? null : null
   }
 
   // 把目前的追問（與延伸回答）同步到已保存的紀錄
@@ -144,6 +158,8 @@ export function useFollowUps(options: FollowUpOptions) {
     narrationError.value = ''
     narrationStatus.value = 'loading'
     synced.value = null
+    feedback.value = null
+    answerVersion.value += 1
     try {
       const { model, saved } = await streamFollowUpNarration(reading, {
         followUps: rounds.value,
@@ -217,6 +233,8 @@ export function useFollowUps(options: FollowUpOptions) {
     narrationError,
     answeredRounds,
     synced,
+    feedback,
+    answerVersion,
     readingId: toRef(options.readingId),
     draw,
     ask,

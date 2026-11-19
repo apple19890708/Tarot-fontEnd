@@ -49,6 +49,9 @@ import type {
   MarketWatchDetail,
   MarketWatchGroup,
   MarketWatchItem,
+  NarrationFeedback,
+  NarrationFeedbackReason,
+  NarrationFeedbackValue,
   NarrationStreamEvent,
   QuestionDomain,
   FollowUpRound,
@@ -779,6 +782,17 @@ export function updateReadingFollowUps(
   payload: { cards: ManualCardPick[]; followUps: FollowUpPayload[]; narration?: { text: string; model?: string } | null },
 ) {
   return request<{ saved: boolean }>(`/api/readings/${id}/follow-ups`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+// AI 解讀的回饋（v25）：target 是原本的解讀或追問的延伸回答；value 為 null 時取消回饋
+export function updateNarrationFeedback(
+  id: string,
+  payload: { target: 'narration' | 'followUp'; value: NarrationFeedbackValue | null; reason?: NarrationFeedbackReason | null },
+) {
+  return request<{ saved: boolean; feedback: NarrationFeedback | null }>(`/api/readings/${id}/narration-feedback`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   })

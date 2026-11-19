@@ -27,6 +27,7 @@ export type RelationKind =
   | 'remedy'
   | 'projection'
   | 'arc'
+  | 'group'
 
 export interface SpreadRelation {
   from: number
@@ -293,7 +294,7 @@ export interface AnalysisQuant {
 // 是非題（會不會、是否、能不能、有沒有…）的答案。文字與答案都由後端算，前端只用 verdict 決定顏色
 export interface AnalysisYesNo {
   // 「會」在這題指的是：事情變動、維持、不好的事發生、好的事發生
-  yesMeans: 'change' | 'stay' | 'unfavorable' | 'favorable'
+  yesMeans: 'advice' | 'change' | 'stay' | 'unfavorable' | 'favorable'
   verdict: 'yes' | 'leanYes' | 'unclear' | 'leanNo' | 'no'
   verdictLabel: string
   text: string
@@ -496,7 +497,26 @@ export interface SavedNarration {
   // 解讀當下查到的市場資料；不是股市問題、或舊紀錄時沒有
   market?: MarketSnapshot | null
   createdAt: string
+  // 使用者的回饋（v25）；舊版後端沒有這個欄位
+  feedback?: NarrationFeedback | null
 }
+
+// ===== AI 解讀的回饋（v25 階段 4）=====
+// 有幫助／沒幫助；沒幫助時可以選一個原因。存在紀錄裡，用來統計哪類問題寫得不好
+export type NarrationFeedbackValue = 'up' | 'down'
+export type NarrationFeedbackReason = 'off-topic' | 'vague' | 'timing' | 'too-long' | 'other'
+export interface NarrationFeedback {
+  value: NarrationFeedbackValue
+  reason: NarrationFeedbackReason | null
+  at?: string
+}
+export const NARRATION_FEEDBACK_REASONS: { value: NarrationFeedbackReason; label: string }[] = [
+  { value: 'off-topic', label: '沒回答到問題' },
+  { value: 'vague', label: '太籠統' },
+  { value: 'timing', label: '時間不對' },
+  { value: 'too-long', label: '太長' },
+  { value: 'other', label: '其他' },
+]
 
 // ===== 市場資料（AI 解讀股市問題時由後端查詢）=====
 // 數字都是後端算好的，前端只負責排版，不自行計算或下判斷
@@ -1519,7 +1539,7 @@ export interface ReadingDetail {
   // 抽牌追問（v23）；舊版後端沒有這兩個欄位
   followUps?: FollowUpRound[]
   // rounds：這篇延伸回答寫的時候涵蓋了幾次追問（0 或沒有＝不知道，當成全部涵蓋）
-  followUpNarration?: { text: string; model: string; rounds?: number; createdAt: string } | null
+  followUpNarration?: { text: string; model: string; rounds?: number; createdAt: string; feedback?: NarrationFeedback | null } | null
 }
 
 // ===== 抽牌追問（v23）=====
