@@ -6,8 +6,10 @@ import { confirmDialog } from '../../lib/confirm'
 import { deleteStockAnalysis, fetchStockAnalyses, fetchStockAnalysisRecord, UnauthorizedError } from '../../lib/api'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { smoothScrollTo } from '../../lib/motion'
+import { stockAnalysisExport } from '../../lib/recordExport'
 import { provideSectionNav, type SectionNavItem } from '../../lib/sectionNav'
 import BackToTop from '../BackToTop.vue'
+import ExportButton from '../ExportButton.vue'
 import RecordIndex, { type RecordIndexItem } from '../RecordIndex.vue'
 import RecordListShell from '../RecordListShell.vue'
 import SelectField from '../SelectField.vue'
@@ -220,6 +222,11 @@ watch(
 )
 onBeforeUnmount(() => releaseSectionNav?.())
 
+function buildExport() {
+  const current = detail.value!
+  return stockAnalysisExport({ target: current.target, quote: current.quote, createdAt: current.createdAt, text: current.text, holding: current.holding })
+}
+
 function formatDate(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-TW', { hour12: false })
@@ -310,6 +317,8 @@ onMounted(loadList)
         <template v-else-if="detail">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="text-body text-ink-muted">{{ formatDate(detail.createdAt) }}・股票分析</p>
+            <div class="flex flex-wrap items-start gap-2">
+            <ExportButton :build="buildExport" />
             <button
               type="button"
               class="cursor-pointer border-2 border-tint/15 px-3 py-1 font-pixel text-button text-up-ink transition hover:bg-up-hue/10 disabled:cursor-not-allowed disabled:opacity-50"
@@ -318,6 +327,7 @@ onMounted(loadList)
             >
               {{ deletingId === detail.id ? '刪除中…' : '刪除' }}
             </button>
+            </div>
           </div>
           <p v-if="deleteError" class="border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-body text-danger">{{ deleteError }}</p>
 

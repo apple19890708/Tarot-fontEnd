@@ -23,13 +23,13 @@ description: 驗證前端改動。改完 src/ 的程式後、要回報「做完�
 
    有變動就先問使用者。
 
-3. 檢查沒有寫死根路徑（線上掛在 `/Tarot-fontEnd/`）：
+3. 專案規則檢查（寫死根路徑、暗淡文字、固定字級、舊顏色、原生 select／table／confirm…，只看改動的行）：
 
    ```bash
-   git diff -- src | grep -n "\"/\|'/\|(\`/" | grep -v "BASE_URL"
+   npm run check:rules
    ```
 
-   命中的地方改用 `import.meta.env.BASE_URL` 或 router 的相對路徑。
+   沒過就照訊息改；它也會列出 package.json 的套件變動（要先問使用者）。結束回合前的 hook 會自動跑這一步，但改完先自己跑一次比較快。
 
 4. 若改到型別或 API 呼叫，用 `api-type-sync` agent 對照 `../Tbackend` 的實際回傳。
 

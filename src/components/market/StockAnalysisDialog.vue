@@ -6,13 +6,15 @@ import { canUseAi } from '../../lib/auth'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { useScrollLock } from '../../lib/useScrollLock'
 import { prefersReducedMotion } from '../../lib/motion'
+import { stockAnalysisExport } from '../../lib/recordExport'
 import type { SectionNavItem } from '../../lib/sectionNav'
 import MarketPanel from '../MarketPanel.vue'
+import ExportButton from '../ExportButton.vue'
 import SectionJumpMenu from '../SectionJumpMenu.vue'
 import MarketNewsList from './MarketNewsList.vue'
 import StockAiText from './StockAiText.vue'
 import StockHoldingSummary from './StockHoldingSummary.vue'
-import type { MarketSnapshot, MarketStatus, StockAnalysisQuota, StockAnalysisView, StockSubject } from '../../types'
+import type { MarketSnapshot, MarketStatus, StockAnalysisQuota, StockAnalysisSummary, StockAnalysisView, StockSubject } from '../../types'
 
 // 個股分析彈窗（v17 規格 F）：一次看完這檔的完整分析（沿用股市諮詢的 MarketPanel），
 // 有 AI 權限的人可以再要求 AI 深度分析。AI 只在按下按鈕時執行，放行與次數限制在後端
@@ -43,6 +45,7 @@ async function load() {
       aiText.value = result.analysis.latest.text
       aiTime.value = result.analysis.latest.createdAt
       aiRecordId.value = result.analysis.latest.id
+      aiSummary.value = result.analysis.latest
     }
     status.value = 'ready'
   } catch (err) {
@@ -76,6 +79,8 @@ const aiError = ref('')
 // 完整產生後存成的紀錄 id；存檔失敗時為空
 const aiRecordId = ref('')
 const aiSaveFailed = ref(false)
+// 這份分析的摘要（分析時的股價、股票），匯出用；剛跑完但沒存成紀錄時是 null
+const aiSummary = ref<StockAnalysisSummary | null>(null)
 const quota = ref<StockAnalysisQuota | null>(null)
 let controller: AbortController | null = null
 
@@ -100,6 +105,7 @@ async function runAi() {
   aiError.value = ''
   aiRecordId.value = ''
   aiSaveFailed.value = false
+  aiSummary.value = null
   try {
     const result = await streamStockAnalysis(subject.value, {
       signal: ownController.signal,
@@ -111,6 +117,7 @@ async function runAi() {
     aiStatus.value = 'done'
     aiTime.value = result.analysis?.createdAt ?? new Date().toISOString()
     aiRecordId.value = result.analysis?.id ?? ''
+    aiSummary.value = result.analysis
     aiSaveFailed.value = !result.analysis
   } catch (err) {
     if (controller !== ownController) return
@@ -174,6 +181,28 @@ const runLabel = computed(() => {
   if (isOldAnalysis.value) return '分析今天的行情'
   return aiText.value ? '重新分析' : 'AI 深度分析'
 })
+
+// ---- 匯出（v13 階段 5）：完整寫完的分析才給匯出（寫到一半、停止、失敗的不給）----
+const canExport = computed(() => Boolean(aiText.value) && (aiStatus.value === 'done' || (aiStatus.value === 'idle' && Boolean(aiSummary.value))))
+function buildExport() {
+  const item = view.value?.item
+  const target = aiSummary.value?.target ?? {
+    symbol: item?.symbol ?? null,
+    code: item?.code ?? props.code ?? null,
+    exchange: item?.exchange ?? null,
+    market: item?.market ?? 'tw',
+    kind: item?.kind ?? 'stock',
+    name: item?.name ?? props.name,
+  }
+  return stockAnalysisExport({
+    target,
+    quote: aiSummary.value?.quote ?? null,
+    createdAt: aiTime.value || null,
+    text: aiText.value,
+    // 持股是現在的；上次（不是今天）的分析當時的持股不一定一樣，就不放
+    holding: isOldAnalysis.value ? null : (view.value?.holding ?? null),
+  })
+}
 
 // ---- 開關 ----
 // ---- 跳到段落（標題列的水晶球）：彈窗有自己的捲動區，用 scrollIntoView 捲彈窗裡面 ----
@@ -368,6 +397,12 @@ onBeforeUnmount(() => {
             </p>
             <p v-if="aiStatus === 'done' && aiSaveFailed" class="mt-4 text-body text-danger">這份分析沒有存進紀錄，關掉彈窗就看不到了。</p>
             <p v-if="!canUseAi || (aiText && !isOldAnalysis)" class="mt-3 text-caption text-ink-muted">AI 只根據上面的資料撰寫，僅供參考，不是投資建議。</p>
+
+            <!-- 匯出：放在分析的最下面 -->
+            <div v-if="canExport" class="mt-4 flex flex-wrap items-center gap-3 border-t border-tint/10 pt-3">
+              <ExportButton :build="buildExport" />
+              <span class="text-caption text-ink-muted">{{ isOldAnalysis ? `把 ${aiTimeText} 的分析` : '把這份分析' }}存成一份檔案。</span>
+            </div>
           </section>
         </div>
         </div>

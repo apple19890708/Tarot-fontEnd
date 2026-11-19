@@ -81,3 +81,22 @@
    - 後端：見 `../Tbackend/CLAUDE.md`（port 4100）
 3. **測試結束後必須自己關閉**：記下自己啟動的程序 PID，用 `taskkill /PID <pid> /T /F` 連同子程序一起結束（Windows 上只停止背景工作不會結束子程序），再用 `netstat` 確認 port 已釋放。
 4. 絕對不要結束不是自己啟動的程序（例如使用者在 5173／4000 的伺服器）。
+
+## 自動把關（hooks，`.claude/settings.json`）
+
+規範裡「一定要做」的幾件事由 hook 強制執行，不靠記憶。前後端是同一套（`.claude/hooks/`：`lib.mjs`／`guard.mjs`／`stop-gate.mjs` 兩邊內容相同，差別只在 `gate.json`），改一邊要同步另一邊。
+
+- **結束回合前（Stop）**：前後端任一 repo 的監看路徑有未 commit 的改動，就跑該 repo 的驗證（前端 `npm run check:rules && npm run build`、後端 `npm test`）。沒過會被擋回來繼續修；連續 3 次仍沒過才放行，並在畫面上提醒使用者。通過的結果依改動內容記指紋，內容沒變不重跑。
+- **commit 前（PreToolUse）**：同樣的驗證沒過，`git commit` 直接被拒絕。
+- **保護**：不能讀 `.env*`（`.env.example` 可以）；不能結束 4000／5173 的程序、它的上層與子程序，也不能依名稱結束 node。
+- 被擋下時照訊息修正，**不要繞過**（例如換別的指令讀 `.env`）。真的是誤擋就回報使用者，並修 `.claude/hooks/` 的判斷、補測試案例。
+- 已知限制：shell 指令裡只要出現 `.env` 檔名就會被擋（分不出是讀還是寫文件），要在文件裡提到它時改用 Edit／Write。
+- 推上 GitHub 後還有 CI（前端規則檢查＋build、後端 test）。
+
+### 規則檢查（`scripts/check-rules.mjs`）
+
+ui-check／verify 裡**能用程式判斷**的規則（暗淡文字、固定字級、舊顏色寫法、原生 select／table／confirm／平滑捲動、直接用 marked、checkbox 的 accent、寫死根路徑、`@ts-ignore`）由它檢查，**只看這次新增或改動的行**，舊程式不追溯。
+
+- `npm run check:rules`：本機改動；`node scripts/check-rules.mjs --all --verbose`：整個 src 的舊寫法清單（改到那一塊時順手換）。
+- 真的需要例外（例如裝飾符號的 /50 透明度）：同一行加 `check-rules-ignore`，或上一行加 `check-rules-ignore-next-line`，都要附原因。
+- **規則會長大**（開發準則 5）：使用者回報的新問題，能用 regex 判斷的就加進 `RULES`（訊息寫「改用什麼」），寫一個暫時的違規檔確認抓得到再刪掉；判斷不了的（版面、文字是否白話）才寫進 ui-check 清單。

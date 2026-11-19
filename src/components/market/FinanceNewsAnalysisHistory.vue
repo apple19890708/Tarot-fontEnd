@@ -5,8 +5,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { deleteFinanceNewsAnalysis, fetchFinanceNewsAnalyses, fetchFinanceNewsAnalysis, UnauthorizedError } from '../../lib/api'
 import { confirmDialog } from '../../lib/confirm'
 import { smoothScrollTo } from '../../lib/motion'
+import { financeNewsExport } from '../../lib/recordExport'
 import { provideSectionNav, type SectionNavItem } from '../../lib/sectionNav'
 import BackToTop from '../BackToTop.vue'
+import ExportButton from '../ExportButton.vue'
 import RecordIndex, { type RecordIndexItem } from '../RecordIndex.vue'
 import RecordListShell from '../RecordListShell.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
@@ -143,6 +145,11 @@ async function confirmDelete(id: string) {
   }
 }
 
+function buildExport() {
+  const current = detail.value!
+  return financeNewsExport({ scopeText: scopeOf(current), createdAt: current.createdAt, newsCount: current.newsCount, text: current.text, news: current.news })
+}
+
 // 文末「引用的新聞」：跳到段落要用到
 const citeList = ref<HTMLDetailsElement | null>(null)
 
@@ -252,6 +259,8 @@ onMounted(loadList)
         <template v-else-if="detail">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="text-body text-ink-muted">{{ dateTime(detail.createdAt) }}・財經新聞分析</p>
+            <div class="flex flex-wrap items-start gap-2">
+            <ExportButton :build="buildExport" />
             <button
               type="button"
               class="cursor-pointer border-2 border-tint/15 px-3 py-1 font-pixel text-button text-up-ink transition hover:bg-up-hue/10 active:translate-x-[2px] active:translate-y-[2px] disabled:cursor-not-allowed disabled:opacity-50"
@@ -260,6 +269,7 @@ onMounted(loadList)
             >
               {{ deletingId === detail.id ? '刪除中…' : '刪除' }}
             </button>
+            </div>
           </div>
           <p v-if="deleteError" class="border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-body text-danger">{{ deleteError }}</p>
 

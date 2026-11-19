@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { confirmDialog } from '../lib/confirm'
 
+import ExportButton from '../components/ExportButton.vue'
 import ReadingHistoryIndex from '../components/ReadingHistoryIndex.vue'
 import RecordListShell from '../components/RecordListShell.vue'
 import SkeletonBlock from '../components/SkeletonBlock.vue'
@@ -22,6 +23,7 @@ import {
 import { canUseAi, canUseStock } from '../lib/auth'
 import { smoothScrollTo } from '../lib/motion'
 import { installWashi } from '../lib/pixelArt'
+import { tarotExport } from '../lib/recordExport'
 import { spreadForReading } from '../lib/readingSpread'
 import type { MarketSnapshot, MarketStatus, NarrationStatus, ReadingDetail, ReadingSummary, Spread } from '../types'
 
@@ -390,6 +392,25 @@ function stopNarration() {
   narrationStatus.value = narrationText.value ? 'stopped' : 'ready'
 }
 
+// 匯出：畫面上現在看到的這一份（含剛重新產生的解讀與追問）
+function buildExport() {
+  const current = detail.value!
+  return tarotExport({
+    reading: current.reading,
+    createdAt: current.createdAt,
+    stockMode: current.domain === 'stock',
+    narrationText: narrationText.value,
+    followUps: followUp.rounds,
+    followUpText: followUp.narrationText,
+  })
+}
+// AI 還在寫（解讀或追問的回答）時不給匯出，避免匯出寫到一半的內容
+const canExport = computed(
+  () =>
+    !['loading', 'streaming'].includes(narrationStatus.value) &&
+    !['loading', 'streaming'].includes(followUp.narrationStatus),
+)
+
 function formatDate(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-TW', { hour12: false })
@@ -590,14 +611,17 @@ onBeforeUnmount(() => {
                 }}
                 張
               </p>
-              <button
-                class="cursor-pointer rounded-full border border-tint/15 px-4 py-1.5 text-button text-up-ink transition hover:bg-up-hue/10 disabled:cursor-not-allowed disabled:opacity-50"
-                type="button"
-                :disabled="deletingId === detail.id"
-                @click="confirmDelete(detail.id)"
-              >
-                {{ deletingId === detail.id ? '刪除中…' : '刪除' }}
-              </button>
+              <div class="flex flex-wrap items-start gap-2">
+                <ExportButton v-if="canExport" round :build="buildExport" />
+                <button
+                  class="cursor-pointer rounded-full border border-tint/15 px-4 py-1.5 text-button text-up-ink transition hover:bg-up-hue/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  type="button"
+                  :disabled="deletingId === detail.id"
+                  @click="confirmDelete(detail.id)"
+                >
+                  {{ deletingId === detail.id ? '刪除中…' : '刪除' }}
+                </button>
+              </div>
             </div>
 
             <p

@@ -955,6 +955,7 @@ onBeforeUnmount(resetSceneBus)
               :save-error="saveError"
               :follow-up="followUp"
               :reading-id="savedReadingId"
+              exportable
               @save-reading="handleSaveReading"
               @restart="restart"
               @redraw="redraw"

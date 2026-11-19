@@ -5,6 +5,7 @@ import { AI_TABLE_CLASS, renderAiMarkdown } from '../lib/aiMarkdown'
 import { canUseAi, isLoggedIn } from '../lib/auth'
 
 import BackToTop from './BackToTop.vue'
+import ExportButton from './ExportButton.vue'
 import FollowUpPanel from './FollowUpPanel.vue'
 import MarketPanel from './MarketPanel.vue'
 import NarrationFeedback from './NarrationFeedback.vue'
@@ -15,6 +16,7 @@ import SkeletonBlock from './SkeletonBlock.vue'
 import SpreadLayout from './SpreadLayout.vue'
 import { cardImageUrl } from '../lib/cardStyle'
 import { prefersReducedMotion, smoothScrollTo } from '../lib/motion'
+import { tarotExport } from '../lib/recordExport'
 import { provideSectionNav, type SectionNavItem } from '../lib/sectionNav'
 import type { FollowUpController } from '../lib/useFollowUps'
 import type {
@@ -57,6 +59,8 @@ const props = defineProps<{
   readingId?: string
   // 紀錄裡這篇解讀原本的回饋（回顧「我的紀錄」時才有）
   narrationFeedback?: NarrationFeedbackData | null
+  // 占卜當下的結果頁：最下面放「匯出」（我的紀錄的匯出按鈕在外層的標題列，這裡不放）
+  exportable?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -223,6 +227,24 @@ onMounted(() => {
   releaseSectionNav = provideSectionNav({ items: collectSections })
 })
 onBeforeUnmount(() => releaseSectionNav?.())
+
+// ── 匯出（v13 階段 5）──
+// AI 還在寫（解讀或追問的回答）時不顯示，避免匯出寫到一半的內容；還沒請 AI 的結果照樣可以匯出牌與分析
+const canExport = computed(
+  () =>
+    !isNarrating.value &&
+    !(props.followUp && ['loading', 'streaming'].includes(props.followUp.narrationStatus)),
+)
+function buildExport() {
+  const hasNarration = !['idle', 'ready', 'loading'].includes(props.narrationStatus)
+  return tarotExport({
+    reading: props.reading,
+    stockMode: props.stockMode,
+    narrationText: hasNarration ? props.narrationText : '',
+    followUps: props.followUp?.rounds,
+    followUpText: props.followUp?.narrationText,
+  })
+}
 
 function formatElement(element: Element) {
   const map: Record<Element, string> = { fire: '火', water: '水', air: '風', earth: '土' }
@@ -654,6 +676,16 @@ function formatSuit(suit: string | null) {
     <div v-if="!stockMode" data-nav="結語" class="border-2 border-accent-hue/10 bg-gradient-to-r from-accent-hue/10 via-tint/5 to-up-hue/10 p-4 sm:p-5">
       <p class="text-[10px] uppercase tracking-[0.2em] text-ink-muted sm:text-xs sm:tracking-[0.3em]">Guidance</p>
       <p class="mt-3 text-sm leading-7 text-ink/85 sm:text-base sm:leading-8">{{ reading.guidance }}</p>
+    </div>
+
+    <!-- 匯出：放在整頁最下面（股市諮詢用 order 重排過，要排在行情 order-5 後面） -->
+    <div
+      v-if="exportable && canExport"
+      class="flex flex-wrap items-center gap-3 border-t border-tint/10 pt-4"
+      :class="{ 'order-6': stockMode }"
+    >
+      <ExportButton :build="buildExport" />
+      <span class="text-caption text-ink-muted">把這次的牌、分析{{ narrationText ? '與 AI 解讀' : '' }}存成一份檔案。</span>
     </div>
 
     <!-- 結果頁很長，捲超過一個畫面高就給一顆回頂的按鈕 -->

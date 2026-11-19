@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 
+import { financeNewsExport } from '../../lib/recordExport'
 import { useScrollLock } from '../../lib/useScrollLock'
+import ExportButton from '../ExportButton.vue'
 import StockAiText from './StockAiText.vue'
 import type { FinanceNewsAnalysisRef } from '../../types'
 
 // 財經新聞 AI 影響分析的報告彈窗：產生中即時顯示，產生完或從「過去的分析」打開時顯示全文與引用的新聞。
 // 狀態（串流、停止、錯誤）由父元件管理，這裡只負責顯示；關閉視窗不會停止分析
-defineProps<{
+const props = defineProps<{
   scopeText: string
   createdAt: string | null
   newsCount: number | null
@@ -30,6 +32,18 @@ function dateTime(iso: string) {
     minute: '2-digit',
     hour12: false,
   }).format(new Date(iso))
+}
+
+// 匯出（v13 階段 5）：完整寫完的分析才給匯出（寫到一半、停止、失敗的不給）
+const canExport = computed(() => Boolean(props.text) && (props.status === 'done' || props.status === 'idle'))
+function buildExport() {
+  return financeNewsExport({
+    scopeText: props.scopeText,
+    createdAt: props.createdAt,
+    newsCount: props.newsCount,
+    text: props.text,
+    news: props.news,
+  })
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -108,6 +122,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           </details>
 
           <p class="mt-4 text-caption text-ink-muted">AI 只根據新聞標題與摘要撰寫，族群與個股是依產業關聯推估，僅供參考，不是投資建議。</p>
+
+          <!-- 匯出：放在報告的最下面 -->
+          <div v-if="canExport" class="mt-4 flex flex-wrap items-center gap-3 border-t border-tint/10 pt-3">
+            <ExportButton :build="buildExport" />
+            <span class="text-caption text-ink-muted">把這份分析和引用的新聞存成一份檔案。</span>
+          </div>
         </div>
       </div>
     </div>
