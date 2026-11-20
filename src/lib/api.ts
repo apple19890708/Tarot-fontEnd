@@ -1,5 +1,10 @@
 import { watchlistMutation } from './watchlistSync'
 import type {
+  JournalContent,
+  JournalEntry,
+  JournalOutcome,
+  CalendarMonth,
+  DailyCardResponse,
   DividendProfile,
   IncomeReport,
   AdminLogsResponse,
@@ -939,4 +944,43 @@ export async function streamNarration(
     }
   }
   throw new Error('AI 解讀連線意外中斷，請再試一次。')
+}
+
+// ---- 每日一牌與月曆（v26 計畫 1）----
+
+export function fetchTodayDailyCard() {
+  return request<DailyCardResponse>('/api/daily-card/today')
+}
+
+// 登入的會存起來、當天固定；訪客只回傳不存（後端依有沒有帶 token 判斷）
+export function drawDailyCard() {
+  return request<DailyCardResponse>('/api/daily-card/draw', { method: 'POST' })
+}
+
+// 訪客抽的牌，登入或註冊後存進月曆（只收今天的領取憑證）
+export function claimDailyCard(claim: string) {
+  return request<DailyCardResponse>('/api/daily-card/claim', { method: 'POST', body: JSON.stringify({ claim }) })
+}
+
+export function fetchCalendarMonth(month: string) {
+  return request<CalendarMonth>(`/api/calendar?month=${encodeURIComponent(month)}`)
+}
+
+// ---- 占卜日記（v26 計畫 2）----
+// target：reading:<紀錄 id> 或 stock:<股票分析 id>
+
+export function fetchJournal(target: string) {
+  return request<{ entries: JournalEntry[] }>(`/api/journal?target=${encodeURIComponent(target)}`)
+}
+
+export function createJournalEntry(input: { target: string; title: string; content: JournalContent; outcome: JournalOutcome; entryDate: string }) {
+  return request<{ entry: JournalEntry }>('/api/journal', { method: 'POST', body: JSON.stringify(input) })
+}
+
+export function updateJournalEntry(id: string, input: { title?: string; content?: JournalContent; outcome?: JournalOutcome; entryDate?: string }) {
+  return request<{ entry: JournalEntry }>(`/api/journal/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) })
+}
+
+export function deleteJournalEntry(id: string) {
+  return request<{ deleted: boolean }>(`/api/journal/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }

@@ -15,7 +15,7 @@ import ReadingAnalysisPanel from './ReadingAnalysisPanel.vue'
 import SkeletonBlock from './SkeletonBlock.vue'
 import SpreadLayout from './SpreadLayout.vue'
 import { cardImageUrl } from '../lib/cardStyle'
-import { prefersReducedMotion, smoothScrollTo } from '../lib/motion'
+import { prefersReducedMotion, scrollParentOf, smoothScrollToElement } from '../lib/motion'
 import { tarotExport } from '../lib/recordExport'
 import { provideSectionNav, type SectionNavItem } from '../lib/sectionNav'
 import type { FollowUpController } from '../lib/useFollowUps'
@@ -118,14 +118,13 @@ const feedbackKey = computed(() => `${props.readingId}-${feedbackRound.value}-${
 function scrollToNarrationTop() {
   const el = narrationEl.value
   if (!el) return
-  const top = el.getBoundingClientRect().top + window.scrollY - 16
-  smoothScrollTo(top)
+  smoothScrollToElement(el)
 }
 
 // 讀到一半收合時，區塊開頭可能已經捲出畫面上方；收起來後把畫面帶回開頭，不會停在不相干的地方
 function toggleNarration() {
   narrationOpen.value = !narrationOpen.value
-  if (!narrationOpen.value && narrationEl.value && narrationEl.value.getBoundingClientRect().top < 0) {
+  if (!narrationOpen.value && narrationEl.value && narrationEl.value.getBoundingClientRect().top < (scrollParentOf(narrationEl.value)?.getBoundingClientRect().top ?? 0)) {
     scrollToNarrationTop()
   }
 }
@@ -134,10 +133,7 @@ function toggleNarration() {
 function regenerateNarration() {
   narrationOpen.value = true
   const el = narrationEl.value
-  if (el) {
-    const top = el.getBoundingClientRect().top + window.scrollY - 16
-    smoothScrollTo(top)
-  }
+  if (el) smoothScrollToElement(el)
   emit('requestNarration')
 }
 
@@ -204,9 +200,8 @@ async function scrollToSection(el: HTMLElement) {
     await nextTick()
     await waitForExpand(details)
   }
-  // 頂部導覽列不是固定的，只留一點呼吸空間
-  const top = el.getBoundingClientRect().top + window.scrollY - 16
-  smoothScrollTo(top)
+  // 頂部導覽列不是固定的，只留一點呼吸空間；在日記頁的左欄時捲那一欄
+  smoothScrollToElement(el)
 }
 
 function collectSections(): SectionNavItem[] {
@@ -266,8 +261,10 @@ function formatSuit(suit: string | null) {
 
 <template>
   <!-- data-nav：浮動選單「跳到段落」的目標（見 lib/sectionNav.ts） -->
-  <!-- 用 flex + order：股市諮詢時依序是 AI 分析、牌面輔助、牌義、行情與分析（最下面），區塊本身不必寫兩份 -->
-  <div ref="rootEl" class="flex min-w-0 flex-col gap-4 sm:gap-6">
+  <!-- 用 flex + order：股市諮詢時依序是牌面輔助、牌義、AI 分析、追問、行情與分析（最下面），區塊本身不必寫兩份。
+       2026-11-20 使用者要求 AI 分析與追問放在牌義下面（原本在最上面） -->
+  <!-- @container：裡面的欄數照這個元件自己的寬度決定，放進日記頁的半寬欄也不會擠（2026-11-20） -->
+  <div ref="rootEl" class="@container flex min-w-0 flex-col gap-4 sm:gap-6">
     <div class="space-y-3 border-b border-tint/10 pb-4 sm:space-y-4 sm:pb-6">
       <div class="flex min-w-0 flex-wrap items-end justify-between gap-4">
         <div class="min-w-0">
@@ -324,7 +321,7 @@ function formatSuit(suit: string | null) {
         {{ saveError }}
       </p>
       <p v-else-if="saveStatus === 'saved'" class="text-sm text-ink-muted">
-        已經存進「我的紀錄」，之後可以回去重看這次的牌與分析。
+        已經存進「塔羅紀錄」，之後可以回去重看這次的牌與分析。
       </p>
 
     </div>
@@ -334,7 +331,7 @@ function formatSuit(suit: string | null) {
     <MarketPanel
       v-if="stockMode"
       data-nav="行情與技術指標"
-      class="order-5"
+      class="order-6"
       tabs
       :snapshot="market ?? null"
       :status="marketStatus ?? 'idle'"
@@ -347,7 +344,7 @@ function formatSuit(suit: string | null) {
       v-if="resultSpread"
       :data-nav="stockMode ? '牌面輔助' : '牌陣'"
       class="border-2 border-tint/10 bg-sink/45 p-3 sm:p-5"
-      :class="{ 'order-3': stockMode }"
+      :class="{ 'order-2': stockMode }"
     >
       <p class="mb-3 text-[10px] uppercase tracking-[0.2em] text-ink-muted sm:text-xs sm:tracking-[0.3em]">
         {{ stockMode ? 'Tarot Guidance' : 'Spread Layout' }}
@@ -358,7 +355,7 @@ function formatSuit(suit: string | null) {
       <SpreadLayout :spread="resultSpread" :cards="reading.cards" />
     </div>
 
-    <div data-nav="每張牌的牌義" class="grid min-w-0 gap-4 xl:grid-cols-2" :class="{ 'order-4': stockMode }">
+    <div data-nav="每張牌的牌義" class="grid min-w-0 gap-4 @3xl:grid-cols-2" :class="{ 'order-3': stockMode }">
       <article
         v-for="(entry, index) in reading.cards"
         :key="`${entry.position?.key ?? index}-${entry.card.id}`"
@@ -442,7 +439,7 @@ function formatSuit(suit: string | null) {
       ref="narrationEl"
       :data-nav="stockMode ? 'AI 股市分析' : 'AI 解讀'"
       class="border-2 border-accent-hue/15 bg-gradient-to-br from-accent-hue/10 via-tint/5 to-up-hue/10 p-4 sm:p-6"
-      :class="{ 'order-2': stockMode }"
+      :class="{ 'order-4': stockMode }"
     >
       <!--
         有內容（產生中或已產生）時，整個標題列就是收合開關，右邊只放箭頭，和「查看判斷依據」同一個樣子。
@@ -471,10 +468,10 @@ function formatSuit(suit: string | null) {
 
       <div v-if="narrationStatus === 'ready'" class="mt-4 space-y-4">
         <p v-if="stockMode" class="text-sm leading-7 text-ink-muted">
-          AI 會先逐張解讀這組牌對你這次操作的提醒，再依頁面最下面的即時行情與技術指標，寫出附觸發價位的操作情境與短線判斷。文字會陸續出現，隨時可以停止；完整寫完會自動存進「我的紀錄」。
+          AI 會先逐張解讀這組牌對你這次操作的提醒，再依頁面最下面的即時行情與技術指標，寫出附觸發價位的操作情境與短線判斷。文字會陸續出現，隨時可以停止；完整寫完會自動存進「塔羅紀錄」。
         </p>
         <p v-else class="text-sm leading-7 text-ink-muted">
-          想要更完整的白話解讀嗎？AI 會把這組牌串成這件事接下來會怎麼發展，並給出具體的做法。文字會陸續出現，隨時可以停止；完整寫完會自動存進「我的紀錄」。
+          想要更完整的白話解讀嗎？AI 會把這組牌串成這件事接下來會怎麼發展，並給出具體的做法。文字會陸續出現，隨時可以停止；完整寫完會自動存進「塔羅紀錄」。
         </p>
         <button
           v-if="canUseAi"
@@ -634,7 +631,7 @@ function formatSuit(suit: string | null) {
     <FollowUpPanel
       v-if="followUp"
       data-nav="追問與補充牌"
-      :class="{ 'order-2': stockMode }"
+      :class="{ 'order-5': stockMode }"
       :follow-up="followUp"
       @request-login="emit('requestNarration')"
     />
@@ -678,11 +675,11 @@ function formatSuit(suit: string | null) {
       <p class="mt-3 text-sm leading-7 text-ink/85 sm:text-base sm:leading-8">{{ reading.guidance }}</p>
     </div>
 
-    <!-- 匯出：放在整頁最下面（股市諮詢用 order 重排過，要排在行情 order-5 後面） -->
+    <!-- 匯出：放在整頁最下面（股市諮詢用 order 重排過，要排在行情 order-6 後面） -->
     <div
       v-if="exportable && canExport"
       class="flex flex-wrap items-center gap-3 border-t border-tint/10 pt-4"
-      :class="{ 'order-6': stockMode }"
+      :class="{ 'order-7': stockMode }"
     >
       <ExportButton :build="buildExport" />
       <span class="text-caption text-ink-muted">把這次的牌、分析{{ narrationText ? '與 AI 解讀' : '' }}存成一份檔案。</span>

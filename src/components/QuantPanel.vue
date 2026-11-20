@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// 欄數用 container query（@container／@md: 這類）照元件自己的寬度決定，不照螢幕寬度：放進日記頁的半寬欄也不會擠壞（2026-11-20）
 import {
   Chart as ChartJS,
   Filler,
@@ -105,25 +106,28 @@ const METER_FILL: Record<Meter['tone'], string> = {
 // 焦點集中度不放在這裡，改成雷達圖下方的說明：它描述的就是雷達圖的形狀，
 // 分開放會出現「圖看起來很集中、格子卻寫普通」的落差。
 const meters = computed<Meter[]>(() => [
+  // 2026-11-20 使用者要求口語化：推力／阻力／可信度改成和 AI 解讀同一組詞（提示詞規定說「幫得上忙」「卡住你的」）。
+  // 不用「順風／逆風」：「逆」容易和逆位混在一起
   {
-    name: '推力',
+    name: '幫得上忙的',
     hint: '站在你這邊的力量有多少',
     level: levelOf('momentum', props.quant.momentum),
     labels: ['幾乎沒有', '有一些', '相當充足'],
     tone: 'good',
   },
   {
-    name: '阻力',
-    hint: '卡住你的力量有多少',
+    name: '卡住你的',
+    hint: '擋在你前面的力量有多少',
     level: levelOf('resistance', props.quant.resistance),
     labels: ['很小', '有一些', '相當大'],
     tone: 'bad',
   },
   {
-    name: '可信度',
+    // 原本叫「可信度」，容易讀成「占卜準不準」；它其實是牌面訊號雜不雜
+    name: '牌面清不清楚',
     hint: '牌面訊號越雜，越只能當參考',
     level: levelOf('confidence', props.quant.confidence),
-    labels: ['偏低', '普通', '高'],
+    labels: ['很雜', '普通', '很清楚'],
     tone: 'neutral',
   },
 ])
@@ -257,14 +261,15 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
       </p>
     </section>
 
-    <!-- 推力、阻力、可信度 -->
-    <section class="grid min-w-0 gap-3 sm:grid-cols-3">
+    <!-- 幫得上忙的、卡住你的、牌面清不清楚 -->
+    <section class="grid min-w-0 gap-3 @2xl:grid-cols-3">
       <div
         v-for="meter in meters"
         :key="meter.name"
         class="min-w-0 rounded-2xl border border-tint/10 bg-tint/5 px-4 py-3"
       >
-        <div class="flex items-baseline justify-between gap-2 text-sm">
+        <!-- 名稱變長（「牌面清不清楚」），三欄並排放不下時等級換到下一行，不擠出卡片 -->
+        <div class="flex flex-wrap items-baseline justify-between gap-x-2 text-body">
           <span class="text-ink-muted">{{ meter.name }}</span>
           <span class="font-medium text-accent">{{ meter.labels[meter.level - 1] }}</span>
         </div>
@@ -283,7 +288,7 @@ const directionUnreliable = computed(() => props.cards.length < TOO_FEW_FOR_DIRE
     <!-- 貢獻排行 -->
     <section v-if="topContributions.length > 0" class="space-y-2">
       <h3 class="text-base font-semibold text-ink sm:text-lg">每張牌往哪邊拉</h3>
-      <!-- share 是除以總和後的佔比，再弱的組合也一定有長條，要講清楚免得和「推力」對不上 -->
+      <!-- share 是除以總和後的佔比，再弱的組合也一定有長條，要講清楚免得和「幫得上忙的」那格對不上 -->
       <p class="text-xs leading-5 text-ink-muted">
         長條越長，這張牌對結果的影響越大。顏色淡的是逆位，力道比較弱。
       </p>

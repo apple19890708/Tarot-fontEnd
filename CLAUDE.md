@@ -10,7 +10,8 @@
 
 - Vue 3（`<script setup lang="ts">`）+ TypeScript + Vite 7 + Tailwind CSS 4 + vue-router 4
 - `npm run build`：型別檢查（vue-tsc）＋打包。改完程式一律用它驗證，不需要啟動 dev server。
-- 沒有測試框架；不要自行加入新套件，除非先詢問。
+- `npm test`：vitest 單元測試（2026-11-20 使用者同意加入）。測試檔放在被測檔案旁邊（`src/lib/xxx.test.ts`），目前只測不需要瀏覽器的純函式；要測元件或 DOM 得再加 jsdom，先問。vitest 4.1.12（修 npm audit）；npm 10.9 裝 vitest 4 會出 `edgesOut` 錯誤，改套件時用 `npm install --legacy-peer-deps`。`npm test` 走 `scripts/test.mjs`：工作目錄是小寫 `d:\` 時 vitest 4 會把自己載入兩份、全部測試在 describe 那行失敗（VS Code 與 hook 都是小寫），腳本先把磁碟代號轉大寫；不要改回直接 `vitest run`。
+- 不要自行加入新套件，除非先詢問。
 
 ## Claude 規範（`.claude/`）
 
@@ -46,6 +47,10 @@
 - `src/types.ts`：對應後端回傳的型別
 - `src/lib/session.ts`：token（localStorage）與登入狀態；`src/lib/auth.ts`：login／register／logout／restore，元件只 import 這一個
 - `src/pages/LoginView.vue`、`RegisterView.vue`、`AdminUsers.vue`：會員與管理者頁
+- `src/components/MemberMenu.vue`：頂欄的會員頭像選單（v26 計畫 3），頁面清單來自 `App.vue` 的 `navRoutes`；分類與順序看路由的 `meta.menuGroup`（tarot／stock）與 `meta.menuOrder`
+- `src/pages/HistoryView.vue`：塔羅紀錄（`/history`）與股市分析紀錄（`/market/records`）共用，分頁由路由的 `meta.recordTabs` 決定（2026-11-20 拆掉「我的紀錄」）
+- `src/pages/CalendarView.vue`：占卜月曆（每日一牌＋月曆，FullCalendar）；`src/lib/dailyCard.ts`：每日一牌的彈窗與訪客領取
+- `src/components/journal/`：占卜日記（Tiptap 編輯器、唯讀顯示、時間軸）；設定在 `src/lib/journalEditor.ts`，節點白名單要和後端 `services/journalContent.js` 一起改
 
 ## 編輯規則
 
@@ -58,6 +63,13 @@
 - 非同步請求要處理載入中、失敗兩種狀態；可能被重複觸發的請求要忽略過期的回應（參考 `loadNarration` 的 request id 作法）。
 - **`immediate` 的 watch 放在它會用到的 ref 後面**：`watch(..., { immediate: true })` 在建立元件當下就執行，callback 呼叫的函式裡用到、但寫在後面才宣告的 `const` 會丟 `Cannot access … before initialization`（型別檢查抓不到，網址帶著 id 進頁面才會爆）。
 - **畫面慣例在 `ui-check`**：骨架、更新按鈕的冷卻、回到頂端、刪除確認、指標說明、彈窗捲動鎖定、按鈕字級等 UI 規則都寫在 `.claude/skills/ui-check/SKILL.md` 的「本專案的 UI 慣例」；寫畫面前先看，交付前照它自檢。
+
+## 推送流程（2026-11-20 使用者決定：PR＋CI 通過才能合併）
+
+- 改動一律開分支（例如 `claude/<主題>`）、push 分支、開 PR，CI 綠了才合併到 `main`；不要直接 push `main`。
+- 開 PR：這台電腦沒有 `gh`，push 分支後把 GitHub 給的 `pull/new/<分支>` 連結交給使用者開，或請使用者合併。
+- 合併到 `main` 之後才部署：前端由 `deploy-pages.yml` 部署 GitHub Pages，後端由 Cloud Build 部署 Cloud Run。
+- 分支保護在 GitHub 的 repo 設定（Settings → Branches／Rules），必要的檢查：前端 `Frontend CI` 的 `build`、後端 `Backend CI` 的 `test`。
 
 ## 部署
 
@@ -84,9 +96,9 @@
 
 ## 自動把關（hooks，`.claude/settings.json`）
 
-規範裡「一定要做」的幾件事由 hook 強制執行，不靠記憶。前後端是同一套（`.claude/hooks/`：`lib.mjs`／`guard.mjs`／`stop-gate.mjs` 兩邊內容相同，差別只在 `gate.json`），改一邊要同步另一邊。
+規範裡「一定要做」的幾件事由 hook 強制執行，不靠記憶。前後端是同一套（`.claude/hooks/`：`lib.mjs`／`guard.mjs`／`stop-gate.mjs` 兩邊內容相同，差別只在 `gate.json`），改一邊要同步另一邊。`gate.json` 的相鄰 repo 路徑寫成候選清單（`Tarot-backend`／`Tbackend`），資料夾名稱在各台電腦不同也找得到；都找不到時那個 repo 會被略過。
 
-- **結束回合前（Stop）**：前後端任一 repo 的監看路徑有未 commit 的改動，就跑該 repo 的驗證（前端 `npm run check:rules && npm run build`、後端 `npm test`）。沒過會被擋回來繼續修；連續 3 次仍沒過才放行，並在畫面上提醒使用者。通過的結果依改動內容記指紋，內容沒變不重跑。
+- **結束回合前（Stop）**：前後端任一 repo 的監看路徑有未 commit 的改動，就跑該 repo 的驗證（前端 `npm run check:rules && npm run build && npm test`、後端 `npm test`）。沒過會被擋回來繼續修；連續 3 次仍沒過才放行，並在畫面上提醒使用者。通過的結果依改動內容記指紋，內容沒變不重跑。
 - **commit 前（PreToolUse）**：同樣的驗證沒過，`git commit` 直接被拒絕。
 - **保護**：不能讀 `.env*`（`.env.example` 可以）；不能結束 4000／5173 的程序、它的上層與子程序，也不能依名稱結束 node。
 - 被擋下時照訊息修正，**不要繞過**（例如換別的指令讀 `.env`）。真的是誤擋就回報使用者，並修 `.claude/hooks/` 的判斷、補測試案例。

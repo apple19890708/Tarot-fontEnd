@@ -1937,3 +1937,99 @@ export interface IncomeForecastCheck {
   estimateDate: string | null
   actualDate: string | null
 }
+
+// ---- 每日一牌與月曆（v26 計畫 1）----
+
+export interface DailyCard {
+  // 台北時間的日期 YYYY-MM-DD
+  date: string
+  orientation: 'upright' | 'reversed'
+  card: {
+    id: string
+    nameZh: string
+    nameEn: string
+    image: string
+    suit: string | null
+    arcanaType: string | null
+    keywords: string[]
+  }
+  // 牌義「核心訊息」與「行動建議」的第一句，文字由後端給
+  message: string
+  advice: string
+}
+
+export interface DailyCardResponse {
+  today: string
+  dailyCard: DailyCard | null
+  streak: number
+  // 抽牌時才有：登入的存起來（saved），今天已經抽過（alreadyDrawn）
+  saved?: boolean
+  alreadyDrawn?: boolean
+  // 訪客抽牌時才有：登入或註冊後用它把這張存進月曆（伺服器簽的，前端不能改）
+  claim?: string
+  // 領取時才有：true 表示這次存進去了；false 表示今天早就抽過，以已存的為準
+  claimed?: boolean
+}
+
+export interface CalendarReading {
+  id: string
+  question: string
+  spreadName: string
+  createdAt: string
+  // 「愚人逆」這種牌名＋正逆位
+  cards: string[]
+}
+
+// ---- 占卜日記（v26 計畫 2）----
+// Tiptap 的 JSON（後端驗證節點白名單）
+export interface JournalContent {
+  type: string
+  attrs?: Record<string, unknown>
+  content?: JournalContent[]
+  text?: string
+  marks?: { type: string }[]
+}
+
+// 結果標記：應驗了／部分應驗／沒有應驗；null＝還不知道
+export type JournalOutcome = 'hit' | 'partial' | 'miss' | null
+
+export interface JournalEntry {
+  id: string
+  // reading:<紀錄 id> 或 stock:<股票分析 id>（每日一牌的日記 2026-11-20 拿掉）
+  target: string
+  // 標題（2026-11-20 加，舊版後端沒有）
+  title?: string
+  content: JournalContent
+  // 純文字摘要（最多 200 字）
+  text: string
+  outcome: JournalOutcome
+  // 這篇記的是哪一天（台北時間）
+  entryDate: string
+  createdAt: string
+  updatedAt: string
+}
+
+// 月曆上當天寫的日記摘要
+export interface CalendarJournal {
+  id: string
+  target: string
+  title?: string
+  text: string
+  outcome: JournalOutcome
+}
+
+export interface CalendarDay {
+  date: string
+  // detail：和今天的牌同一個格式（點月曆上的牌開小彈窗用）；舊版後端沒有
+  dailyCard: { nameZh: string; image: string; orientation: 'upright' | 'reversed'; detail?: DailyCard } | null
+  readings: CalendarReading[]
+  // 當天寫的日記（v26 計畫 2）；舊版後端沒有
+  journals?: CalendarJournal[]
+}
+
+export interface CalendarMonth {
+  month: string
+  today: string
+  streak: number
+  days: CalendarDay[]
+}

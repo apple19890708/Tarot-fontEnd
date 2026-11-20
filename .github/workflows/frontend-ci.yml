@@ -39,20 +39,7 @@ jobs:
       - name: Run tests
         run: npm test --if-present
 
-      - name: Create Release
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: ncipollo/release-action@v1
-        with:
-          tag: v${{ github.run_number }}
-          name: Frontend Release ${{ github.run_number }}
-          files: dist/**
-          draft: false
-          prerelease: false
-
-      - name: Deploy to Render
-        if: ${{ github.ref == 'refs/heads/main' && secrets.RENDER_API_KEY != '' && secrets.RENDER_SERVICE_ID != '' }}
-        run: |
-          curl -sS -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Accept: application/json" \
-            -d '{}'
+# 2026-11-20 移除兩個步驟（同後端 a286282 的改法）：
+# - Deploy to Render：步驟的 if 不能讀 secrets，整個 workflow 檔被判無效，每次推送都在開始前就失敗；
+#   前端也早就改部署到 GitHub Pages（deploy-pages.yml），不再用 Render。
+# - Create Release：每次推送都開一個 Release，沒有人用；部署由 deploy-pages.yml 負責。

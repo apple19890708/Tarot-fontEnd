@@ -9,6 +9,7 @@ import RecordListShell from '../components/RecordListShell.vue'
 import SkeletonBlock from '../components/SkeletonBlock.vue'
 import StepResult from '../components/StepResult.vue'
 import { useFollowUps } from '../lib/useFollowUps'
+import { useReadingMarket } from '../lib/useReadingMarket'
 import FinanceNewsAnalysisHistory from '../components/market/FinanceNewsAnalysisHistory.vue'
 import StockAnalysisHistory from '../components/market/StockAnalysisHistory.vue'
 import {
@@ -16,7 +17,6 @@ import {
   fetchReadingDetail,
   fetchReadingHistory,
   fetchSpreads,
-  fetchMarketSnapshot,
   streamNarration,
   UnauthorizedError,
 } from '../lib/api'
@@ -25,7 +25,8 @@ import { smoothScrollTo } from '../lib/motion'
 import { installWashi } from '../lib/pixelArt'
 import { tarotExport } from '../lib/recordExport'
 import { spreadForReading } from '../lib/readingSpread'
-import type { MarketSnapshot, MarketStatus, NarrationStatus, ReadingDetail, ReadingSummary, Spread } from '../types'
+import type { NarrationStatus, ReadingDetail, ReadingSummary, Spread } from '../types'
+
 
 // 右側的紀錄是和紙菜單，紋理要在畫出來之前放進 CSS 變數
 installWashi()
@@ -44,27 +45,33 @@ const isListLoaded = ref(false)
 
 const spreads = ref<Spread[]>([])
 
-// 上方切換：塔羅紀錄（預設）／股票分析（?tab=stock）／財經新聞分析（?tab=news）。
-// 後兩個只有股市權限的人看得到；各分頁的清單與內容完全分開
+// 這一頁有哪些分頁由路由的 meta.recordTabs 決定（2026-11-20 拆成兩頁）：
+// 塔羅紀錄（/history）只有塔羅；股市分析紀錄（/market/records）是股票分析（預設）＋財經新聞分析（?tab=news）。
+// 各分頁的清單與內容完全分開
 type HistoryTab = 'tarot' | 'stock' | 'news'
-const TABS = [
+const ALL_TABS = [
   { value: 'tarot', label: '塔羅紀錄' },
   { value: 'stock', label: '股票分析' },
   { value: 'news', label: '財經新聞' },
 ] as const
+const allowedTabs = computed(() => {
+  const wanted = (route.meta.recordTabs as HistoryTab[] | undefined) ?? ['tarot']
+  return wanted.filter((value) => value === 'tarot' || canUseStock.value)
+})
+const TABS = computed(() => ALL_TABS.filter((option) => allowedTabs.value.includes(option.value)))
 const tab = computed<HistoryTab>(() => {
-  const wanted = route.query.tab
-  return (wanted === 'stock' || wanted === 'news') && canUseStock.value ? wanted : 'tarot'
+  const wanted = route.query.tab as HistoryTab | undefined
+  return wanted && allowedTabs.value.includes(wanted) ? wanted : (allowedTabs.value[0] ?? 'tarot')
 })
 function switchTab(next: HistoryTab) {
   if (next === tab.value) return
-  // 換分頁時不帶 id：各分頁的 id 是不同的紀錄
-  router.replace({ query: next === 'tarot' ? {} : { tab: next } })
+  // 換分頁時不帶 id：各分頁的 id 是不同的紀錄；第一個分頁不寫在網址
+  router.replace({ query: next === allowedTabs.value[0] ? {} : { tab: next } })
 }
 const HEADINGS = {
-  tarot: { eyebrow: 'Reading History', title: '我的占卜紀錄' },
-  stock: { eyebrow: 'Stock Analysis', title: '我的股票分析' },
-  news: { eyebrow: 'Finance News Analysis', title: '我的財經新聞分析' },
+  tarot: { eyebrow: 'Reading History', title: '塔羅紀錄' },
+  stock: { eyebrow: 'Stock Analysis', title: '股票分析紀錄' },
+  news: { eyebrow: 'Finance News Analysis', title: '財經新聞分析紀錄' },
 } as const
 
 // 選中的那一筆放在網址（?id=），重新整理還是同一筆；在股票分析那一邊時 id 屬於股票紀錄，這裡不理它
@@ -87,14 +94,10 @@ const narrationStatus = ref<NarrationStatus>('idle')
 const narrationError = ref('')
 // 最近一次重新產生的解讀有沒有存回這筆紀錄
 const narrationSaved = ref<boolean | null>(null)
-// 股市諮詢的行情：先顯示當時存下來的那一份，按了才查最新報價
-const marketSnapshot = ref<MarketSnapshot | null>(null)
-const marketStatus = ref<MarketStatus>('idle')
-const marketError = ref('')
-// 重複按「更新報價」或換了結果時，只採用最新一次的回應
-let marketRequestId = 0
-// 目前顯示的是紀錄裡存下來的（true），還是剛查到的最新報價（false）
-const marketIsSaved = ref(false)
+// 股市諮詢的行情：先顯示當時存下來的那一份，沒存到就查最新的（和日記頁共用 useReadingMarket）
+const market = useReadingMarket(detail)
+const { snapshot: marketSnapshot, status: marketStatus, error: marketError, isSaved: marketIsSaved } = market
+const refreshMarket = market.refresh
 let narrationController: AbortController | null = null
 
 // 抽牌追問（v23）：紀錄裡存下來的補充牌與延伸回答；在這裡也可以繼續追問，會直接存回這筆紀錄。
@@ -189,10 +192,7 @@ async function loadDetail(id: string) {
   narrationError.value = ''
   narrationStatus.value = 'idle'
   narrationSaved.value = null
-  marketSnapshot.value = null
-  marketStatus.value = 'idle'
-  marketError.value = ''
-  marketRequestId += 1
+  market.reset()
 
   try {
     const response = await fetchReadingDetail(id)
@@ -212,9 +212,7 @@ async function loadDetail(id: string) {
     // 當初用過 AI 就直接顯示存下來的那一份；沒用過的留著「請 AI 解讀」的選項
     if (response.narration) {
       narrationText.value = response.narration.text
-      marketSnapshot.value = response.narration.market ?? null
-      marketStatus.value = marketSnapshot.value ? 'ready' : 'idle'
-      marketIsSaved.value = Boolean(marketSnapshot.value)
+      market.useSaved(response.narration.market ?? null)
       narrationStatus.value = 'done'
     } else {
       narrationStatus.value = response.reading.analysis ? 'ready' : 'idle'
@@ -241,10 +239,7 @@ function resetDetail() {
   narrationText.value = ''
   narrationStatus.value = 'idle'
   narrationSaved.value = null
-  marketSnapshot.value = null
-  marketStatus.value = 'idle'
-  marketError.value = ''
-  marketRequestId += 1
+  market.reset()
 }
 
 watch(selectedId, (id) => (id ? loadDetail(id) : resetDetail()), { immediate: true })
@@ -252,43 +247,6 @@ watch(selectedId, (id) => (id ? loadDetail(id) : resetDetail()), { immediate: tr
 // 從股票分析切回來：沒有選中的就看最新一筆
 watch(tab, (current) => {
   if (current === 'tarot' && !selectedId.value && readings.value[0]) selectReading(readings.value[0].id)
-})
-
-// ---- 股市諮詢的行情 ----
-async function loadMarket() {
-  const question = detail.value?.domain === 'stock' ? detail.value.reading.question : null
-  if (question === null) {
-    return
-  }
-  const requestId = (marketRequestId += 1)
-  marketStatus.value = 'loading'
-  marketError.value = ''
-  try {
-    const { snapshot } = await fetchMarketSnapshot(question)
-    if (requestId === marketRequestId) {
-      marketSnapshot.value = snapshot
-      marketStatus.value = 'ready'
-    }
-  } catch (error) {
-    if (requestId === marketRequestId) {
-      marketError.value = error instanceof Error ? error.message : '行情暫時查不到，請稍後再試。'
-      marketStatus.value = 'error'
-    }
-  }
-}
-
-async function refreshMarket() {
-  await loadMarket()
-  if (marketStatus.value === 'ready') {
-    marketIsSaved.value = false
-  }
-}
-
-// 股市諮詢的舊紀錄沒有存到行情（例如當時沒做 AI 解讀）時，直接查最新的
-watch(detail, (current) => {
-  if (current?.domain === 'stock' && !marketSnapshot.value) {
-    void loadMarket()
-  }
 })
 
 async function confirmDelete(id: string) {
@@ -350,11 +308,7 @@ async function requestNarration() {
       onMarket: (snapshot) => {
         if (controller === narrationController) {
           // AI 用的是這一份，畫面跟著換成同一份，兩邊講的數字才會一致
-          marketRequestId += 1
-          marketSnapshot.value = snapshot
-          marketStatus.value = 'ready'
-          marketError.value = ''
-          marketIsSaved.value = false
+          market.useStreamed(snapshot)
         }
       },
       onDelta: (text) => {
@@ -451,8 +405,9 @@ onBeforeUnmount(() => {
 
       <!-- 紀錄類別：一排等寬的分段切換（像素框），選中的那格亮琥珀色、底下一道粗線；手機也不換行 -->
       <div
-        v-if="canUseStock"
-        class="mt-5 grid grid-cols-3 border-2 border-frame bg-sink/25 shadow-[3px_3px_0_var(--c-shade)]"
+        v-if="TABS.length > 1"
+        class="mt-5 grid border-2 border-frame bg-sink/25 shadow-[3px_3px_0_var(--c-shade)]"
+        :style="{ gridTemplateColumns: `repeat(${TABS.length}, minmax(0, 1fr))` }"
         role="tablist"
         aria-label="紀錄類別"
       >
@@ -612,6 +567,13 @@ onBeforeUnmount(() => {
                 張
               </p>
               <div class="flex flex-wrap items-start gap-2">
+                <!-- 日記放上面、獨立一頁（2026-11-20 使用者要求）：左邊是這筆紀錄，右邊寫日記 -->
+                <router-link
+                  :to="{ path: `/journal/reading/${detail.id}` }"
+                  class="inline-flex cursor-pointer items-center rounded-full border border-accent-hue/40 bg-accent-hue/10 px-4 py-1.5 text-button text-accent transition hover:bg-accent-hue/20 active:translate-y-[1px]"
+                >
+                  日記
+                </router-link>
                 <ExportButton v-if="canExport" round :build="buildExport" />
                 <button
                   class="cursor-pointer rounded-full border border-tint/15 px-4 py-1.5 text-button text-up-ink transition hover:bg-up-hue/10 disabled:cursor-not-allowed disabled:opacity-50"

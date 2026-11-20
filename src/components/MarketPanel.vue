@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// 欄數用 container query（@container／@md: 這類）照元件自己的寬度決定，不照螢幕寬度：放進日記頁的半寬欄也不會擠壞（2026-11-20）
 import { computed, ref } from 'vue'
 import HelpTip from './HelpTip.vue'
 import { signalGlossaryKeys } from '../lib/marketGlossary'
@@ -165,7 +166,7 @@ function indicatorRows(item: MarketItem) {
 </script>
 
 <template>
-  <section class="space-y-4 border-2 border-tint/10 bg-sink/45 p-4 sm:p-5" aria-label="行情與技術指標" data-panel-section="行情與技術指標">
+  <section class="@container space-y-4 border-2 border-tint/10 bg-sink/45 p-4 sm:p-5" aria-label="行情與技術指標" data-panel-section="行情與技術指標">
     <!-- data-panel-section：彈窗與紀錄頁「跳到段落」的目標（StockAnalysisDialog、StockAnalysisHistory）。註解放在裡面，根元素才只有一個 -->
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div class="min-w-0">
@@ -189,7 +190,7 @@ function indicatorRows(item: MarketItem) {
     <div v-if="status === 'loading' && !snapshot" class="space-y-3" aria-live="polite">
       <SkeletonBlock class="h-5 w-40" />
       <SkeletonBlock class="h-8 w-56" />
-      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div class="grid grid-cols-2 gap-2 @lg:grid-cols-4">
         <SkeletonBlock v-for="n in 8" :key="n" class="h-4 w-full" />
       </div>
     </div>
@@ -223,7 +224,7 @@ function indicatorRows(item: MarketItem) {
         </div>
 
         <!-- 開高低和昨收：四格，數字和昨收比，高紅、低綠、一樣白（台灣看盤習慣）；昨收是基準，用白色 -->
-        <dl class="grid grid-cols-2 gap-2 tabular-nums sm:grid-cols-4">
+        <dl class="grid grid-cols-2 gap-2 tabular-nums @lg:grid-cols-4">
           <div v-for="cell in ohlcCells(item)" :key="cell.label" class="border border-tint/10 bg-tint/[0.03] px-2 py-1.5">
             <dt class="text-caption text-ink-muted">{{ cell.label }}</dt>
             <dd class="text-subtitle font-semibold" :class="cell.cls">{{ num(cell.value) }}</dd>
@@ -250,7 +251,7 @@ function indicatorRows(item: MarketItem) {
         </div>
 
         <!-- 支撐與壓力 -->
-        <div v-if="item.analysis" class="grid gap-3 sm:grid-cols-2">
+        <div v-if="item.analysis" class="grid gap-3 @sm:grid-cols-2">
           <div class="border-2 border-up-hue/15 bg-up-hue/5 p-3">
             <p class="flex items-center gap-1.5 text-body font-medium text-danger">上方壓力 <HelpTip term="supportResistance" /></p>
             <ul v-if="item.analysis.resistances.length" class="mt-2 space-y-1 text-body">
@@ -277,7 +278,7 @@ function indicatorRows(item: MarketItem) {
           </div>
         </div>
 
-        <dl v-if="item.indicators" class="grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-tint/10 pt-3 text-body sm:grid-cols-3">
+        <dl v-if="item.indicators" class="grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-tint/10 pt-3 text-body @md:grid-cols-3">
           <div v-for="row in indicatorRows(item)" :key="row.label" class="flex justify-between gap-2">
             <dt class="text-ink-muted">{{ row.label }}</dt>
             <dd class="tabular-nums" :class="row.tone === undefined ? 'text-ink-soft' : trendClass(row.tone)">{{ row.value }}</dd>
