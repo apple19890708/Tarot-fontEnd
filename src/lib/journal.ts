@@ -1,7 +1,8 @@
 // 占卜日記（v26 計畫 2）的共用設定與草稿。
-// 日記寫在一筆塔羅紀錄（reading:<id>）或一筆股票分析（stock:<id>）底下；每日一牌的日記 2026-11-20 使用者決定拿掉。
+// 日記寫在一筆塔羅紀錄（reading:<id>）或一檔股票（stock:<市場>:<代號>，v26 計畫 2-2）底下；每日一牌的日記 2026-11-20 使用者決定拿掉。
 // 草稿：編輯中自動存在這台瀏覽器（localStorage，包 try/catch），網頁關掉再開不會不見；按「儲存」才送後端
 import type { JournalContent, JournalOutcome } from '../types'
+import type { StockDraft } from './stockJournal'
 
 export const OUTCOME_OPTIONS: { value: JournalOutcome; label: string }[] = [
   { value: null, label: '還不知道' },
@@ -55,6 +56,8 @@ export interface JournalDraft {
   content: JournalContent
   outcome: JournalOutcome
   entryDate: string
+  // 股票日記的「記錄股票」（v26 計畫 2-2）；塔羅日記與舊的草稿沒有
+  stock?: StockDraft | null
   savedAt: number
 }
 

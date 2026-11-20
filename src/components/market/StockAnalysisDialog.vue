@@ -9,6 +9,7 @@ import { prefersReducedMotion } from '../../lib/motion'
 import { stockAnalysisExport } from '../../lib/recordExport'
 import type { SectionNavItem } from '../../lib/sectionNav'
 import MarketPanel from '../MarketPanel.vue'
+import { stockJournalPath, stockKeyOf } from '../../lib/stockJournal'
 import ExportButton from '../ExportButton.vue'
 import SectionJumpMenu from '../SectionJumpMenu.vue'
 import MarketNewsList from './MarketNewsList.vue'
@@ -184,18 +185,30 @@ const runLabel = computed(() => {
 
 // ---- 匯出（v13 階段 5）：完整寫完的分析才給匯出（寫到一半、停止、失敗的不給）----
 const canExport = computed(() => Boolean(aiText.value) && (aiStatus.value === 'done' || (aiStatus.value === 'idle' && Boolean(aiSummary.value))))
-function buildExport() {
+// 這檔的 target：有分析就用分析存的，否則用現在的行情
+const subjectTarget = computed(() => {
   const item = view.value?.item
-  const target = aiSummary.value?.target ?? {
-    symbol: item?.symbol ?? null,
-    code: item?.code ?? props.code ?? null,
-    exchange: item?.exchange ?? null,
-    market: item?.market ?? 'tw',
-    kind: item?.kind ?? 'stock',
-    name: item?.name ?? props.name,
-  }
+  return (
+    aiSummary.value?.target ?? {
+      symbol: item?.symbol ?? null,
+      code: item?.code ?? props.code ?? null,
+      exchange: item?.exchange ?? null,
+      market: item?.market ?? ('tw' as const),
+      kind: item?.kind ?? ('stock' as const),
+      name: item?.name ?? props.name,
+    }
+  )
+})
+
+// ---- 股票日記（v26 計畫 2-2、D10）：追蹤中或分析過的才能寫，和後端的規則一樣 ----
+const journalKey = computed(() => {
+  if (!props.watchId && !aiSummary.value) return null
+  return aiSummary.value?.stockKey ?? stockKeyOf(subjectTarget.value)
+})
+
+function buildExport() {
   return stockAnalysisExport({
-    target,
+    target: subjectTarget.value,
     quote: aiSummary.value?.quote ?? null,
     createdAt: aiTime.value || null,
     text: aiText.value,
@@ -278,13 +291,24 @@ onBeforeUnmount(() => {
             <p class="text-caption uppercase tracking-[0.2em] text-ink-muted">Stock Analysis</p>
             <p class="truncate font-pixel text-[12px] text-accent">{{ name }} · 個股分析</p>
           </div>
-          <button
-            type="button"
-            class="-mr-1 shrink-0 cursor-pointer border-2 border-tint/10 px-3 py-1.5 font-pixel text-button text-ink-soft transition hover:bg-tint/10 active:translate-x-[2px] active:translate-y-[2px]"
-            @click="close"
-          >
-            關閉
-          </button>
+          <div class="-mr-1 flex shrink-0 items-center gap-2">
+            <!-- 這檔的股票日記（一檔一本） -->
+            <router-link
+              v-if="journalKey"
+              :to="{ path: stockJournalPath(journalKey) }"
+              class="cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/10 px-3 py-1.5 font-pixel text-button text-accent transition hover:bg-accent-hue/20 active:translate-x-[2px] active:translate-y-[2px]"
+              @click="close"
+            >
+              日記
+            </router-link>
+            <button
+              type="button"
+              class="cursor-pointer border-2 border-tint/10 px-3 py-1.5 font-pixel text-button text-ink-soft transition hover:bg-tint/10 active:translate-x-[2px] active:translate-y-[2px]"
+              @click="close"
+            >
+              關閉
+            </button>
+          </div>
         </div>
 
         <!-- 捲動區外面包一層定位：水晶球浮在內容右上角，捲動時不跟著跑（和全站右上角那顆一樣） -->

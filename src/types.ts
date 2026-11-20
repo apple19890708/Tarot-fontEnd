@@ -1490,6 +1490,8 @@ export interface StockAnalysisQuota {
 export interface StockAnalysisSummary {
   id: string
   watch: string | null
+  // 股票日記的鍵（tw:0050；v26 計畫 2-2），後端算好；舊版後端沒有，前端用 stockKeyOf 補
+  stockKey?: string | null
   target: MarketAlertTarget
   // 分析當時的股價
   quote: { price: number | null; change: number | null; changePct: number | null; date: string | null }
@@ -1993,10 +1995,39 @@ export interface JournalContent {
 // 結果標記：應驗了／部分應驗／沒有應驗；null＝還不知道
 export type JournalOutcome = 'hit' | 'partial' | 'miss' | null
 
+// 股票日記每篇可選填的「記錄股票」（v26 計畫 2-2、D8）：只是紀錄，不會改股市追蹤的持股
+// 觀察／買進／加碼／減碼／賣出／停損
+export type JournalStockAction = 'watch' | 'buy' | 'add' | 'reduce' | 'sell' | 'stop'
+export interface JournalStockRecord {
+  action: JournalStockAction | null
+  price: number | null
+  // 台股可以填張或股（unit），美股一律是股
+  quantity: number | null
+  unit: 'share' | 'lot' | null
+  // 寫的時候的股價（開日記時帶入的最新股價）
+  quoteAtWrite: number | null
+  quoteDate: string | null
+  targetPrice: number | null
+  stopPrice: number | null
+}
+
+// 股票日記頁的這檔股票：名稱與最新股價（GET /api/market/stock-journal）
+export interface StockJournalInfo {
+  // tw:0050、us:NVDA
+  key: string
+  target: MarketAlertTarget
+  // 有沒有在股市追蹤裡
+  tracked: boolean
+  // 查不到時 null（頁面照樣能寫）
+  quote: { price: number; time: string | null } | null
+}
+
 export interface JournalEntry {
   id: string
-  // reading:<紀錄 id> 或 stock:<股票分析 id>（每日一牌的日記 2026-11-20 拿掉）
+  // reading:<紀錄 id> 或 stock:<市場>:<代號>（一檔股票一本，v26 計畫 2-2；每日一牌的日記 2026-11-20 拿掉）
   target: string
+  // 只有股票日記有；舊版後端沒有
+  stock?: JournalStockRecord | null
   // 標題（2026-11-20 加，舊版後端沒有）
   title?: string
   content: JournalContent
@@ -2032,4 +2063,18 @@ export interface CalendarMonth {
   today: string
   streak: number
   days: CalendarDay[]
+}
+
+// 通知中心（v26 計畫 5）：價位提醒、除息前提醒、測試推播都留一份，錯過也找得回來。
+// url 是站內路徑、不含開頭的 /（例如 market?tab=alerts），和推播同一種寫法
+export type AppNotificationKind = 'price-alert' | 'ex-dividend' | 'test' | 'system'
+
+export interface AppNotification {
+  id: string
+  kind: AppNotificationKind
+  title: string
+  body: string
+  url: string
+  read: boolean
+  createdAt: string
 }

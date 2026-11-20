@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 占卜日記的時間軸（v26 計畫 2）：一筆塔羅紀錄或一天的每日一牌底下的所有日記，依日期由舊到新。
 // 每篇有標題、日期、結果標記（還不知道／應驗了／部分應驗／沒有應驗）與內容；可以新增、編輯、刪除。
+// 股票日記不用結果標記（2026-11-20 使用者要求），改成「記錄股票」；舊日記已經標過的照樣顯示
 // 列表在編輯與唯讀模式長得一樣（2026-11-20 使用者要求）：每篇只放標題與內文第一行，點了才滿版——唯讀是看、編輯是改
 // 草稿自動存在這台瀏覽器，按「儲存」才送後端。內容只有本人看得到，不送給 AI
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -10,15 +11,28 @@ import { dayTitle } from '../../lib/calendarDays'
 import { confirmDialog } from '../../lib/confirm'
 import { taipeiToday } from '../../lib/dailyCard'
 import { clearDraft, emptyDoc, firstLineOf, hasText, loadDraft, OUTCOME_OPTIONS, outcomeLabel, saveDraft, trimTrailingEmpty } from '../../lib/journal'
-import type { JournalContent, JournalEntry, JournalOutcome } from '../../types'
+import {
+  changeSincePct,
+  hasStockRecord,
+  newStockDraft,
+  stockActionLabel,
+  stockDraftOf,
+  stockRecordOf,
+  stockRows,
+  type StockDraft,
+} from '../../lib/stockJournal'
+import type { JournalContent, JournalEntry, JournalOutcome, JournalStockRecord } from '../../types'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import JournalContentView from './JournalContentView.vue'
 import JournalEditor from './JournalEditor.vue'
+import StockRecordFields from './StockRecordFields.vue'
 
 const props = withDefaults(
   defineProps<{
-    // reading:<塔羅紀錄 id> 或 stock:<股票分析 id>（每日一牌的日記 2026-11-20 拿掉）
+    // reading:<塔羅紀錄 id> 或 stock:<市場>:<代號>（一檔股票一本，v26 計畫 2-2；每日一牌的日記 2026-11-20 拿掉）
     target: string
+    // 股票日記：市場與現在的股價（新的一篇帶入「寫的時候的股價」、列表算到現在的漲跌）；塔羅日記不給
+    stock?: { market: 'tw' | 'us'; quote: { price: number; date: string | null } | null } | null
     // 一進來就打開「寫一篇」
     autoCompose?: boolean
     // 日記頁上方的切換（2026-11-20 使用者要求）：read 只看，不顯示寫一篇、編輯、刪除與編輯器
@@ -28,11 +42,13 @@ const props = withDefaults(
     // 一進來就打開這一篇（日記 id；月曆點某篇日記用）：唯讀是滿版看，編輯是滿版改
     initialEntry?: string
   }>(),
-  { autoCompose: false, mode: 'edit', fill: false, initialEntry: '' },
+  { autoCompose: false, mode: 'edit', fill: false, initialEntry: '', stock: null },
 )
-const emit = defineEmits<{ changed: [] }>()
+const emit = defineEmits<{ changed: []; count: [number] }>()
 
 const entries = ref<JournalEntry[]>([])
+// 篇數變了就告訴外面（股票日記頁左欄的摘要「日記幾篇」）
+watch(() => entries.value.length, (count) => emit('count', count))
 const loading = ref(true)
 const loadError = ref('')
 // 換對象很快時只採用最後一次的回應
@@ -68,6 +84,8 @@ interface Composer {
   content: JournalContent
   outcome: JournalOutcome
   entryDate: string
+  // 股票日記的「記錄股票」；塔羅日記是 null
+  stock: StockDraft | null
 }
 const composer = ref<Composer | null>(null)
 const restoredDraft = ref(false)
@@ -75,14 +93,32 @@ const saving = ref(false)
 const saveError = ref('')
 const today = taipeiToday()
 
+const market = computed(() => props.stock?.market ?? 'tw')
+const currentPrice = computed(() => props.stock?.quote?.price ?? null)
+
 function openNew() {
-  composer.value = { entryId: null, title: '', content: emptyDoc(), outcome: null, entryDate: today }
+  composer.value = {
+    entryId: null,
+    title: '',
+    content: emptyDoc(),
+    outcome: null,
+    entryDate: today,
+    stock: props.stock ? newStockDraft(props.stock.market, props.stock.quote) : null,
+  }
   restoredDraft.value = false
   saveError.value = ''
 }
 
 function openEdit(entry: JournalEntry) {
-  composer.value = { entryId: entry.id, title: entry.title ?? '', content: entry.content, outcome: entry.outcome, entryDate: entry.entryDate }
+  composer.value = {
+    entryId: entry.id,
+    title: entry.title ?? '',
+    content: entry.content,
+    outcome: entry.outcome,
+    entryDate: entry.entryDate,
+    // 改舊的一篇：寫的時候的股價沿用當時的，不換成現在的
+    stock: props.stock ? stockDraftOf(entry.stock, props.stock.market) : null,
+  }
   restoredDraft.value = false
   saveError.value = ''
 }
@@ -91,7 +127,14 @@ function openEdit(entry: JournalEntry) {
 function openInitial() {
   const draft = loadDraft(props.target)
   if (draft) {
-    composer.value = { entryId: draft.entryId, title: draft.title ?? '', content: draft.content, outcome: draft.outcome, entryDate: draft.entryDate }
+    composer.value = {
+      entryId: draft.entryId,
+      title: draft.title ?? '',
+      content: draft.content,
+      outcome: draft.outcome,
+      entryDate: draft.entryDate,
+      stock: props.stock ? (draft.stock ?? newStockDraft(props.stock.market, props.stock.quote)) : null,
+    }
     restoredDraft.value = true
   } else if (props.autoCompose && props.mode === 'edit') {
     openNew()
@@ -142,17 +185,28 @@ const editingEntry = computed(() => entries.value.find((entry) => entry.id === c
 async function save() {
   const value = composer.value
   if (!value || saving.value) return
-  if (!hasText(value.content) && !value.outcome && !value.title.trim()) {
-    saveError.value = '日記是空的：寫個標題或內容，或至少標一下結果。'
+  // 股票欄位：填錯就停在這裡
+  let stock: JournalStockRecord | null | undefined
+  if (value.stock) {
+    const parsed = stockRecordOf(value.stock, market.value)
+    if ('error' in parsed) {
+      saveError.value = parsed.error
+      return
+    }
+    stock = parsed.value
+  }
+  if (!hasText(value.content) && !value.outcome && !value.title.trim() && !stock) {
+    saveError.value = props.stock ? '日記是空的：寫個標題或內容、記一筆股票，或至少標一下結果。' : '日記是空的：寫個標題或內容，或至少標一下結果。'
     return
   }
   saving.value = true
   saveError.value = ''
   try {
     const content = trimTrailingEmpty(value.content)
+    // 塔羅日記不送 stock（undefined）；股票日記送整組（null＝清掉）
     const { entry } = value.entryId
-      ? await updateJournalEntry(value.entryId, { title: value.title, content, outcome: value.outcome, entryDate: value.entryDate })
-      : await createJournalEntry({ target: props.target, title: value.title, content, outcome: value.outcome, entryDate: value.entryDate })
+      ? await updateJournalEntry(value.entryId, { title: value.title, content, outcome: value.outcome, entryDate: value.entryDate, stock })
+      : await createJournalEntry({ target: props.target, title: value.title, content, outcome: value.outcome, entryDate: value.entryDate, stock })
     entries.value = [...entries.value.filter((item) => item.id !== entry.id), entry].sort(
       (a, b) => a.entryDate.localeCompare(b.entryDate) || a.createdAt.localeCompare(b.createdAt),
     )
@@ -172,12 +226,18 @@ async function cancel() {
   const value = composer.value
   if (!value) return
   const original = editingEntry.value
+  // 股票欄位改了沒有：比送出去會是什麼（填錯的也算改過）
+  const stockNow = value.stock ? JSON.stringify(stockRecordOf(value.stock, market.value)) : ''
+  const stockChanged = original
+    ? Boolean(value.stock) && stockNow !== JSON.stringify(stockRecordOf(stockDraftOf(original.stock, market.value), market.value))
+    : Boolean(value.stock) && stockNow !== JSON.stringify({ value: null })
   const changed = original
     ? (original.title ?? '') !== value.title ||
       JSON.stringify(original.content) !== JSON.stringify(value.content) ||
       original.outcome !== value.outcome ||
-      original.entryDate !== value.entryDate
-    : Boolean(value.title.trim()) || hasText(value.content) || value.outcome !== null
+      original.entryDate !== value.entryDate ||
+      stockChanged
+    : Boolean(value.title.trim()) || hasText(value.content) || value.outcome !== null || stockChanged
   if (changed && !(await confirmDialog({ title: '放棄這次的修改？', message: '還沒儲存的內容會不見。', confirmText: '放棄', danger: true }))) return
   clearTimeout(draftTimer)
   clearDraft(props.target)
@@ -220,6 +280,19 @@ const OUTCOME_TONE: Record<string, string> = {
   miss: 'border-danger-hue/50 text-danger',
 }
 const outcomeTone = (value: JournalOutcome) => (value ? OUTCOME_TONE[value] : 'border-tint/20 text-ink-muted')
+
+// 股票日記列表的一行摘要：「價格 88．數量 1 張」，欄位跟著動作（不用 @ 這類符號，2026-11-20 使用者回報）
+function stockSummary(record: JournalStockRecord) {
+  return stockRows(record).map((row) => `${row.label} ${row.value}`).join('．')
+}
+// 結果標記：股票日記沒有這一項，只顯示舊日記已經標過的
+const showOutcome = (value: JournalOutcome) => !props.stock || value !== null
+// 寫的時候的股價 → 現在：漲跌幾 %（台股紅漲綠跌，用語意色 up／down）
+function sinceWrite(record: JournalStockRecord | null | undefined) {
+  const pct = changeSincePct(record?.quoteAtWrite, currentPrice.value)
+  if (pct === null || !record?.quoteAtWrite) return null
+  return { from: record.quoteAtWrite, pct, tone: pct > 0 ? 'text-up' : pct < 0 ? 'text-down' : 'text-ink-soft' }
+}
 
 onMounted(() => {
   void load()
@@ -291,10 +364,19 @@ watch(
         >
           <span class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-caption tabular-nums text-ink-muted">{{ dayTitle(entry.entryDate, today) }}</span>
-            <span class="border px-1.5 text-caption" :class="outcomeTone(entry.outcome)">{{ outcomeLabel(entry.outcome) }}</span>
+            <span v-if="showOutcome(entry.outcome)" class="border px-1.5 text-caption" :class="outcomeTone(entry.outcome)">{{ outcomeLabel(entry.outcome) }}</span>
           </span>
           <span class="mt-1.5 block truncate text-subtitle font-semibold" :class="entry.title ? 'text-ink' : 'text-ink-muted'">{{ entry.title || '（沒有標題）' }}</span>
           <span v-if="firstLineOf(entry.content)" class="mt-0.5 block truncate text-body text-ink-soft">{{ firstLineOf(entry.content) }}</span>
+          <!-- 股票日記：動作、價格與數量、目標／停損，寫的時候到現在漲跌 -->
+          <span v-if="hasStockRecord(entry.stock) || sinceWrite(entry.stock)" class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption">
+            <span v-if="entry.stock?.action" class="border border-accent-hue/40 px-1.5 text-accent">{{ stockActionLabel(entry.stock.action) }}</span>
+            <span v-if="hasStockRecord(entry.stock) && stockSummary(entry.stock)" class="tabular-nums text-ink-soft">{{ stockSummary(entry.stock) }}</span>
+            <span v-if="sinceWrite(entry.stock)" class="tabular-nums text-ink-soft">
+              寫的時候 {{ sinceWrite(entry.stock)!.from.toLocaleString('zh-TW') }}，到現在
+              <span :class="sinceWrite(entry.stock)!.tone">{{ sinceWrite(entry.stock)!.pct > 0 ? '+' : '' }}{{ sinceWrite(entry.stock)!.pct }}%</span>
+            </span>
+          </span>
         </button>
       </li>
     </ol>
@@ -311,10 +393,25 @@ watch(
         </button>
         <p class="flex flex-wrap items-center gap-2">
           <span class="text-caption tabular-nums text-ink-soft">{{ dayTitle(viewing.entryDate, today) }}</span>
-          <span class="border px-1.5 text-caption" :class="outcomeTone(viewing.outcome)">{{ outcomeLabel(viewing.outcome) }}</span>
+          <span v-if="showOutcome(viewing.outcome)" class="border px-1.5 text-caption" :class="outcomeTone(viewing.outcome)">{{ outcomeLabel(viewing.outcome) }}</span>
         </p>
       </div>
       <h4 v-if="viewing.title" class="text-title font-semibold text-ink">{{ viewing.title }}</h4>
+      <!-- 股票日記：這篇記的股票 -->
+      <dl v-if="hasStockRecord(viewing.stock) || sinceWrite(viewing.stock)" class="flex flex-wrap gap-x-5 gap-y-1 border border-line bg-surface px-3 py-2 text-body">
+        <div v-if="viewing.stock?.action" class="flex gap-1.5"><dt class="text-ink-soft">動作</dt><dd class="text-accent">{{ stockActionLabel(viewing.stock.action) }}</dd></div>
+        <div v-for="row in stockRows(viewing.stock)" :key="row.label" class="flex gap-1.5"><dt class="text-ink-soft">{{ row.label }}</dt><dd class="tabular-nums text-ink">{{ row.value }}</dd></div>
+        <div v-if="viewing.stock?.quoteAtWrite != null" class="flex gap-1.5">
+          <dt class="text-ink-soft">寫的時候</dt>
+          <dd class="tabular-nums text-ink">
+            {{ viewing.stock.quoteAtWrite.toLocaleString('zh-TW') }}
+            <template v-if="sinceWrite(viewing.stock)">
+              → 現在 {{ currentPrice!.toLocaleString('zh-TW') }}
+              <span :class="sinceWrite(viewing.stock)!.tone">（{{ sinceWrite(viewing.stock)!.pct > 0 ? '+' : '' }}{{ sinceWrite(viewing.stock)!.pct }}%）</span>
+            </template>
+          </dd>
+        </div>
+      </dl>
       <JournalContentView v-if="viewing.text" :content="viewing.content" />
       <p v-else class="text-body text-ink-muted">這篇沒有寫內容。</p>
     </article>
@@ -323,7 +420,12 @@ watch(
          桌機用格線：四列是說明、日期與結果、編輯區（minmax(8rem,1fr)）、按鈕，黃框最矮＝上下幾列＋8rem 的編輯區，
          編輯區加 contain-size：它的內容不算進黃框的最小高度（不加的話黃框會被內容撐高、編輯區不會自己捲），
          也不會壓到按鈕跑出框外；比這還矮才由外面的日記欄捲。手機照內容長高、整頁捲 -->
-    <div v-if="composer && composing" class="flex flex-col gap-2.5 border-2 border-accent-hue/40 bg-surface p-3 sm:p-4" :class="fill ? 'lg:grid lg:flex-1 lg:grid-rows-[auto_auto_auto_minmax(8rem,1fr)_auto]' : ''">
+    <!-- 股票日記多一列「記錄股票」，格線多一個 auto -->
+    <div
+      v-if="composer && composing"
+      class="flex flex-col gap-2.5 border-2 border-accent-hue/40 bg-surface p-3 sm:p-4"
+      :class="fill ? (composer.stock ? 'lg:grid lg:flex-1 lg:grid-rows-[auto_auto_auto_auto_minmax(8rem,1fr)_auto]' : 'lg:grid lg:flex-1 lg:grid-rows-[auto_auto_auto_minmax(8rem,1fr)_auto]') : ''"
+    >
       <p class="text-caption text-ink-muted" role="status">
         <span v-if="restoredDraft" class="text-info">接著寫上次還沒儲存的草稿．</span>{{ composer.entryId ? '修改日記' : '新的一篇' }}．草稿自動存在這台裝置，按「儲存」才存進帳號
       </p>
@@ -338,7 +440,7 @@ watch(
         class="w-full border-b border-line bg-transparent pb-1.5 text-title font-semibold text-ink outline-none placeholder:text-ink-muted focus:border-accent-hue/60"
       />
 
-      <!-- 日期與結果排在同一列，放不下再換行 -->
+      <!-- 日期與結果排在同一列，放不下再換行；股票日記沒有結果 -->
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
         <label class="flex items-center gap-1.5 text-caption text-ink-soft">
           日期
@@ -350,7 +452,7 @@ watch(
             class="h-7 border-2 border-tint/15 bg-surface px-1.5 text-caption text-ink"
           />
         </label>
-        <div class="flex flex-wrap items-center gap-1.5">
+        <div v-if="!composer.stock" class="flex flex-wrap items-center gap-1.5">
           <span id="journal-outcome-label" class="text-caption text-ink-soft">結果</span>
           <div class="flex flex-wrap gap-1" role="radiogroup" aria-labelledby="journal-outcome-label">
             <button
@@ -368,6 +470,8 @@ watch(
           </div>
         </div>
       </div>
+
+      <StockRecordFields v-if="composer.stock" v-model="composer.stock" :market="market" />
 
       <div class="border border-line bg-raised px-2" :class="fill ? 'flex flex-col lg:min-h-0 lg:overflow-y-auto lg:contain-size' : ''">
         <JournalEditor v-model="composer.content" :class="fill ? 'flex-1' : ''" />

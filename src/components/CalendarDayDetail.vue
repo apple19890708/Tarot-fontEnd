@@ -7,13 +7,15 @@ import { ref, watch } from 'vue'
 import { cardImageUrl } from '../lib/cardStyle'
 import { dayTitle, timeOf } from '../lib/calendarDays'
 import { outcomeLabel } from '../lib/journal'
+import { journalPathOf } from '../lib/stockJournal'
 import type { CalendarDay } from '../types'
 import DailyCardViewDialog from './DailyCardViewDialog.vue'
 
 const props = defineProps<{ date: string; day: CalendarDay | null; today: string }>()
 
 // 日記頁的網址：/journal/reading/<id> 或 /journal/daily/<日期>；點一篇帶 ?entry=<日記 id>，日記頁直接以唯讀打開那一篇
-const journalPath = (target: string) => `/journal/${target.replace(':', '/')}`
+// 股票日記一檔一本（stock:tw:0050 → /journal/stock/tw/0050），v26 計畫 2-2
+const journalPath = journalPathOf
 
 const isFuture = () => props.date > props.today
 
@@ -90,7 +92,7 @@ watch(
               :to="{ path: journalPath(journal.target), query: { entry: journal.id } }"
               class="block border border-line bg-raised px-3 py-2 transition hover:border-accent-hue/40 hover:bg-tint/10 active:translate-x-[1px] active:translate-y-[1px]"
             >
-              <p class="text-caption text-accent">{{ journal.target.startsWith('stock:') ? '股票分析' : '占卜紀錄' }}．{{ outcomeLabel(journal.outcome) }}</p>
+              <p class="text-caption text-accent">{{ journal.target.startsWith('stock:') ? '股票日記' : '占卜紀錄' }}．{{ outcomeLabel(journal.outcome) }}</p>
               <p class="mt-0.5 truncate text-body font-semibold text-ink">{{ journal.title || journal.text || '（只標了結果）' }}</p>
               <p v-if="journal.title && journal.text" class="truncate text-caption text-ink-muted">{{ journal.text }}</p>
             </router-link>

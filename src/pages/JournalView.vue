@@ -1,18 +1,21 @@
 <script setup lang="ts">
 // 日記頁（v26 計畫 2，2026-11-20 使用者要求「寫日記自己獨立一個頁面」）：
-// 左邊是原本的內容（塔羅紀錄的結果，或那天的每日一牌），右邊是日記；上面切換「編輯／唯讀」。
-// 網址：/journal/reading/<紀錄 id>、/journal/stock/<股票分析 id>（每日一牌的日記 2026-11-20 使用者決定拿掉）；?mode=read 唯讀、?new=1 一進來就打開新的一篇。
-// 手機寬度放不下兩欄，改成上方分頁切換「日記／原本的內容」
+// 左邊是原本的內容（塔羅紀錄的結果，或這檔股票的所有分析），右邊是日記；上面切換「編輯／唯讀」。
+// 網址：/journal/reading/<紀錄 id>、/journal/stock/<市場>/<代號>（股票一檔一本，v26 計畫 2-2）；
+// 舊的 /journal/stock/<分析 id> 查那筆分析後轉到那檔的日記頁。每日一牌的日記 2026-11-20 使用者決定拿掉。
+// ?mode=edit 編輯（預設唯讀）、?new=1 一進來就打開新的一篇。手機寬度放不下兩欄，改成上方分頁切換「日記／原本的內容」
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import SkeletonBlock from '../components/SkeletonBlock.vue'
 import StepResult from '../components/StepResult.vue'
-import StockAnalysisDetail from '../components/market/StockAnalysisDetail.vue'
-import { fetchReadingDetail, fetchSpreads, fetchStockAnalysisRecord } from '../lib/api'
+import StockJournalSide from '../components/journal/StockJournalSide.vue'
+import { fetchReadingDetail, fetchSpreads, fetchStockAnalyses, fetchStockAnalysisRecord, fetchStockJournalInfo } from '../lib/api'
+import { taipeiToday } from '../lib/dailyCard'
 import { spreadForReading } from '../lib/readingSpread'
+import { stockJournalPath, stockKeyFromRoute, stockKeyOf } from '../lib/stockJournal'
 import { useReadingMarket } from '../lib/useReadingMarket'
-import type { ReadingDetail, Spread, StockAnalysisRecord } from '../types'
+import type { ReadingDetail, Spread, StockAnalysisSummary, StockJournalInfo } from '../types'
 
 // 編輯器（Tiptap）較大，分開載入
 const JournalTimeline = defineAsyncComponent({
@@ -23,13 +26,19 @@ const JournalTimeline = defineAsyncComponent({
 const route = useRoute()
 const router = useRouter()
 
-// reading＝塔羅紀錄、stock＝股票分析紀錄（2026-11-20 加）
-const kind = computed(() => (['reading', 'stock'].includes(String(route.params.kind)) ? (String(route.params.kind) as 'reading' | 'stock') : ''))
+// reading＝塔羅紀錄；stock＝一檔股票（/journal/stock/<市場>/<代號>）；
+// legacy-stock＝舊網址 /journal/stock/<分析 id>（2026-11-20 第一版），讀到分析後轉到那檔的日記頁
+const kind = computed<'reading' | 'stock' | 'legacy-stock' | ''>(() => {
+  if (route.params.market !== undefined) return 'stock'
+  if (route.params.kind === 'reading') return 'reading'
+  if (route.params.kind === 'stock') return 'legacy-stock'
+  return ''
+})
 const targetId = computed(() => String(route.params.id ?? ''))
-const valid = computed(() =>
-  kind.value ? /^[a-f0-9]{24}$/i.test(targetId.value) : false,
-)
-const target = computed(() => `${kind.value}:${targetId.value}`)
+const stockKey = computed(() => (kind.value === 'stock' ? stockKeyFromRoute(route.params.market, route.params.code) : null))
+const stockMarket = computed<'tw' | 'us'>(() => (stockKey.value?.startsWith('us:') ? 'us' : 'tw'))
+const valid = computed(() => (kind.value === 'stock' ? Boolean(stockKey.value) : kind.value ? /^[a-f0-9]{24}$/i.test(targetId.value) : false))
+const target = computed(() => (kind.value === 'stock' ? `stock:${stockKey.value}` : `${kind.value}:${targetId.value}`))
 
 // ---- 編輯／唯讀（記在網址，重新整理還是同一個模式）----
 // 預設唯讀（2026-11-20 使用者要求）；「寫日記」「寫點什麼」這類入口帶 ?mode=edit&new=1 直接進編輯
@@ -151,7 +160,10 @@ onBeforeUnmount(() => {
 const loading = ref(true)
 const loadError = ref('')
 const reading = ref<ReadingDetail | null>(null)
-const stockRecord = ref<StockAnalysisRecord | null>(null)
+// 股票日記：這檔的名稱與最新股價、所有分析（新的在上）
+const stockInfo = ref<StockJournalInfo | null>(null)
+const stockAnalyses = ref<StockAnalysisSummary[]>([])
+const journalCount = ref<number | null>(null)
 const spreads = ref<Spread[]>([])
 let loadRequest = 0
 // 股市諮詢的行情：和我的紀錄同一套（沒存到就查最新、更新報價有作用）。
@@ -164,7 +176,9 @@ async function load() {
   loading.value = true
   loadError.value = ''
   reading.value = null
-  stockRecord.value = null
+  stockInfo.value = null
+  stockAnalyses.value = []
+  journalCount.value = null
   market.reset()
   if (!valid.value) {
     loading.value = false
@@ -179,10 +193,21 @@ async function load() {
       market.useSaved(detail.narration?.market ?? null)
       reading.value = detail
       spreads.value = list
-    } else {
+    } else if (kind.value === 'legacy-stock') {
+      // 舊網址：查那筆分析是哪一檔，轉到那檔的日記頁（保留 ?mode、?entry 這些）
       const { analysis } = await fetchStockAnalysisRecord(targetId.value)
       if (own !== loadRequest) return
-      stockRecord.value = analysis
+      const key = analysis.stockKey ?? stockKeyOf(analysis.target)
+      if (!key) throw new Error('這筆分析找不到是哪一檔股票。')
+      void router.replace({ path: stockJournalPath(key), query: route.query })
+      return
+    } else if (stockKey.value) {
+      // 分析紀錄讀不到不影響寫日記；這檔的資訊讀不到（例如追蹤與分析都刪了）時左欄顯示原因，舊日記照樣看得到
+      const [info, list] = await Promise.allSettled([fetchStockJournalInfo(stockKey.value), fetchStockAnalyses(stockKey.value)])
+      if (own !== loadRequest) return
+      if (list.status === 'fulfilled') stockAnalyses.value = list.value.analyses
+      if (info.status === 'fulfilled') stockInfo.value = info.value.stock
+      else loadError.value = info.reason instanceof Error ? info.reason.message : '讀取失敗，請重新整理。'
     }
   } catch (error) {
     if (own !== loadRequest) return
@@ -198,14 +223,25 @@ watch(target, load, { immediate: true })
 const resultSpread = computed(() => spreadForReading(spreads.value, reading.value?.reading))
 const narrationText = computed(() => reading.value?.narration?.text ?? '')
 
+// 股票代號的顯示：台股個股用代號，其他用 symbol（鍵的後半段）
+const stockLabel = computed(() => {
+  if (!stockKey.value) return ''
+  const id = stockKey.value.slice(stockKey.value.indexOf(':') + 1)
+  const name = stockInfo.value?.target.name || stockAnalyses.value[0]?.target.name || ''
+  return [name, name === id ? '' : id].filter(Boolean).join(' ')
+})
 const subtitle = computed(() => {
-  if (kind.value === 'stock') return stockRecord.value ? `${[stockRecord.value.target.name, stockRecord.value.target.code].filter(Boolean).join(' ')} 的股票分析` : ''
+  if (kind.value === 'stock') return stockLabel.value ? `${stockLabel.value} 的股票日記` : ''
   return reading.value ? reading.value.reading.question || '（沒有寫問題）' : ''
 })
-const backLink = computed(() =>
-  kind.value === 'stock' ? { name: 'market-records', query: { id: targetId.value } } : { name: 'history', query: { id: targetId.value } },
-)
-const infoLabel = computed(() => (kind.value === 'stock' ? '原本的分析' : '原本的占卜'))
+const backLink = computed(() => (kind.value === 'reading' ? { name: 'history', query: { id: targetId.value } } : { name: 'market-records' }))
+const infoLabel = computed(() => (kind.value === 'reading' ? '原本的占卜' : '這檔的分析'))
+// 交給日記：市場與現在的股價（新的一篇帶入「寫的時候的股價」）；股價日期用台北時間
+const journalStock = computed(() => {
+  if (kind.value !== 'stock') return null
+  const quote = stockInfo.value?.quote
+  return { market: stockMarket.value, quote: quote ? { price: quote.price, date: quote.time ? taipeiToday(new Date(quote.time)) : null } : null }
+})
 // 頁首的副標題（問題、那天的牌）讀到資料才出現，高度會變；要寫在 subtitle 宣告之後
 watch([subtitle, loading], () => void nextTick(measureGrid))
 
@@ -220,7 +256,7 @@ const segmentClass = (on: boolean) => (on ? 'relative z-[1] border-ink-soft/70 b
     <header class="rounded-[1.75rem] border border-line bg-surface/90 px-5 py-4 sm:px-6">
       <div class="min-w-0 space-y-1">
         <router-link :to="backLink" class="inline-block text-caption text-ink-soft transition hover:text-ink active:translate-y-[1px]">
-          ‹ {{ kind === 'stock' ? '回到股市分析紀錄' : '回到塔羅紀錄' }}
+          ‹ {{ kind === 'reading' ? '回到塔羅紀錄' : '回到股市分析紀錄' }}
         </router-link>
         <h1 class="text-display font-semibold text-ink">日記</h1>
         <p v-if="subtitle" class="truncate text-body text-ink-soft" :title="subtitle">{{ subtitle }}</p>
@@ -284,7 +320,7 @@ const segmentClass = (on: boolean) => (on ? 'relative z-[1] border-ink-soft/70 b
           hide-flow-actions
         />
 
-        <StockAnalysisDetail v-else-if="stockRecord" :detail="stockRecord" />
+        <StockJournalSide v-if="kind === 'stock' && !loading" :info="stockInfo" :analyses="stockAnalyses" :journal-count="journalCount" :class="loadError ? 'mt-4' : ''" />
 
       </section>
 
@@ -316,10 +352,13 @@ const segmentClass = (on: boolean) => (on ? 'relative z-[1] border-ink-soft/70 b
 
       <!-- 右：日記 -->
       <section class="min-w-0 self-start rounded-[1.75rem] border border-line bg-surface/90 p-4 sm:p-6 lg:h-full lg:self-stretch lg:overflow-y-auto" :class="tab === 'journal' ? '' : 'hidden lg:block'" aria-label="日記內容">
+        <!-- 股票日記：等讀到現在的股價再掛上，新的一篇才帶得到「寫的時候的股價」；舊網址轉址中不掛 -->
         <JournalTimeline
-          v-if="valid"
+          v-if="valid && kind !== 'legacy-stock' && !(kind === 'stock' && loading)"
           :key="target"
           :target="target"
+          :stock="journalStock"
+          @count="journalCount = $event"
           :mode="mode"
           :auto-compose="autoCompose"
           :initial-entry="initialEntry"

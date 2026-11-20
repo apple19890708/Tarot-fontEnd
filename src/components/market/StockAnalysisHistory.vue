@@ -7,6 +7,7 @@ import { deleteStockAnalysis, fetchStockAnalyses, fetchStockAnalysisRecord, Unau
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { smoothScrollTo } from '../../lib/motion'
 import { stockAnalysisExport } from '../../lib/recordExport'
+import { stockJournalPath, stockKeyOf } from '../../lib/stockJournal'
 import BackToTop from '../BackToTop.vue'
 import ExportButton from '../ExportButton.vue'
 import RecordIndex, { type RecordIndexItem } from '../RecordIndex.vue'
@@ -176,6 +177,9 @@ function buildExport() {
   return stockAnalysisExport({ target: current.target, quote: current.quote, createdAt: current.createdAt, text: current.text, holding: current.holding })
 }
 
+// 這筆分析的股票日記鍵：後端有給就用，舊版後端自己算（和後端同一套規則）
+const journalKey = computed(() => (detail.value ? (detail.value.stockKey ?? stockKeyOf(detail.value.target)) : null))
+
 function formatDate(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-TW', { hour12: false })
@@ -262,9 +266,10 @@ onMounted(loadList)
           <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="text-body text-ink-muted">{{ formatDate(detail.createdAt) }}・股票分析</p>
             <div class="flex flex-wrap items-start gap-2">
-            <!-- 日記（v26 計畫 2，2026-11-20 使用者要求股票分析也要有）：左邊是這筆分析、右邊寫日記 -->
+            <!-- 日記（v26 計畫 2-2）：一檔股票一本，到這檔的日記頁（左邊是這檔所有分析、右邊寫日記） -->
             <router-link
-              :to="{ path: `/journal/stock/${detail.id}` }"
+              v-if="journalKey"
+              :to="{ path: stockJournalPath(journalKey) }"
               class="inline-flex cursor-pointer items-center border-2 border-accent-hue/40 bg-accent-hue/10 px-3 py-1 font-pixel text-button text-accent transition hover:bg-accent-hue/20 active:translate-x-[1px] active:translate-y-[1px]"
             >
               日記

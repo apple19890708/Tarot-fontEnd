@@ -1,4 +1,4 @@
-// Service worker：只負責瀏覽器推播（價位提醒到價時，網頁關著也能跳通知）。
+// Service worker：只負責瀏覽器推播（價位提醒到價時，網頁關著也能跳通知），收到時也告訴開著的分頁更新通知中心的未讀數。
 // 不做離線快取，避免舊版畫面被快取住。
 // 部署在 GitHub Pages 的子路徑（/Tarot-fontEnd/），所有網址都以 registration.scope 為基準。
 
@@ -15,14 +15,19 @@ self.addEventListener('push', (event) => {
   }
   const scope = self.registration.scope
   event.waitUntil(
-    self.registration.showNotification(data.title || '價位提醒', {
+    // 通知中心（v26 計畫 5）：告訴開著的分頁有新通知，鈴鐺的未讀數馬上更新
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => clients.forEach((client) => client.postMessage({ type: 'push' })))
+      .catch(() => undefined)
+      .then(() => self.registration.showNotification(data.title || '價位提醒', {
       body: data.body || '',
       icon: new URL('apple-touch-icon.png', scope).href,
       badge: new URL('apple-touch-icon.png', scope).href,
       // 同一則提醒不要疊好幾個通知
       tag: data.title || 'market-alert',
       data: { url: new URL(data.url || 'market?tab=alerts', scope).href },
-    }),
+    })),
   )
 })
 

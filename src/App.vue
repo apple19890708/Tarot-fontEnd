@@ -6,6 +6,7 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import DailyCardDialog from './components/DailyCardDialog.vue'
 import FloatingMenu from './components/FloatingMenu.vue'
 import MemberMenu from './components/MemberMenu.vue'
+import NotificationBell from './components/NotificationBell.vue'
 import PixelWorld from './components/PixelWorld.vue'
 import { canUseStock, currentUser, isLoggedIn, logout } from './lib/auth'
 import { confirmState } from './lib/confirm'
@@ -14,6 +15,7 @@ import { fetchTodayDailyCard } from './lib/api'
 import { claimGuestCardIfAny, guestCardToday, markPrompted, promptedToday, taipeiToday, todayStatus } from './lib/dailyCard'
 import { alertDetail, alertTitle, dismissTriggered, startAlertWatcher, stopAlertWatcher, triggeredAlerts } from './lib/marketAlerts'
 import { healthLabel, refreshHealth } from './lib/health'
+import { refreshUnreadNotifications, startNotificationWatcher, stopNotificationWatcher } from './lib/notifications'
 import { prefersReducedMotion } from './lib/motion'
 import type { SceneKey } from './lib/pixel/core'
 import { sceneBus } from './lib/sceneBus'
@@ -35,6 +37,17 @@ onMounted(refreshHealth)
 // 價位提醒：有金融股市權限的人開著網頁時定期檢查；登出或權限被收回就停
 watch(canUseStock, (allowed) => (allowed ? startAlertWatcher() : stopAlertWatcher()), { immediate: true })
 onBeforeUnmount(stopAlertWatcher)
+
+// 通知中心（v26 計畫 5）：登入時定期查未讀數，登出就停、數字歸零
+watch(isLoggedIn, (loggedIn) => (loggedIn ? startNotificationWatcher() : stopNotificationWatcher()), { immediate: true })
+onBeforeUnmount(stopNotificationWatcher)
+// 網頁上跳出到價提示時，後端已經存進通知中心了（回應前存好），鈴鐺馬上跟著加
+watch(
+	() => triggeredAlerts.value.length,
+	(count, previous) => {
+		if (count > (previous ?? 0)) void refreshUnreadNotifications(true)
+	},
+)
 
 // 像素世界的場景由路由的 meta.scene 決定，沒寫的頁面（含管理者自訂的路由）是最安靜的星夜。
 // 路由準備好之前先不畫，免得第一次載入時把「起始空路由」當成星夜、播一段多餘的過場
@@ -213,6 +226,8 @@ router.isReady().then(() => {
 				<!-- 會員選單（v26 計畫 3）：頂欄只留「占卜」與會員頭像，其他頁面收進頭像的選單；手機也一樣（拿掉漢堡） -->
 				<nav class="flex shrink-0 items-center gap-3 sm:gap-4" aria-label="主要">
 					<router-link to="/" class="font-pixel text-[12px] transition" :class="navClass('home')">占卜</router-link>
+					<!-- 通知鈴鐺（v26 計畫 5）在頭像左邊 -->
+					<NotificationBell v-if="isLoggedIn" :wide="isDesktop" />
 					<MemberMenu v-if="isLoggedIn" :routes="menuRoutes" :wide="isDesktop" @sign-out="signOut" />
 					<template v-else>
 						<!-- 未登入：管理者自訂的公開頁面在桌機照樣排在頂欄 -->

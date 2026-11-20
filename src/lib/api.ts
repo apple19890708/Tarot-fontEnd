@@ -1,8 +1,11 @@
 import { watchlistMutation } from './watchlistSync'
 import type {
+  AppNotification,
   JournalContent,
   JournalEntry,
   JournalOutcome,
+  JournalStockRecord,
+  StockJournalInfo,
   CalendarMonth,
   DailyCardResponse,
   DividendProfile,
@@ -488,9 +491,9 @@ export function fetchStockAnalysis(subject: StockSubject) {
   return request<{ analysis: StockAnalysisView }>(`${subjectPath(subject)}/analysis`)
 }
 
-// 「我的紀錄」的股票分析
-export function fetchStockAnalyses() {
-  return request<{ analyses: StockAnalysisSummary[] }>('/api/market/analyses')
+// 「我的紀錄」的股票分析；stockKey（tw:0050）只要這檔的（股票日記頁的左欄）
+export function fetchStockAnalyses(stockKey?: string) {
+  return request<{ analyses: StockAnalysisSummary[] }>(`/api/market/analyses${stockKey ? `?stock=${encodeURIComponent(stockKey)}` : ''}`)
 }
 
 export function fetchStockAnalysisRecord(id: string) {
@@ -967,20 +970,60 @@ export function fetchCalendarMonth(month: string) {
 }
 
 // ---- 占卜日記（v26 計畫 2）----
-// target：reading:<紀錄 id> 或 stock:<股票分析 id>
+// target：reading:<紀錄 id> 或 stock:<市場>:<代號>（股票一檔一本，v26 計畫 2-2）
 
 export function fetchJournal(target: string) {
   return request<{ entries: JournalEntry[] }>(`/api/journal?target=${encodeURIComponent(target)}`)
 }
 
-export function createJournalEntry(input: { target: string; title: string; content: JournalContent; outcome: JournalOutcome; entryDate: string }) {
+// stock：記錄股票的欄位，只有股票日記收（null＝清掉）
+export function createJournalEntry(input: {
+  target: string
+  title: string
+  content: JournalContent
+  outcome: JournalOutcome
+  entryDate: string
+  stock?: JournalStockRecord | null
+}) {
   return request<{ entry: JournalEntry }>('/api/journal', { method: 'POST', body: JSON.stringify(input) })
 }
 
-export function updateJournalEntry(id: string, input: { title?: string; content?: JournalContent; outcome?: JournalOutcome; entryDate?: string }) {
+// 股票日記頁的這檔股票：名稱與最新股價（只限自己分析過或追蹤中的）
+export function fetchStockJournalInfo(stockKey: string) {
+  return request<{ stock: StockJournalInfo }>(`/api/market/stock-journal?stock=${encodeURIComponent(stockKey)}`)
+}
+
+export function updateJournalEntry(
+  id: string,
+  input: { title?: string; content?: JournalContent; outcome?: JournalOutcome; entryDate?: string; stock?: JournalStockRecord | null },
+) {
   return request<{ entry: JournalEntry }>(`/api/journal/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) })
 }
 
 export function deleteJournalEntry(id: string) {
   return request<{ deleted: boolean }>(`/api/journal/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+// ---- 通知中心（v26 計畫 5）----
+// 新到舊，一次最多 50 則；before 是上一頁最後一則的 id（載入更多）
+export function fetchNotifications(before?: string) {
+  const query = before ? `?before=${encodeURIComponent(before)}` : ''
+  return request<{ notifications: AppNotification[]; hasMore: boolean }>(`/api/notifications${query}`)
+}
+
+export function fetchUnreadNotificationCount() {
+  return request<{ count: number }>('/api/notifications/unread-count')
+}
+
+// 沒給 ids 就是全部標成已讀
+export function markNotificationsRead(ids?: string[]) {
+  return request<{ updated: number }>('/api/notifications/read', { method: 'PUT', body: JSON.stringify(ids ? { ids } : {}) })
+}
+
+export function deleteNotification(id: string) {
+  return request<{ deleted: boolean }>(`/api/notifications/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+export function clearReadNotifications() {
+  return request<{ deleted: number }>('/api/notifications?read=true', { method: 'DELETE' })
 }

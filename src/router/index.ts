@@ -42,6 +42,13 @@ const routes = [
   { path: '/calendar', name: 'calendar', component: CalendarView, meta: { auth: true, title: '占卜月曆', scene: 'interior', menuGroup: 'tarot', menuOrder: 2 } },
   // 占卜日記（v26 計畫 2）：寫在一筆塔羅紀錄或一天的每日一牌底下；不放在頂欄，從紀錄與月曆進來
   { path: '/journal/:kind/:id', name: 'journal', component: JournalView, meta: { auth: true, hidden: true, title: '日記', scene: 'interior', wide: true } },
+  // 股票日記一檔一本（v26 計畫 2-2）：/journal/stock/tw/0050、/journal/stock/us/NVDA。舊的 /journal/stock/<分析 id> 走上面那條，頁面再轉過來
+  {
+    path: '/journal/stock/:market/:code',
+    name: 'stock-journal',
+    component: JournalView,
+    meta: { auth: true, stock: true, hidden: true, title: '股票日記', scene: 'interior', wide: true },
+  },
   { path: '/market', name: 'market', component: MarketTrackView, meta: { auth: true, stock: true, title: '股市追蹤', scene: 'interior', wide: true, menuGroup: 'stock', menuOrder: 1 } },
   // 股市分析紀錄：原本「我的紀錄」的股票分析與財經新聞分析（2026-11-20 拆出來），排在股市追蹤後面
   { path: '/market/records', name: 'market-records', component: HistoryView, meta: { auth: true, stock: true, title: '股市分析紀錄', scene: 'interior', menuGroup: 'stock', menuOrder: 2, recordTabs: ['stock', 'news'] } },
