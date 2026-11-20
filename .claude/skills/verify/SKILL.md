@@ -7,13 +7,15 @@ description: 驗證前端改動。改完 src/ 的程式後、要回報「做完�
 
 ## 步驟
 
-1. 型別檢查＋打包（這是本專案唯一的驗證手段，沒有測試框架）：
+1. 型別檢查＋打包，再跑單元測試與規則檢查：
 
    ```bash
    npm run build
+   npm test
+   npm run check:rules
    ```
 
-   `vue-tsc` 的錯誤要逐條修掉，不要用 `any` 或 `@ts-ignore` 蓋過去。
+   `vue-tsc` 的錯誤要逐條修掉，不要用 `any` 或 `@ts-ignore` 蓋過去。改到 `src/lib/` 的純函式時，在旁邊的 `xxx.test.ts` 補測試。
 
 2. 檢查沒有偷加套件：
 

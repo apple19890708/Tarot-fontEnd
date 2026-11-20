@@ -11,17 +11,22 @@ export function prefersReducedMotion() {
 let scrollFrame = 0
 let stopScrollListeners: (() => void) | null = null
 
-export function smoothScrollTo(top: number) {
+// container：在某個捲動區裡捲（例如日記頁的左欄）；不給就是整頁
+export function smoothScrollTo(top: number, container?: HTMLElement | null) {
   if (typeof window === 'undefined') return
   cancelAnimationFrame(scrollFrame)
   stopScrollListeners?.()
 
-  const maxTop = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+  const viewHeight = container ? container.clientHeight : window.innerHeight
+  const fullHeight = container ? container.scrollHeight : document.documentElement.scrollHeight
+  const current = () => (container ? container.scrollTop : window.scrollY)
+  const jump = (y: number) => (container ? (container.scrollTop = y) : window.scrollTo(0, y))
+  const maxTop = Math.max(0, fullHeight - viewHeight)
   const target = Math.min(Math.max(0, top), maxTop)
-  const start = window.scrollY
+  const start = current()
   const distance = target - start
   if (prefersReducedMotion() || Math.abs(distance) < 2) {
-    window.scrollTo(0, target)
+    jump(target)
     return
   }
 
@@ -43,11 +48,31 @@ export function smoothScrollTo(top: number) {
 
   const step = (now: number) => {
     const progress = Math.min(1, (now - startedAt) / duration)
-    window.scrollTo(0, start + distance * ease(progress))
+    jump(start + distance * ease(progress))
     if (progress < 1) scrollFrame = requestAnimationFrame(step)
     else stopScrollListeners?.()
   }
   scrollFrame = requestAnimationFrame(step)
+}
+
+// 元素所在的捲動區（往上找第一個真的捲得動的）；沒有就是整頁
+export function scrollParentOf(el: HTMLElement): HTMLElement | null {
+  for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node)
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node
+  }
+  return null
+}
+
+// 把元素捲到它所在捲動區的上方（留 offset 的呼吸空間）。
+// 跳到段落、捲回 AI 解讀開頭都用這個：結果頁放在日記頁的左欄時，捲的是那一欄而不是整頁（2026-11-20）
+export function smoothScrollToElement(el: HTMLElement, offset = 16) {
+  const parent = scrollParentOf(el)
+  if (!parent) {
+    smoothScrollTo(el.getBoundingClientRect().top + window.scrollY - offset)
+    return
+  }
+  smoothScrollTo(el.getBoundingClientRect().top - parent.getBoundingClientRect().top + parent.scrollTop - offset, parent)
 }
 
 // 依偏好換算動畫秒數；減少動態效果時回傳 0，GSAP 會直接套用結束狀態

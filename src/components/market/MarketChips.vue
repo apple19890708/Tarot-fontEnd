@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// 欄數用 container query（@container／@md: 這類）照元件自己的寬度決定，不照螢幕寬度：放進日記頁的半寬欄也不會擠壞（2026-11-20）
 import { computed } from 'vue'
 import { Bar } from 'vue-chartjs'
 import HelpTip from '../HelpTip.vue'
@@ -73,7 +74,7 @@ const valuationRows = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="@container space-y-4">
     <section v-if="chips" class="space-y-3">
       <div>
         <h4 class="flex items-center gap-1.5 text-body font-semibold text-ink">
@@ -114,7 +115,7 @@ const valuationRows = computed(() => {
 
     <section v-if="valuation" class="space-y-2">
       <h4 class="flex items-center gap-1.5 text-body font-semibold text-ink">估值 <HelpTip term="valuation" /></h4>
-      <div class="grid gap-2 sm:grid-cols-3">
+      <div class="grid gap-2 @md:grid-cols-3">
         <div v-for="row in valuationRows" :key="row.label" class="border-2 border-tint/10 bg-tint/5 p-3">
           <p class="text-body text-ink-muted">{{ row.label }}</p>
           <p class="mt-1 text-subtitle font-semibold tabular-nums text-ink">{{ row.value }}</p>

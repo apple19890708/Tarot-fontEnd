@@ -3,11 +3,15 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import ConfirmDialog from './components/ConfirmDialog.vue'
+import DailyCardDialog from './components/DailyCardDialog.vue'
 import FloatingMenu from './components/FloatingMenu.vue'
+import MemberMenu from './components/MemberMenu.vue'
 import PixelWorld from './components/PixelWorld.vue'
-import { canUseStock, currentUser, isAdmin, isLoggedIn, logout } from './lib/auth'
+import { canUseStock, currentUser, isLoggedIn, logout } from './lib/auth'
 import { confirmState } from './lib/confirm'
 import { sectionNav } from './lib/sectionNav'
+import { fetchTodayDailyCard } from './lib/api'
+import { claimGuestCardIfAny, guestCardToday, markPrompted, promptedToday, taipeiToday, todayStatus } from './lib/dailyCard'
 import { alertDetail, alertTitle, dismissTriggered, startAlertWatcher, stopAlertWatcher, triggeredAlerts } from './lib/marketAlerts'
 import { healthLabel, refreshHealth } from './lib/health'
 import { prefersReducedMotion } from './lib/motion'
@@ -21,7 +25,9 @@ const route = useRoute()
 const showCardStyle = computed(
 	() =>
 		(route.name === 'home' && sceneBus.step === 3) ||
-		(route.name === 'history' && (route.query.tab !== 'stock' || Boolean(sectionNav.value))),
+		route.name === 'history' ||
+		// 股市分析紀錄：股票分析分頁由 sectionNav.cardStyle = false 再關掉（同拆頁前的行為）
+		(route.name === 'market-records' && ((route.query.tab ?? 'stock') !== 'stock' || Boolean(sectionNav.value))),
 )
 
 onMounted(refreshHealth)
@@ -63,7 +69,7 @@ watch(
 )
 onBeforeUnmount(() => clearTimeout(revealFallback))
 
-// sm 斷點（640px）。手機把選單收進漢堡，桌機一律攤開；
+// sm 斷點（640px）。手機的會員頭像只顯示頭像（不顯示名字）；
 // 初值直接讀 matchMedia，桌機才不會先閃一下收合的樣子
 const DESKTOP_QUERY = '(min-width: 640px)'
 const isDesktop = ref(typeof window !== 'undefined' && window.matchMedia(DESKTOP_QUERY).matches)
@@ -81,12 +87,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => mediaQuery?.removeEventListener('change', onBreakpointChange))
 
-// 手機的漢堡選單；換頁後自動收起來
-const menuOpen = ref(false)
-watch(() => route.fullPath, () => (menuOpen.value = false))
-
-// 桌機永遠顯示，手機只有打開時顯示（這時 Transition 才會跑收合動畫）
-const navVisible = computed(() => isDesktop.value || menuOpen.value)
 
 // 目前所在的頁面亮起；用路由名稱比對，網址帶 query（例如紀錄頁的 ?id=）也算同一頁
 // 會員專屬的頁面另外上色，一眼看得出哪些是登入後才有的：
@@ -119,13 +119,80 @@ const navRoutes = computed(() =>
       label: String(route.meta?.title || route.name),
       // 上色用：金融股市權限頁 > 登入才有的頁 > 一般頁（管理者頁維持一般樣式）
       tier: route.meta?.stock ? ('stock' as const) : route.meta?.auth ? ('member' as const) : ('public' as const),
+      admin: route.meta?.role === 'admin',
+      // 會員選單的分類（塔羅／股市），沒寫的放「其他頁面」
+      group: route.meta?.menuGroup as 'tarot' | 'stock' | undefined,
     })),
 )
+// 會員選單裡的頁面：「占卜」固定在頂欄，帳號設定在選單底部，其他都收進選單（v26 計畫 3）
+// 順序照 meta.menuOrder（getRoutes() 會依路徑重新排序，不是宣告的順序），沒寫的排在後面
+const menuRoutes = computed(() =>
+  navRoutes.value
+    .filter((r) => r.name !== 'home' && r.name !== 'account')
+    .sort((a, b) => (menuOrderOf(a.name) ?? 99) - (menuOrderOf(b.name) ?? 99)),
+)
+function menuOrderOf(name: string) {
+  return router.getRoutes().find((r) => r.name === name)?.meta?.menuOrder as number | undefined
+}
 
 function signOut() {
   logout()
   router.push('/')
 }
+
+// ---- 每日一牌（2026-11-20 使用者要求）----
+// 每天第一次打開網站時跳出彈窗（訪客與會員都會，關掉就不再跳）；會員今天已經抽過（例如在別的裝置）就不跳。
+// 登入、註冊、重設密碼這類頁面（meta.guest／hidden）先不跳，等使用者離開那些頁面再跳。
+// 登入或註冊後，把訪客今天抽的牌存進月曆；todayStatus 給頂欄的小點與月曆提醒
+const dailyOpen = ref(false)
+
+async function refreshTodayStatus() {
+  if (!isLoggedIn.value) {
+    todayStatus.value = 'unknown'
+    return null
+  }
+  try {
+    await claimGuestCardIfAny()
+    const result = await fetchTodayDailyCard()
+    todayStatus.value = result.dailyCard ? 'drawn' : 'pending'
+    return result
+  } catch {
+    return null
+  }
+}
+
+let checkingDaily = false
+async function maybePromptDaily() {
+  if (dailyOpen.value || checkingDaily || route.meta?.guest || route.meta?.hidden) return
+  const today = taipeiToday()
+  if (promptedToday(today)) return
+  checkingDaily = true
+  try {
+    if (isLoggedIn.value) {
+      const result = await refreshTodayStatus()
+      // 查不到就這次不跳，下次換頁再試；今天已經抽過就不跳
+      if (!result) return
+      if (result.dailyCard) {
+        markPrompted(today)
+        return
+      }
+    } else if (guestCardToday(today)) {
+      markPrompted(today)
+      return
+    }
+    markPrompted(today)
+    dailyOpen.value = true
+  } finally {
+    checkingDaily = false
+  }
+}
+
+router.isReady().then(() => {
+  void maybePromptDaily()
+  watch(() => route.name, () => void maybePromptDaily())
+  // 登入、註冊後（含彈窗裡按「登入」回來）：存訪客抽的牌、更新今天抽了沒；登出就清掉
+  watch(isLoggedIn, () => void refreshTodayStatus(), { immediate: true })
+})
 </script>
 
 <template>
@@ -143,62 +210,19 @@ function signOut() {
 					<p class="truncate text-[11px] text-ink-muted sm:text-xs">{{ healthLabel }}</p>
 				</div>
 
-				<!-- 手機放不下一整列連結，改成漢堡；三條線在打開時轉成叉 -->
-				<button
-					type="button"
-					class="-mr-1 shrink-0 cursor-pointer border-2 border-tint/30 p-1.5 text-ink-soft transition hover:border-accent-hue/60 hover:text-warn active:translate-x-[2px] active:translate-y-[2px] sm:hidden"
-					:aria-expanded="menuOpen"
-					aria-controls="main-nav"
-					aria-label="選單"
-					@click="menuOpen = !menuOpen"
-				>
-					<span class="relative block h-5 w-5" aria-hidden="true">
-						<!-- 上下兩條往中間併攏後轉成叉，中間那條淡出 -->
-						<span
-							class="absolute left-0 h-0.5 w-5 bg-current transition-all duration-300 ease-out motion-reduce:transition-none"
-							:class="menuOpen ? 'top-[9px] rotate-45' : 'top-[4px]'"
-						/>
-						<span
-							class="absolute left-0 top-[9px] h-0.5 w-5 bg-current transition-opacity duration-200 ease-out motion-reduce:transition-none"
-							:class="menuOpen ? 'opacity-0' : 'opacity-100'"
-						/>
-						<span
-							class="absolute left-0 h-0.5 w-5 bg-current transition-all duration-300 ease-out motion-reduce:transition-none"
-							:class="menuOpen ? 'top-[9px] -rotate-45' : 'top-[14px]'"
-						/>
-					</span>
-				</button>
-
-				<!-- 同一份選單：手機收在漢堡底下的面板（展開時滑下來），sm 以上回到 header 裡橫排 -->
-				<Transition
-					enter-active-class="transition-[max-height,opacity] duration-300 ease-out motion-reduce:transition-none"
-					enter-from-class="max-h-0 opacity-0"
-					enter-to-class="max-h-80 opacity-100"
-					leave-active-class="transition-[max-height,opacity] duration-200 ease-in motion-reduce:transition-none"
-					leave-from-class="max-h-80 opacity-100"
-					leave-to-class="max-h-0 opacity-0"
-				>
-					<nav
-						v-if="navVisible"
-						id="main-nav"
-						class="absolute inset-x-0 top-full z-30 flex max-h-80 flex-col items-stretch gap-2.5 overflow-hidden border-b-4 border-frame bg-surface px-5 py-4 shadow-[0_6px_0_var(--c-shade)] sm:static sm:z-auto sm:max-h-none sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1 sm:overflow-visible sm:whitespace-nowrap sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none"
-					>
-						<router-link v-for="r in navRoutes" :key="r.name" :to="r.path" class="font-pixel text-[12px] transition" :class="navClass(r.name, r.tier)">{{ r.label }}</router-link>
-
-						<template v-if="isLoggedIn">
-							<!-- 點自己的名字進帳號設定（v24）：改密碼、登出所有裝置、刪除帳號 -->
-							<router-link to="/account" title="帳號設定" class="font-pixel text-[12px] transition" :class="navClass('account', 'member')">
-								{{ currentUser?.displayName }}
-								<span v-if="isAdmin" class="ml-1 border-2 border-accent-hue/40 bg-accent-hue/10 px-1.5 py-0.5 font-pixel text-[12px] text-accent">admin</span>
-							</router-link>
-							<button class="cursor-pointer text-left font-pixel text-[14px] text-ink-soft transition hover:text-danger sm:text-center" @click="signOut">登出</button>
+				<!-- 會員選單（v26 計畫 3）：頂欄只留「占卜」與會員頭像，其他頁面收進頭像的選單；手機也一樣（拿掉漢堡） -->
+				<nav class="flex shrink-0 items-center gap-3 sm:gap-4" aria-label="主要">
+					<router-link to="/" class="font-pixel text-[12px] transition" :class="navClass('home')">占卜</router-link>
+					<MemberMenu v-if="isLoggedIn" :routes="menuRoutes" :wide="isDesktop" @sign-out="signOut" />
+					<template v-else>
+						<!-- 未登入：管理者自訂的公開頁面在桌機照樣排在頂欄 -->
+						<template v-if="isDesktop">
+							<router-link v-for="r in menuRoutes" :key="r.name" :to="r.path" class="font-pixel text-[12px] transition" :class="navClass(r.name)">{{ r.label }}</router-link>
 						</template>
-						<template v-else>
-							<router-link to="/login" class="font-pixel text-[12px] transition" :class="navClass('login')">登入</router-link>
-							<router-link to="/register" class="border-2 border-accent-hue/40 bg-accent-hue/10 px-3 py-1 text-center font-pixel text-[14px] text-accent transition hover:bg-accent-hue/20 active:translate-x-[2px] active:translate-y-[2px]">註冊</router-link>
-						</template>
-					</nav>
-				</Transition>
+						<router-link to="/login" class="font-pixel text-[12px] transition" :class="navClass('login')">登入</router-link>
+						<router-link to="/register" class="border-2 border-accent-hue/40 bg-accent-hue/10 px-3 py-1 text-center font-pixel text-[14px] text-accent transition hover:bg-accent-hue/20 active:translate-x-[2px] active:translate-y-[2px]">註冊</router-link>
+					</template>
+				</nav>
 			</div>
 		</header>
 
@@ -207,6 +231,9 @@ function signOut() {
 			原本這裡是單純的牌面開關，收進選單裡
 		-->
 		<FloatingMenu :cards="showCardStyle" />
+
+		<!-- 每日一牌：每天第一次打開網站時跳出 -->
+		<DailyCardDialog v-if="dailyOpen" :logged-in="isLoggedIn" @close="dailyOpen = false" />
 
 		<!-- 過場中先隱形（版面照占位，淡入時不會跳動），播完再用 0.3 秒淡入 -->
 		<main

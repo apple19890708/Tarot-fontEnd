@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// 欄數用 container query（@container／@md: 這類）照元件自己的寬度決定，不照螢幕寬度：放進日記頁的半寬欄也不會擠壞（2026-11-20）
 import { computed } from 'vue'
 import DataTable from '../DataTable.vue'
 import HelpTip from '../HelpTip.vue'
@@ -131,7 +132,7 @@ const topFactors = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="@container space-y-6">
     <!-- ── 重點整理 ── -->
     <section class="space-y-2 border-2 border-accent-hue/25 bg-accent-hue/5 p-3 sm:p-4">
       <p class="text-body font-semibold text-accent">重點整理</p>
@@ -312,7 +313,7 @@ const topFactors = computed(() => {
           </div>
           <p class="text-body text-info">規則：{{ s.description }}</p>
 
-          <dl class="grid grid-cols-2 gap-2 text-body tabular-nums sm:grid-cols-4">
+          <dl class="grid grid-cols-2 gap-2 text-body tabular-nums @lg:grid-cols-4">
             <div class="border border-tint/10 px-2 py-1.5">
               <dt class="text-caption text-ink-muted">總共賺</dt>
               <dd class="font-semibold" :class="trendClass(s.totalReturn)">{{ formatSigned(s.totalReturn, '%') }}</dd>
@@ -400,7 +401,7 @@ const topFactors = computed(() => {
         <li>對照組是「每次都預測比較常發生的那一邊」，至少能預測對一半。電腦要比對照組準，它給的機率才有參考價值。</li>
       </ul>
 
-      <div class="grid gap-3 sm:grid-cols-2">
+      <div class="grid gap-3 @sm:grid-cols-2">
         <!-- 上漲機率：50% 在中間，左邊偏跌、右邊偏漲，白點是電腦給的機率；不可靠時數字變灰變小 -->
         <div class="border-2 border-tint/10 bg-tint/5 p-3">
           <p class="text-body text-ink-muted">電腦認為 {{ research.prediction.horizon }} 天後上漲的機率</p>
@@ -453,7 +454,7 @@ const topFactors = computed(() => {
       </div>
 
       <!-- 今天的因素：把機率往上推、往下拉最多的各 3 個 -->
-      <div v-if="topFactors.up.length || topFactors.down.length" class="grid gap-3 sm:grid-cols-2">
+      <div v-if="topFactors.up.length || topFactors.down.length" class="grid gap-3 @sm:grid-cols-2">
         <div class="border-2 border-up-hue/20 bg-up-hue/5 p-3">
           <p class="text-body font-medium text-danger">今天讓電腦覺得會漲的原因</p>
           <ol class="mt-2 list-decimal space-y-1 pl-5 text-body text-ink">

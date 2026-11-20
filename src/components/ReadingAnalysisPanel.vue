@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// 欄數用 container query（@container／@md: 這類）照元件自己的寬度決定，不照螢幕寬度：放進日記頁的半寬欄也不會擠壞（2026-11-20）
 import { computed } from 'vue'
 
 import { cardImageUrl } from '../lib/cardStyle'
@@ -165,7 +166,7 @@ function positionLabel(index: number) {
 
     <section data-nav="這件事有多大" data-nav-level="2" v-if="analysis.weights" class="space-y-3">
       <h3 class="text-base font-semibold text-ink sm:text-lg">這件事有多大</h3>
-      <div class="grid min-w-0 gap-3 sm:grid-cols-2">
+      <div class="grid min-w-0 gap-3 @lg:grid-cols-2">
         <div
           v-for="meter in weightMeters"
           :key="meter.name"
@@ -256,7 +257,8 @@ function positionLabel(index: number) {
       </p>
 
       <template v-if="stageView">
-        <!-- 時間線：依時間先後串箭頭 -->
+        <!-- 時間線：依時間先後串箭頭。下面還有「其他位置」時才標小標，兩排對照才看得出差別（2026-11-20 口語化） -->
+        <p v-if="stageView.timeline.length > 0 && stageView.others.length > 0" class="text-caption text-ink-muted">照時間順序</p>
         <div v-if="stageView.timeline.length > 0" class="flex flex-wrap items-center gap-x-1.5 gap-y-2">
           <template v-for="(step, i) in stageView.timeline" :key="step.index">
             <span v-if="i > 0" class="text-ink-muted" aria-hidden="true">→</span>
@@ -272,7 +274,7 @@ function positionLabel(index: number) {
 
         <!-- 其他格：不是時間點，只列出落在哪個階段 -->
         <div v-if="stageView.others.length > 0" class="space-y-2">
-          <p v-if="stageView.timeline.length > 0" class="text-xs text-ink-muted">其他格（不是時間點，不算進走向）</p>
+          <p v-if="stageView.timeline.length > 0" class="text-caption text-ink-muted">其他位置</p>
           <div class="flex flex-wrap gap-2">
             <div
               v-for="step in stageView.others"

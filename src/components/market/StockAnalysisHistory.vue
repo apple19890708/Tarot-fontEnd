@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { confirmDialog } from '../../lib/confirm'
 
@@ -7,16 +7,13 @@ import { deleteStockAnalysis, fetchStockAnalyses, fetchStockAnalysisRecord, Unau
 import { formatNumber, formatSigned } from '../../lib/marketChart'
 import { smoothScrollTo } from '../../lib/motion'
 import { stockAnalysisExport } from '../../lib/recordExport'
-import { provideSectionNav, type SectionNavItem } from '../../lib/sectionNav'
 import BackToTop from '../BackToTop.vue'
 import ExportButton from '../ExportButton.vue'
 import RecordIndex, { type RecordIndexItem } from '../RecordIndex.vue'
 import RecordListShell from '../RecordListShell.vue'
 import SelectField from '../SelectField.vue'
-import MarketPanel from '../MarketPanel.vue'
 import SkeletonBlock from '../SkeletonBlock.vue'
-import StockAiText from './StockAiText.vue'
-import StockHoldingSummary from './StockHoldingSummary.vue'
+import StockAnalysisDetail from './StockAnalysisDetail.vue'
 import type { StockAnalysisRecord, StockAnalysisSummary } from '../../types'
 
 // 「我的紀錄」的股票分析（v17 規格 F）：個股彈窗裡跑過的 AI 深度分析，和塔羅紀錄分開。
@@ -174,54 +171,6 @@ async function confirmDelete(id: string) {
   }
 }
 
-// MarketPanel 吃股市諮詢的快照格式；紀錄裡存的就是那一份（多了 events）
-const savedSnapshot = computed(() => detail.value?.snapshot ?? null)
-
-// ---- 浮動選單的「跳到段落」：打開一筆分析時登記，沒有選任何一筆時取消 ----
-const aiEl = ref<HTMLElement | null>(null)
-const holdingEl = ref<HTMLElement | null>(null)
-const basisEl = ref<HTMLDetailsElement | null>(null)
-
-async function scrollToEl(el: HTMLElement) {
-  // 分析依據裡的段落：收合著就先展開
-  if (basisEl.value && basisEl.value !== el && basisEl.value.contains(el) && !basisEl.value.open) {
-    basisEl.value.open = true
-    await nextTick()
-  }
-  const top = el.getBoundingClientRect().top + window.scrollY - 16
-  smoothScrollTo(top)
-}
-
-function collectSections(): SectionNavItem[] {
-  const items: SectionNavItem[] = []
-  const add = (el: HTMLElement | null | undefined, label: string, level: 1 | 2) => {
-    if (el && label) items.push({ label, level, go: () => void scrollToEl(el) })
-  }
-  add(aiEl.value, 'AI 分析', 1)
-  // AI 全文裡的 ## 小標（現況、技術面…）
-  for (const heading of aiEl.value?.querySelectorAll<HTMLElement>('h2') ?? []) add(heading, heading.textContent?.trim() ?? '', 2)
-  add(holdingEl.value, '當時的持股', 1)
-  if (basisEl.value) {
-    add(basisEl.value, '分析依據', 1)
-    // MarketPanel 標了 data-panel-section 的區塊（行情與技術指標、籌碼與估值、歷史回測與模型、操作建議）
-    basisEl.value
-      .querySelectorAll<HTMLElement>('[data-panel-section]')
-      .forEach((el) => add(el, el.dataset.panelSection ?? '', 2))
-  }
-  return items
-}
-
-let releaseSectionNav: (() => void) | null = null
-watch(
-  detail,
-  (current) => {
-    releaseSectionNav?.()
-    releaseSectionNav = current ? provideSectionNav({ items: collectSections, cardStyle: false }) : null
-  },
-  { immediate: true },
-)
-onBeforeUnmount(() => releaseSectionNav?.())
-
 function buildExport() {
   const current = detail.value!
   return stockAnalysisExport({ target: current.target, quote: current.quote, createdAt: current.createdAt, text: current.text, holding: current.holding })
@@ -230,11 +179,6 @@ function buildExport() {
 function formatDate(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-TW', { hour12: false })
-}
-
-function trendClass(value: number | null | undefined) {
-  if (!value) return 'text-ink-muted'
-  return value > 0 ? 'text-up' : 'text-down'
 }
 
 onMounted(loadList)
@@ -318,6 +262,13 @@ onMounted(loadList)
           <div class="flex flex-wrap items-center justify-between gap-3">
             <p class="text-body text-ink-muted">{{ formatDate(detail.createdAt) }}・股票分析</p>
             <div class="flex flex-wrap items-start gap-2">
+            <!-- 日記（v26 計畫 2，2026-11-20 使用者要求股票分析也要有）：左邊是這筆分析、右邊寫日記 -->
+            <router-link
+              :to="{ path: `/journal/stock/${detail.id}` }"
+              class="inline-flex cursor-pointer items-center border-2 border-accent-hue/40 bg-accent-hue/10 px-3 py-1 font-pixel text-button text-accent transition hover:bg-accent-hue/20 active:translate-x-[1px] active:translate-y-[1px]"
+            >
+              日記
+            </router-link>
             <ExportButton :build="buildExport" />
             <button
               type="button"
@@ -331,38 +282,8 @@ onMounted(loadList)
           </div>
           <p v-if="deleteError" class="border-2 border-danger-hue/20 bg-danger-hue/10 px-4 py-3 text-body text-danger">{{ deleteError }}</p>
 
-          <div class="border-b border-tint/10 pb-4">
-            <p class="text-caption uppercase tracking-[0.3em] text-ink-muted">Stock Analysis</p>
-            <h2 class="mt-1.5 text-title font-semibold text-ink">
-              {{ detail.target.name }}<span class="ml-2 text-caption font-normal text-ink-muted">{{ idOf(detail) }}</span>
-            </h2>
-            <p class="mt-1 text-body tabular-nums text-ink-muted">
-              分析時股價 {{ formatNumber(detail.quote.price) }}
-              <span :class="trendClass(detail.quote.change)">{{ formatSigned(detail.quote.change) }}（{{ formatSigned(detail.quote.changePct, '%') }}）</span>
-              <span v-if="detail.quote.date" class="text-ink-muted"> · {{ detail.quote.date }}</span>
-            </p>
-          </div>
-
-          <div ref="aiEl" class="scroll-mt-4">
-            <StockAiText :text="detail.text" />
-          </div>
-          <p class="text-caption text-ink-muted">AI 只根據當時的資料撰寫，僅供參考，不是投資建議。</p>
-
-          <section v-if="detail.holding" ref="holdingEl" class="border-2 border-tint/10 bg-tint/5 p-4">
-            <p class="mb-3 font-pixel text-[12px] text-ink-soft">當時的持股</p>
-            <StockHoldingSummary :holding="detail.holding" />
-          </section>
-
-          <!-- 分析依據：當時交給 AI 的資料，預設收合 -->
-          <details v-if="savedSnapshot" ref="basisEl" class="group border-2 border-tint/10">
-            <summary class="flex cursor-pointer list-none items-center gap-2 px-4 py-3 font-pixel text-[12px] text-ink-soft hover:bg-tint/5 [&::-webkit-details-marker]:hidden">
-              <span class="transition group-open:rotate-90">›</span>分析依據（當時的行情與指標）
-            </summary>
-            <div class="border-t border-tint/10 p-3">
-              <!-- 和個股分析彈窗同一種分頁排版（2026-11-12 起，快速占卜的結果頁也是） -->
-              <MarketPanel :snapshot="savedSnapshot" status="ready" is-saved hide-refresh tabs />
-            </div>
-          </details>
+          <!-- 分析內容和日記頁左欄共用（跳到段落也由它登記） -->
+          <StockAnalysisDetail :key="detail.id" :detail="detail" />
         </template>
 
         <p v-else-if="listStatus === 'ready'" class="border-2 border-dashed border-tint/15 bg-sink/10 px-5 py-10 text-center text-body text-ink-muted">

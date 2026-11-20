@@ -384,15 +384,15 @@ onBeforeUnmount(() => {
             <StockAiText v-else-if="aiText" class="mt-4" :text="aiText" />
             <p v-if="isOldAnalysis" class="mt-3 text-caption text-ink-muted">
               所有分析都在
-              <router-link :to="{ name: 'history', query: { tab: 'stock' } }" class="text-warn underline underline-offset-2 hover:text-accent" @click="close">
-                我的紀錄 › 股票分析
+              <router-link :to="{ name: 'market-records' }" class="text-warn underline underline-offset-2 hover:text-accent" @click="close">
+                股市分析紀錄 › 股票分析
               </router-link>
             </p>
 
             <p v-if="aiStatus === 'done' && aiRecordId" class="mt-4 text-body text-ink-muted">
               已存到
-              <router-link :to="{ name: 'history', query: { tab: 'stock', id: aiRecordId } }" @click="close" class="text-warn underline underline-offset-2 hover:text-accent">
-                我的紀錄 › 股票分析
+              <router-link :to="{ name: 'market-records', query: { id: aiRecordId } }" @click="close" class="text-warn underline underline-offset-2 hover:text-accent">
+                股市分析紀錄 › 股票分析
               </router-link>
             </p>
             <p v-if="aiStatus === 'done' && aiSaveFailed" class="mt-4 text-body text-danger">這份分析沒有存進紀錄，關掉彈窗就看不到了。</p>

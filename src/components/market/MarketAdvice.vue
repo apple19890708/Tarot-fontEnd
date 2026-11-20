@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// 欄數用 container query（@container／@md: 這類）照元件自己的寬度決定，不照螢幕寬度：放進日記頁的半寬欄也不會擠壞（2026-11-20）
 import { computed, ref } from 'vue'
 import HelpTip from '../HelpTip.vue'
 import MarketAdviceLevel from './MarketAdviceLevel.vue'
@@ -93,7 +94,7 @@ const groups = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="@container space-y-4">
     <!-- 短中期／長期切換 -->
     <div v-if="long" class="flex flex-wrap gap-1.5" role="group" aria-label="建議的期間">
       <button
@@ -123,7 +124,7 @@ const groups = computed(() => {
     <p class="text-body text-ink-soft/90">{{ view.summary }}</p>
 
     <!-- 長期的關鍵價位：只有年線 -->
-    <div v-if="mode === 'long' && long" class="grid gap-3 lg:grid-cols-2">
+    <div v-if="mode === 'long' && long" class="grid gap-3 @2xl:grid-cols-2">
       <div class="border-2 border-accent-hue/20 bg-accent-hue/5 p-3">
         <p class="flex items-center gap-1.5 text-body text-accent">關鍵價位：年線 <HelpTip term="yearLine" /></p>
         <MarketAdviceLevel
@@ -138,14 +139,14 @@ const groups = computed(() => {
         />
       </div>
       <!-- 建議部位：手機標題與內容同一行（省高度），sm 以上上下排 -->
-      <div class="flex items-baseline justify-between gap-3 border-2 border-tint/10 bg-tint/5 p-3 sm:block">
+      <div class="flex items-baseline justify-between gap-3 border-2 border-tint/10 bg-tint/5 p-3 @md:block">
         <p class="flex shrink-0 items-center gap-1.5 text-body text-ink-muted">建議部位 <HelpTip term="position" /></p>
         <p class="text-right text-body font-medium text-ink sm:mt-1 sm:text-left">{{ long.positionSize }}</p>
       </div>
     </div>
 
     <!-- 短中期的關鍵價位 -->
-    <div v-else class="grid gap-3 lg:grid-cols-3">
+    <div v-else class="grid gap-3 @3xl:grid-cols-3">
       <div class="border-2 border-down-hue/20 bg-down-hue/5 p-3">
         <p class="flex items-center gap-1.5 text-body text-down-ink">{{ advice.levels.stopLossLabel }} <HelpTip term="stopLoss" /></p>
         <MarketAdviceLevel
@@ -180,7 +181,7 @@ const groups = computed(() => {
       </div>
       <!-- 建議部位：手機標題與內容同一行（省高度），sm 以上上下排 -->
       <div class="border-2 border-tint/10 bg-tint/5 p-3">
-        <div class="flex items-baseline justify-between gap-3 sm:block">
+        <div class="flex items-baseline justify-between gap-3 @md:block">
           <p class="flex shrink-0 items-center gap-1.5 text-body text-ink-muted">建議部位 <HelpTip term="position" /></p>
           <p class="text-right text-body font-medium text-ink sm:mt-1 sm:text-left">{{ advice.positionSize }}</p>
         </div>
@@ -192,7 +193,7 @@ const groups = computed(() => {
     </div>
 
     <!-- 怎麼做 -->
-    <div class="grid gap-3 sm:grid-cols-2">
+    <div class="grid gap-3 @sm:grid-cols-2">
       <div class="border-2 border-accent-hue/20 bg-accent-hue/5 p-3">
         <p class="text-body font-medium text-accent">還沒進場</p>
         <p class="mt-1 text-body text-ink">{{ view.forNew }}</p>

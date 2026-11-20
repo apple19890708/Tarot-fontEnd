@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import GoogleSignInButton from '../components/GoogleSignInButton.vue'
 import { loginWithGoogle, register } from '../lib/auth'
@@ -8,6 +8,12 @@ import { loginWithGoogle, register } from '../lib/auth'
 const PASSWORD_MIN = 8
 
 const router = useRouter()
+const route = useRoute()
+// 和登入頁一樣：帶了 redirect（例如每日一牌彈窗的「註冊」回月曆）就回那裡；只接受站內路徑
+const afterSignUp = () => {
+  const redirect = route.query.redirect
+  return typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/'
+}
 
 const email = ref('')
 const password = ref('')
@@ -23,7 +29,7 @@ async function googleSignUp(credential: string) {
   error.value = ''
   try {
     await loginWithGoogle(credential)
-    void router.replace('/')
+    void router.replace(afterSignUp())
   } catch (requestError) {
     error.value = requestError instanceof Error ? requestError.message : 'Google 註冊失敗，請稍後再試。'
   } finally {
@@ -52,7 +58,7 @@ async function submit() {
   try {
     await register(email.value.trim(), password.value, displayName.value.trim() || undefined)
     // 註冊後端直接回 token，不必再登入一次
-    router.replace('/')
+    router.replace(afterSignUp())
   } catch (requestError) {
     error.value = requestError instanceof Error ? requestError.message : '註冊失敗，請稍後再試。'
   } finally {

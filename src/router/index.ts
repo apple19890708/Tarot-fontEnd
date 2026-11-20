@@ -1,7 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import type { RouteLocationNormalized } from 'vue-router'
 
 import { canUseStock, isLoggedIn, onSessionExpired, restore, session } from '../lib/auth'
 import { applySeo } from '../lib/seo'
+import { claimGuestCardIfAny } from '../lib/dailyCard'
 
 const HomeView = () => import('../pages/HomeView.vue')
 const RoutesAdmin = () => import('../pages/RoutesAdmin.vue')
@@ -9,6 +11,8 @@ const LoginView = () => import('../pages/LoginView.vue')
 const RegisterView = () => import('../pages/RegisterView.vue')
 const AdminUsers = () => import('../pages/AdminUsers.vue')
 const HistoryView = () => import('../pages/HistoryView.vue')
+const CalendarView = () => import('../pages/CalendarView.vue')
+const JournalView = () => import('../pages/JournalView.vue')
 const MarketTrackView = () => import('../pages/MarketTrackView.vue')
 const ForgotPasswordView = () => import('../pages/ForgotPasswordView.vue')
 const ResetPasswordView = () => import('../pages/ResetPasswordView.vue')
@@ -25,8 +29,22 @@ const VerifyEmailView = () => import('../pages/VerifyEmailView.vue')
 // meta.noindex：不給搜尋引擎收錄（v24 4-4）；要登入（auth／role）的頁面一律不收錄，不用另外寫
 const routes = [
   { path: '/', name: 'home', component: HomeView, meta: { title: '占卜', scene: 'city', sceneDim: 0 } },
-  { path: '/history', name: 'history', component: HistoryView, meta: { auth: true, title: '我的紀錄', scene: 'interior' } },
-  { path: '/market', name: 'market', component: MarketTrackView, meta: { auth: true, stock: true, title: '股市追蹤', scene: 'interior', wide: true } },
+  // 「我的紀錄」拆成兩頁（2026-11-20 使用者要求）：塔羅紀錄在這裡；股票分析與財經新聞分析搬到股市分析紀錄。
+  // 舊網址 /history?tab=stock|news 轉過去，存下來的連結不會壞
+  {
+    path: '/history',
+    name: 'history',
+    component: HistoryView,
+    meta: { auth: true, title: '塔羅紀錄', scene: 'interior', menuGroup: 'tarot', menuOrder: 1, recordTabs: ['tarot'] },
+    beforeEnter: (to: RouteLocationNormalized) => (to.query.tab === 'stock' || to.query.tab === 'news' ? { name: 'market-records', query: to.query } : true),
+  },
+  // 每日一牌＋月曆（v26 計畫 1）。計畫 3 做好後改從會員選單進入
+  { path: '/calendar', name: 'calendar', component: CalendarView, meta: { auth: true, title: '占卜月曆', scene: 'interior', menuGroup: 'tarot', menuOrder: 2 } },
+  // 占卜日記（v26 計畫 2）：寫在一筆塔羅紀錄或一天的每日一牌底下；不放在頂欄，從紀錄與月曆進來
+  { path: '/journal/:kind/:id', name: 'journal', component: JournalView, meta: { auth: true, hidden: true, title: '日記', scene: 'interior', wide: true } },
+  { path: '/market', name: 'market', component: MarketTrackView, meta: { auth: true, stock: true, title: '股市追蹤', scene: 'interior', wide: true, menuGroup: 'stock', menuOrder: 1 } },
+  // 股市分析紀錄：原本「我的紀錄」的股票分析與財經新聞分析（2026-11-20 拆出來），排在股市追蹤後面
+  { path: '/market/records', name: 'market-records', component: HistoryView, meta: { auth: true, stock: true, title: '股市分析紀錄', scene: 'interior', menuGroup: 'stock', menuOrder: 2, recordTabs: ['stock', 'news'] } },
   { path: '/login', name: 'login', component: LoginView, meta: { guest: true, title: '登入', scene: 'door', sceneDim: 0.1 } },
   { path: '/register', name: 'register', component: RegisterView, meta: { guest: true, title: '註冊', scene: 'door', sceneDim: 0.1 } },
   { path: '/forgot-password', name: 'forgot-password', component: ForgotPasswordView, meta: { guest: true, noindex: true, title: '忘記密碼', scene: 'door', sceneDim: 0.1 } },
@@ -50,6 +68,9 @@ router.beforeEach(async (to) => {
   if (!session.ready) {
     await restore()
   }
+  // 訪客抽的每日一牌：登入或註冊後第一次換頁時就送出領取（不等），頁面掛載前就開始，
+  // 月曆頁讀資料前會等它做完（waitForGuestClaim），才不會先顯示「還沒抽」
+  if (isLoggedIn.value) void claimGuestCardIfAny()
 
   const requiresAuth = Boolean(to.meta.auth || to.meta.role)
 

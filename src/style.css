@@ -332,3 +332,142 @@ body::after {
     color: var(--c-ink-soft);
   }
 }
+
+/*
+  月曆（v26 計畫 1，FullCalendar 7 經典主題）：不載入它的預設色票 palette.css，
+  改把 --fc-classic-* 對到專案的語意色，日夜模式切換時月曆跟著換色。
+  只在 .tarot-calendar 裡生效，不影響別的頁面。
+*/
+@layer base {
+  .tarot-calendar {
+    --fc-classic-button: transparent;
+    /* 工具列「‹ 今天 ›」不畫外框與分隔線（2026-11-20 使用者要求），滑過、按下只換底色 */
+    --fc-classic-button-border: transparent;
+    --fc-classic-button-foreground: var(--c-ink-soft);
+    --fc-classic-button-strong: var(--c-selected);
+    --fc-classic-button-strong-border: transparent;
+    --fc-classic-button-outline: var(--c-accent-line);
+    --fc-classic-primary: var(--c-accent-hue);
+    --fc-classic-primary-foreground: var(--c-page);
+    --fc-classic-event: var(--c-accent-hue);
+    --fc-classic-event-contrast: var(--c-page);
+    --fc-classic-background-event: var(--c-ok-hue);
+    --fc-classic-background-event-opacity: 15%;
+    --fc-classic-background-event-foreground-opacity: 50%;
+    --fc-classic-highlight: var(--c-selected);
+    --fc-classic-today: var(--c-accent-soft);
+    --fc-classic-now: var(--c-danger-hue);
+    --fc-classic-small-dot-width: 8px;
+    --fc-classic-large-dot-width: 10px;
+    --fc-classic-background: transparent;
+    --fc-classic-faint: var(--c-raised);
+    --fc-classic-muted: var(--c-line);
+    --fc-classic-strong: var(--c-line);
+    --fc-classic-foreground: var(--c-ink);
+    --fc-classic-faint-foreground: var(--c-ink-muted);
+    --fc-classic-muted-foreground: var(--c-ink-muted);
+    --fc-classic-border: var(--c-line);
+    --fc-classic-strong-border: var(--c-accent-line);
+    --fc-classic-ring-color: var(--c-accent-hue);
+  }
+}
+
+/*
+  占卜日記（v26 計畫 2）：Tiptap 產生的內容（段落、標題、清單、待辦、引用、分隔線、標示）。
+  這些 HTML 是編輯器產生的，沒辦法逐個加 class，所以集中寫在這裡；顏色與字級一律用語意變數，日夜模式跟著換。
+*/
+@layer base {
+  .journal-prose > * + * {
+    margin-top: 0.5em;
+  }
+  .journal-prose h1 {
+    font-size: var(--fs-title);
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .journal-prose h2 {
+    font-size: var(--fs-subtitle);
+    font-weight: 600;
+    line-height: 1.5;
+  }
+  .journal-prose h3 {
+    font-size: var(--fs-body);
+    font-weight: 600;
+    color: var(--c-accent);
+  }
+  .journal-prose p,
+  .journal-prose li {
+    line-height: 1.75;
+  }
+  .journal-prose ul {
+    list-style: disc;
+    padding-left: 1.4em;
+  }
+  .journal-prose ol {
+    list-style: decimal;
+    padding-left: 1.6em;
+  }
+  .journal-prose ul[data-type='taskList'] {
+    list-style: none;
+    padding-left: 0.2em;
+  }
+  .journal-prose ul[data-type='taskList'] li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5em;
+  }
+  .journal-prose ul[data-type='taskList'] li > label {
+    margin-top: 0.35em;
+    flex-shrink: 0;
+  }
+  .journal-prose ul[data-type='taskList'] li > div {
+    flex: 1;
+    min-width: 0;
+  }
+  .journal-prose ul[data-type='taskList'] li[data-checked='true'] > div {
+    color: var(--c-ink-muted);
+    text-decoration: line-through;
+  }
+  .journal-prose input[type='checkbox'] {
+    width: 1em;
+    height: 1em;
+    accent-color: var(--c-accent-hue);
+    cursor: pointer;
+  }
+  .journal-prose blockquote {
+    border-left: 3px solid var(--c-accent-line);
+    padding-left: 0.8em;
+    color: var(--c-ink-soft);
+  }
+  .journal-prose hr {
+    border: 0;
+    border-top: 2px dashed var(--c-line);
+    margin: 1em 0;
+  }
+  .journal-prose hr.ProseMirror-selectednode,
+  .journal-prose .ProseMirror-selectednode {
+    outline: 2px solid var(--c-accent-hue);
+    outline-offset: 2px;
+  }
+  .journal-prose mark {
+    background: var(--c-accent-soft);
+    color: var(--c-ink);
+    padding: 0 0.15em;
+  }
+  .journal-prose strong {
+    font-weight: 700;
+  }
+  /* 空白時的提示（Placeholder 擴充把文字放在 data-placeholder） */
+  .journal-prose p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    color: var(--c-ink-muted);
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
+  /* 拖曳時放下位置的線（StarterKit 的 dropcursor） */
+  .ProseMirror-dropcursor,
+  .prosemirror-dropcursor-block {
+    background: var(--c-accent-hue);
+  }
+}

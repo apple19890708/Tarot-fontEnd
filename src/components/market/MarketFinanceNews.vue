@@ -430,9 +430,9 @@ function isTodayInTaipei(iso: string) {
           <template v-if="!shown && aiStatus === 'idle'">今天還沒有分析。</template>
           以前的分析在
           <router-link
-            :to="{ name: 'history', query: { tab: 'news' } }"
+            :to="{ name: 'market-records', query: { tab: 'news' } }"
             class="text-accent underline underline-offset-2 hover:text-accent"
-          >我的紀錄 › 財經新聞分析</router-link>。
+          >股市分析紀錄 › 財經新聞分析</router-link>。
         </p>
 
         <p class="mt-3 text-caption text-ink-muted">AI 只根據上面的新聞標題與摘要撰寫，族群與個股是依產業關聯推估，僅供參考，不是投資建議。</p>
