@@ -9,7 +9,6 @@ import StepResult from '../components/StepResult.vue'
 import {
   createManualReading,
   createReading,
-  fetchCards,
   fetchSpreads,
   saveReadingRecord,
   updateReadingNarration,
@@ -21,15 +20,12 @@ import { canUseAi, canUseStock, isLoggedIn, onLogout } from '../lib/auth'
 import { refreshHealth } from '../lib/health'
 import { installPixelCardBack } from '../lib/pixelArt'
 import { resetSceneBus, sceneBus } from '../lib/sceneBus'
-import { clearResultSnapshot, RESULT_SNAPSHOT_KEY } from '../lib/resultSnapshot'
+import { clearResultSnapshot, readResultSnapshot, restoredNarrationStatus, writeResultSnapshot } from '../lib/resultSnapshot'
 import { spreadForReading } from '../lib/readingSpread'
+import { useDrawState } from '../lib/useDrawState'
 import { useFollowUps } from '../lib/useFollowUps'
 import type {
-  CardSummary,
-  CustomPosition,
-  DeckCard,
   DrawMode,
-  FollowUpRound,
   ManualCardPick,
   NarrationStatus,
   MarketSnapshot,
@@ -82,83 +78,35 @@ const selectedSpread = computed(
 const targetCount = computed(() => selectedSpread.value?.cardCount ?? freeCardCount.value)
 
 // ---- 步驟 2 的狀態 ----
-// 預設手動抽牌：自己洗牌挑牌是這個站的重點，自動抽牌是想快一點時才用
-const drawMode = ref<DrawMode>('fan')
-const allCards = ref<CardSummary[]>([])
-const cardsError = ref('')
-const cardSearch = ref('')
+// 牌堆、選的牌、輸入的牌、自訂位置與它們的操作都在 useDrawState（2026-11-21 抽出來）
+const {
+  drawMode,
+  allCards,
+  cardsError,
+  cardSearch,
+  deck,
+  picked,
+  inputCards,
+  sceneDrawn,
+  customPositions,
+  customPositionsParam,
+  reorderInputCards,
+  updateCustomPosition,
+  shuffleDeck,
+  setDrawMode: changeDrawMode,
+  pickFromDeck,
+  undoPick,
+  setInputCard,
+  removeInputCard,
+  toggleInputOrientation,
+  clearPicks,
+} = useDrawState({ targetCount, selectedSpread })
 
-// 手動抽牌：洗好的牌堆與依序選出的牌
-const deck = ref<DeckCard[]>([])
-const picked = ref<DeckCard[]>([])
-
-// 輸入已抽到的牌。長度一直等於牌陣張數，index 就是位置順序，空位是 undefined，
-// 使用者才能直接點某個位置把牌放上去，不必照順序一張一張加
-const inputCards = ref<(InputCard | undefined)[]>([])
-
-// 給像素夜景的抽牌事件：每多一張就劃一顆流星、逆位就雲遮月。
-// 自動抽牌是一次出結果，沒有逐張事件，夜景只會跟著步驟明暗
-const sceneDrawn = computed(() =>
-  drawMode.value === 'input'
-    ? inputCards.value.flatMap((card) => (card ? [card.orientation] : []))
-    : picked.value.map((card) => card.orientation),
-)
-
-// 張數改變時補滿或截短，已經放好的牌留著
-watch(
-  targetCount,
-  (count) => {
-    inputCards.value = Array.from({ length: count }, (_, index) => inputCards.value[index])
-  },
-  { immediate: true },
-)
-
-function resetInputCards() {
-  inputCards.value = Array.from({ length: targetCount.value }, () => undefined)
+// 換抽牌方式時清掉上一個方式留下的錯誤訊息
+async function setDrawMode(next: DrawMode) {
+  errorMessage.value = ''
+  await changeDrawMode(next)
 }
-
-// 不指定牌陣時，使用者自己定義的位置。張數改變時補滿或截短，已填的內容留著
-const customPositions = ref<CustomPosition[]>([])
-watch(
-  targetCount,
-  (count) => {
-    const next = Array.from({ length: count }, (_, index) => customPositions.value[index] ?? { label: '', prompt: '' })
-    customPositions.value = next
-  },
-  { immediate: true },
-)
-
-// 拖曳換位：兩張牌互換，中間的牌不動（插入式搬移會把中間整排推移，不是使用者要的）。
-// 位置定義留在原地，動的只有落在那個位置上的牌。
-function reorderInputCards(from: number, to: number) {
-  const list = inputCards.value
-  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) {
-    return
-  }
-  const a = list[from]
-  const b = list[to]
-  list[from] = b
-  list[to] = a
-}
-
-function updateCustomPosition(index: number, patch: Partial<CustomPosition>) {
-  const current = customPositions.value[index]
-  if (current) {
-    customPositions.value[index] = { ...current, ...patch }
-  }
-}
-
-// 全部留白就不送，後端會維持「無位置」的舊行為；只要有填就必須每一格都有名稱
-const customPositionsParam = computed(() => {
-  if (selectedSpread.value) {
-    return undefined
-  }
-  const filled = customPositions.value.filter((item) => item.label.trim())
-  if (filled.length !== customPositions.value.length || filled.length === 0) {
-    return undefined
-  }
-  return customPositions.value.map((item) => ({ label: item.label.trim(), prompt: item.prompt.trim() }))
-})
 
 // ---- 步驟 3 的狀態 ----
 const reading = ref<ReadingResponse | null>(null)
@@ -222,87 +170,6 @@ async function bootstrap() {
     errorMessage.value = error instanceof Error ? error.message : '無法取得初始化資料'
   } finally {
     isBootstrapping.value = false
-  }
-}
-
-// ---- 牌堆 ----
-
-async function ensureCardsLoaded() {
-  if (allCards.value.length > 0) {
-    return
-  }
-  cardsError.value = ''
-  try {
-    allCards.value = await fetchCards()
-  } catch (error) {
-    cardsError.value = error instanceof Error ? error.message : '無法載入牌卡清單'
-  }
-}
-
-// 洗牌：每張配一個亂數鍵再排序（這是均勻的；sort(() => Math.random() - 0.5) 不是）。
-// 正逆位在這裡就決定，不能等使用者選完才抽，否則「手動」只是換個介面的自動抽牌。
-function shuffleDeck() {
-  deck.value = allCards.value
-    .map((card) => ({ card, key: Math.random() }))
-    .sort((a, b) => a.key - b.key)
-    .map<DeckCard>(({ card }) => ({
-      ...card,
-      orientation: Math.random() > 0.5 ? 'upright' : 'reversed',
-      picked: false,
-    }))
-
-  picked.value = []
-}
-
-async function setDrawMode(next: DrawMode) {
-  drawMode.value = next
-  errorMessage.value = ''
-
-  if (next === 'fan' || next === 'input') {
-    await ensureCardsLoaded()
-  }
-  if (next === 'fan' && deck.value.length === 0) {
-    shuffleDeck()
-  }
-}
-
-function pickFromDeck(index: number) {
-  const card = deck.value[index]
-  if (!card || card.picked || picked.value.length >= targetCount.value) {
-    return
-  }
-  card.picked = true
-  picked.value.push(card)
-}
-
-function undoPick() {
-  const last = picked.value.pop()
-  if (last) {
-    last.picked = false
-  }
-}
-
-// 指定位置放牌。同一張牌原本在別的位置就先清掉，不要同時出現兩次
-function setInputCard(index: number, card: CardSummary) {
-  const list = inputCards.value
-  if (index < 0 || index >= list.length) {
-    return
-  }
-  const existing = list.findIndex((item) => item?.id === card.id)
-  if (existing >= 0) {
-    list[existing] = undefined
-  }
-  list[index] = { ...card, orientation: 'upright' }
-}
-
-function removeInputCard(index: number) {
-  inputCards.value[index] = undefined
-}
-
-function toggleInputOrientation(index: number) {
-  const card = inputCards.value[index]
-  if (card) {
-    card.orientation = card.orientation === 'upright' ? 'reversed' : 'upright'
   }
 }
 
@@ -406,99 +273,49 @@ const route = useRoute()
 
 // ---- 結果快照 ----
 // 從結果頁離開去登入（或重新整理）會把元件卸載，抽到的牌就不見了。
-// 用 sessionStorage 把結果暫存起來，回來時原樣還原；分頁關掉、登出就清掉。
-// 太舊的快照不還原，免得隔很久回到這個分頁，看到的是上次的牌
-const RESULT_SNAPSHOT_TTL_MS = 2 * 60 * 60 * 1000
-
-interface ResultSnapshot {
-  reading: ReadingResponse
-  question: string
-  domain: QuestionDomain | ''
-  narrationText: string
-  // 解讀是不是完整產生的（舊快照沒有）：還原成「已停止」的話，之後保存不會帶上解讀
-  narrationDone?: boolean
-  narrationModel?: string
-  // 已經保存成紀錄的話，登入回來不要又變成沒存過
-  savedReadingId: string
-  savedAt: number
-  // 抽牌追問（舊快照沒有）：補充牌與已經寫好的延伸回答
-  followUps?: FollowUpRound[]
-  followUpText?: string
-  followUpModel?: string
-  followUpAnswered?: number
-}
-
+// 用 sessionStorage 把結果暫存起來，回來時原樣還原；分頁關掉、登出就清掉（存檔、讀回、過期在 lib/resultSnapshot.ts）
 function saveResultSnapshot() {
-  try {
-    if (!reading.value) {
-      sessionStorage.removeItem(RESULT_SNAPSHOT_KEY)
-      return
-    }
-    const snapshot: ResultSnapshot = {
-      reading: reading.value,
-      question: question.value,
-      domain: selectedDomain.value,
-      narrationText: narrationText.value,
-      narrationDone: narrationStatus.value === 'done',
-      narrationModel: narrationModel.value,
-      savedReadingId: savedReadingId.value,
-      savedAt: Date.now(),
-      followUps: followUp.rounds,
-      // 只留完整寫完的延伸回答；寫到一半的重新整理後不還原
-      followUpText: followUp.narrationStatus === 'done' ? followUp.narrationText : '',
-      followUpModel: followUp.narrationModel,
-      followUpAnswered: followUp.answeredRounds,
-    }
-    sessionStorage.setItem(RESULT_SNAPSHOT_KEY, JSON.stringify(snapshot))
-  } catch {
-    // 無痕視窗或容量不足時存不起來，就只是沒有還原功能，不影響其他流程
-  }
+  writeResultSnapshot(
+    reading.value
+      ? {
+          reading: reading.value,
+          question: question.value,
+          domain: selectedDomain.value,
+          narrationText: narrationText.value,
+          narrationDone: narrationStatus.value === 'done',
+          narrationModel: narrationModel.value,
+          savedReadingId: savedReadingId.value,
+          followUps: followUp.rounds,
+          // 只留完整寫完的延伸回答；寫到一半的重新整理後不還原
+          followUpText: followUp.narrationStatus === 'done' ? followUp.narrationText : '',
+          followUpModel: followUp.narrationModel,
+          followUpAnswered: followUp.answeredRounds,
+        }
+      : null,
+  )
 }
 
 function restoreResultSnapshot() {
-  try {
-    const raw = sessionStorage.getItem(RESULT_SNAPSHOT_KEY)
-    if (!raw) {
-      return false
-    }
-    const snapshot = JSON.parse(raw) as ResultSnapshot
-    if (!snapshot?.reading?.cards?.length) {
-      clearResultSnapshot()
-      return false
-    }
-    if (!snapshot.savedAt || Date.now() - snapshot.savedAt > RESULT_SNAPSHOT_TTL_MS) {
-      clearResultSnapshot()
-      return false
-    }
-
-    reading.value = snapshot.reading
-    question.value = snapshot.question || snapshot.reading.question || ''
-    selectedDomain.value = snapshot.domain || ''
-    narrationText.value = snapshot.narrationText || ''
-    savedReadingId.value = snapshot.savedReadingId || ''
-    saveStatus.value = snapshot.savedReadingId ? 'saved' : 'idle'
-    saveError.value = ''
-    // AI 寫到一半被中斷的文字也留著，狀態標成已停止，使用者可以再按一次繼續
-    narrationModel.value = snapshot.narrationModel || ''
-    followUp.restore({
-      rounds: snapshot.followUps,
-      narrationText: snapshot.followUpText,
-      narrationModel: snapshot.followUpModel,
-      answeredRounds: snapshot.followUpAnswered,
-    })
-    narrationStatus.value = snapshot.narrationText
-      ? snapshot.narrationDone
-        ? 'done'
-        : 'stopped'
-      : snapshot.reading.analysis
-        ? 'ready'
-        : 'idle'
-    step.value = 3
-    return true
-  } catch {
-    clearResultSnapshot()
-    return false
-  }
+  const snapshot = readResultSnapshot()
+  if (!snapshot) return false
+  reading.value = snapshot.reading
+  question.value = snapshot.question || snapshot.reading.question || ''
+  selectedDomain.value = snapshot.domain || ''
+  narrationText.value = snapshot.narrationText || ''
+  savedReadingId.value = snapshot.savedReadingId || ''
+  saveStatus.value = snapshot.savedReadingId ? 'saved' : 'idle'
+  saveError.value = ''
+  // AI 寫到一半被中斷的文字也留著，狀態標成已停止，使用者可以再按一次繼續
+  narrationModel.value = snapshot.narrationModel || ''
+  followUp.restore({
+    rounds: snapshot.followUps,
+    narrationText: snapshot.followUpText,
+    narrationModel: snapshot.followUpModel,
+    answeredRounds: snapshot.followUpAnswered,
+  })
+  narrationStatus.value = restoredNarrationStatus(snapshot)
+  step.value = 3
+  return true
 }
 
 // 結果或 AI 文字一變就存檔，這樣重新整理也救得回來
@@ -638,13 +455,14 @@ async function handleSaveReading() {
 
 // ---- 流程 ----
 
-function onReadingReady(result: ReadingResponse) {
-  reading.value = result
+// 清掉這次結果的 AI 解讀、行情、保存狀態與追問（進新結果、重新開始、重抽共用）。
+// 原本三處各寫一份，重新開始與重抽漏清 AI 的錯誤訊息與模型名稱（2026-11-21 graphify 分析時發現）
+function resetResult() {
   cancelNarration()
   followUp.reset()
   narrationText.value = ''
   narrationError.value = ''
-  narrationStatus.value = result.analysis ? 'ready' : 'idle'
+  narrationStatus.value = 'idle'
   narrationSaved.value = null
   narrationModel.value = ''
   marketSnapshot.value = null
@@ -655,6 +473,12 @@ function onReadingReady(result: ReadingResponse) {
   savedReadingId.value = ''
   saveStatus.value = 'idle'
   saveError.value = ''
+}
+
+function onReadingReady(result: ReadingResponse) {
+  reading.value = result
+  resetResult()
+  narrationStatus.value = result.analysis ? 'ready' : 'idle'
   step.value = 3
 }
 
@@ -664,9 +488,7 @@ async function goToDraw() {
   // 上一次抽到、還沒進結果頁的牌不要留到這一次
   pendingAutoReading.value = null
   // 換牌陣後張數可能對不上，已選的牌一律清掉重來
-  picked.value = []
-  resetInputCards()
-  deck.value = []
+  clearPicks()
 
   if (!selectedSpread.value && drawMode.value === 'auto') {
     // 自動抽牌需要牌陣，不指定牌陣時退到手動
@@ -739,49 +561,23 @@ async function handleManualSubmit() {
 
 // 回到步驟 1：結果直接丟棄，不跳確認
 function restart() {
-  cancelNarration()
-  followUp.reset()
+  resetResult()
   clearResultSnapshot()
   reading.value = null
-  narrationText.value = ''
-  narrationStatus.value = 'idle'
-  narrationSaved.value = null
-  marketSnapshot.value = null
-  marketStatus.value = 'idle'
-  marketError.value = ''
-  marketRequestId += 1
-  savedReadingId.value = ''
-  saveStatus.value = 'idle'
-  saveError.value = ''
-  picked.value = []
-  resetInputCards()
-  deck.value = []
+  clearPicks()
   step.value = 1
 }
 
-// 重抽：保留問題與牌陣，只清結果與已選的牌，牌堆重洗
+// 重抽：保留問題與牌陣，只清結果與已選的牌，牌堆重洗。
+// 走和進抽牌一樣的 setDrawMode：重新整理或登入回來還原的結果沒有載過牌庫，
+// 原本直接洗牌會洗出空的牌堆、輸入模式也搜不到牌（2026-11-21 重構後實際走流程時發現）
 async function redraw() {
-  cancelNarration()
-  followUp.reset()
+  resetResult()
   clearResultSnapshot()
   reading.value = null
-  narrationText.value = ''
-  narrationStatus.value = 'idle'
-  narrationSaved.value = null
-  marketSnapshot.value = null
-  marketStatus.value = 'idle'
-  marketError.value = ''
-  marketRequestId += 1
-  savedReadingId.value = ''
-  saveStatus.value = 'idle'
-  saveError.value = ''
-  picked.value = []
-  resetInputCards()
+  clearPicks()
   step.value = 2
-
-  if (drawMode.value === 'fan') {
-    shuffleDeck()
-  }
+  await setDrawMode(drawMode.value)
 }
 
 // 在占卜頁直接按登出時元件不會重新掛載，要自己回到步驟 1。

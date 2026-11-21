@@ -25,3 +25,6 @@ dist-ssr
 
 # 第三方 skill（taste-skill）。實體在 ~/.claude/taste-skill，這裡只是連結，不進版控
 .claude/skills/design-taste-frontend/
+
+# graphify 產生的知識圖（本機用，不進 git）
+graphify-out/

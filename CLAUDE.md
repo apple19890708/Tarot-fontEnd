@@ -64,12 +64,13 @@
 - **`immediate` 的 watch 放在它會用到的 ref 後面**：`watch(..., { immediate: true })` 在建立元件當下就執行，callback 呼叫的函式裡用到、但寫在後面才宣告的 `const` 會丟 `Cannot access … before initialization`（型別檢查抓不到，網址帶著 id 進頁面才會爆）。
 - **畫面慣例在 `ui-check`**：骨架、更新按鈕的冷卻、回到頂端、刪除確認、指標說明、彈窗捲動鎖定、按鈕字級等 UI 規則都寫在 `.claude/skills/ui-check/SKILL.md` 的「本專案的 UI 慣例」；寫畫面前先看，交付前照它自檢。
 
-## 推送流程（2026-11-20 使用者決定：PR＋CI 通過才能合併）
+## 推送流程（2026-11-20 使用者決定：一律直接推 `main`）
 
-- 改動一律開分支（例如 `claude/<主題>`）、push 分支、開 PR，CI 綠了才合併到 `main`；不要直接 push `main`。
-- 開 PR：這台電腦沒有 `gh`，push 分支後把 GitHub 給的 `pull/new/<分支>` 連結交給使用者開，或請使用者合併。
-- 合併到 `main` 之後才部署：前端由 `deploy-pages.yml` 部署 GitHub Pages，後端由 Cloud Build 部署 Cloud Run。
-- 分支保護在 GitHub 的 repo 設定（Settings → Branches／Rules），必要的檢查：前端 `Frontend CI` 的 `build`、後端 `Backend CI` 的 `test`。
+- 使用者說「打包推上」時：兩個 repo 都寫週記、跑驗證，在 `main` 上 commit，直接 `git push origin main`（前後端一起）。不開分支、不開 PR。
+- 工作區若停在別的分支：先確認那個分支沒有自己的 commit 再切回 `main`；有的話先問使用者。
+- 推上 `main` 就部署：前端由 `deploy-pages.yml` 部署 GitHub Pages，後端由 Cloud Build 部署 Cloud Run。前後端的 API 改動要一起推，才不會一邊新一邊舊。
+- CI（前端 `Frontend CI` 的 `build`、後端 `Backend CI` 的 `test`）推上去後照樣會跑，但不擋推送；commit 前的 hook 已經跑過同樣的驗證。GitHub 若還留著 `main` 的分支保護，推送被擋時回報使用者，不要繞過。
+- 之前（同一天稍早）的規定是「開分支、PR、CI 綠了才合併」，已經取消。
 
 ## 部署
 
