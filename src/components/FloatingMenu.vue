@@ -27,7 +27,7 @@ const THEME_OPTIONS: { value: Theme; label: string }[] = [
 
 const STYLE_OPTIONS: { value: CardStyle; label: string }[] = [
   { value: 'original', label: '原版' },
-  { value: 'pixel', label: '像素' },
+  { value: 'watercolor', label: '水彩' },
 ]
 
 // 每次打開都重新收集：AI 解讀可能是後來才出現的

@@ -1,40 +1,28 @@
-// 牌面風格：原版（後端的 Rider-Waite 圖）或像素版（src/lib/pixelTarot/engine.js 即時畫出來）。
+// 牌面風格：原版（後端的 Rider-Waite 圖，/cards/*.jpg）或水彩版（v28 原創 SVG，/cards/*.svg）。
+// 水彩版取代了原本的像素版（2026-11-25 使用者決定：原版留著、像素版不保留、牌背不動）。
 // 元件一律用 cardImageUrl() 取牌面網址，切換時畫面會自動換圖。選擇記在這台瀏覽器裡。
-import { ref, shallowRef } from 'vue'
+import { ref } from 'vue'
 
 import { imageUrl } from './api'
 
-export type CardStyle = 'original' | 'pixel'
+export type CardStyle = 'original' | 'watercolor'
 
 const STORAGE_KEY = 'tarot.cardStyle'
 
+// 舊版存的 'pixel'（像素版已移除）當成水彩版：選過「另一種風格」的人照樣看到另一種
+export function parseCardStyle(saved: string | null): CardStyle {
+  return saved === 'watercolor' || saved === 'pixel' ? 'watercolor' : 'original'
+}
+
 function loadStyle(): CardStyle {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'pixel' ? 'pixel' : 'original'
+    return parseCardStyle(localStorage.getItem(STORAGE_KEY))
   } catch {
     return 'original'
   }
 }
 
 export const cardStyle = ref<CardStyle>(loadStyle())
-
-// 像素引擎約 70 KB，只有切到像素版才載入；載入前（或載入失敗）先顯示原版圖
-const pixelUrlOf = shallowRef<((image: string) => string | null) | null>(null)
-let loading: Promise<void> | null = null
-
-function ensureEngine() {
-  if (pixelUrlOf.value || loading) return
-  loading = import('./pixelTarot/engine.js')
-    .then((mod) => {
-      pixelUrlOf.value = mod.pixelCardUrl
-    })
-    .catch((error) => {
-      console.error('像素牌面載入失敗，先顯示原版：', error)
-    })
-    .finally(() => {
-      loading = null
-    })
-}
 
 export function setCardStyle(style: CardStyle) {
   cardStyle.value = style
@@ -43,21 +31,20 @@ export function setCardStyle(style: CardStyle) {
   } catch {
     // 私密模式等情況存不了，這次瀏覽仍然有效
   }
-  if (style === 'pixel') ensureEngine()
 }
 
-if (cardStyle.value === 'pixel') ensureEngine()
+// 後端資料庫存的是原版路徑（/cards/major-00-fool.jpg）。水彩版和原版同一個檔名、只換副檔名，
+// 放在同一個資料夾（後端 doc/v28-tarot-original-art-plan.md 3-5）。只換 /cards/ 底下的 jpg，
+// 其他路徑（雷諾曼的 /lenormand/、測試假資料）原樣回傳
+const ORIGINAL_CARD_IMAGE = /^(\/cards\/[a-z0-9-]+)\.jpg$/
 
-// 雷諾曼的原創 SVG（v27 3-3）：像素引擎只對應塔羅，雷諾曼一律顯示原圖
-const LENORMAND_IMAGE_PREFIX = '/lenormand/'
+export function watercolorImagePath(image: string) {
+  const match = ORIGINAL_CARD_IMAGE.exec(image)
+  return match ? `${match[1]}.svg` : image
+}
 
-// 牌面圖片網址：像素版對得上就用像素圖，否則用後端的原圖
+// 牌面圖片網址：水彩版換成同名 SVG，原版用後端的原圖；雷諾曼只有一種牌面，不受影響
 export function cardImageUrl(image?: string) {
   if (!image) return ''
-  if (image.startsWith(LENORMAND_IMAGE_PREFIX)) return imageUrl(image)
-  if (cardStyle.value === 'pixel' && pixelUrlOf.value) {
-    const url = pixelUrlOf.value(image)
-    if (url) return url
-  }
-  return imageUrl(image)
+  return imageUrl(cardStyle.value === 'watercolor' ? watercolorImagePath(image) : image)
 }
