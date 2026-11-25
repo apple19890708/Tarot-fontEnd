@@ -12,6 +12,7 @@ import { useFollowUps } from '../lib/useFollowUps'
 import { useReadingMarket } from '../lib/useReadingMarket'
 import FinanceNewsAnalysisHistory from '../components/market/FinanceNewsAnalysisHistory.vue'
 import StockAnalysisHistory from '../components/market/StockAnalysisHistory.vue'
+import LenormandHistory from '../components/lenormand/LenormandHistory.vue'
 import {
   deleteReading,
   fetchReadingDetail,
@@ -20,7 +21,7 @@ import {
   streamNarration,
   UnauthorizedError,
 } from '../lib/api'
-import { canUseAi, canUseStock } from '../lib/auth'
+import { canUseAi, canUseLenormand, canUseStock } from '../lib/auth'
 import { smoothScrollTo } from '../lib/motion'
 import { installWashi } from '../lib/pixelArt'
 import { tarotExport } from '../lib/recordExport'
@@ -47,16 +48,18 @@ const spreads = ref<Spread[]>([])
 
 // 這一頁有哪些分頁由路由的 meta.recordTabs 決定（2026-11-20 拆成兩頁）：
 // 塔羅紀錄（/history）只有塔羅；股市分析紀錄（/market/records）是股票分析（預設）＋財經新聞分析（?tab=news）。
+// 雷諾曼紀錄（/lenormand/records，v27 階段 6）只有雷諾曼一個分頁。
 // 各分頁的清單與內容完全分開
-type HistoryTab = 'tarot' | 'stock' | 'news'
+type HistoryTab = 'tarot' | 'stock' | 'news' | 'lenormand'
 const ALL_TABS = [
   { value: 'tarot', label: '塔羅紀錄' },
   { value: 'stock', label: '股票分析' },
   { value: 'news', label: '財經新聞' },
+  { value: 'lenormand', label: '雷諾曼紀錄' },
 ] as const
 const allowedTabs = computed(() => {
   const wanted = (route.meta.recordTabs as HistoryTab[] | undefined) ?? ['tarot']
-  return wanted.filter((value) => value === 'tarot' || canUseStock.value)
+  return wanted.filter((value) => value === 'tarot' || (value === 'lenormand' ? canUseLenormand.value : canUseStock.value))
 })
 const TABS = computed(() => ALL_TABS.filter((option) => allowedTabs.value.includes(option.value)))
 const tab = computed<HistoryTab>(() => {
@@ -72,6 +75,7 @@ const HEADINGS = {
   tarot: { eyebrow: 'Reading History', title: '塔羅紀錄' },
   stock: { eyebrow: 'Stock Analysis', title: '股票分析紀錄' },
   news: { eyebrow: 'Finance News Analysis', title: '財經新聞分析紀錄' },
+  lenormand: { eyebrow: 'Lenormand Records', title: '雷諾曼紀錄' },
 } as const
 
 // 選中的那一筆放在網址（?id=），重新整理還是同一筆；在股票分析那一邊時 id 屬於股票紀錄，這裡不理它
@@ -394,6 +398,10 @@ onBeforeUnmount(() => {
         在「股市追蹤」的「財經新聞」分頁跑過的 AI 影響分析會留在這裡，最多 30 份；股市頁只顯示今天最新的一份。
         每一份都留著當時交給 AI 的新聞，點文中的小編號可以對回原始新聞。
       </p>
+      <p v-else-if="tab === 'lenormand'" class="mt-1 text-body text-ink-muted">
+        在雷諾曼結果頁按「保存紀錄」的占卜會留在這裡，最多 100 筆。從清單選一筆，就能重看當時的牌、組合分析與撲克花色；
+        分析每次打開都依最新的規則重算。
+      </p>
       <p v-else-if="tab === 'stock'" class="mt-1 text-body text-ink-muted">
         在「股市追蹤」的個股分析裡跑過的 AI 深度分析會留在這裡，最多 100 筆。每一筆都留著當時的行情與持股，
         回頭看得出 AI 是根據什麼寫的。
@@ -432,6 +440,7 @@ onBeforeUnmount(() => {
     </header>
 
     <StockAnalysisHistory v-if="tab === 'stock'" />
+    <LenormandHistory v-else-if="tab === 'lenormand'" />
     <FinanceNewsAnalysisHistory v-else-if="tab === 'news'" />
 
     <template v-else>

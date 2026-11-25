@@ -77,6 +77,19 @@ describe('抽牌狀態', () => {
     expect(draw.deck.value).toHaveLength(10)
   })
 
+  it('沒有正逆位的牌組（雷諾曼）：洗牌一律正位、輸入不能切換；牌庫用傳入的 loadCards', async () => {
+    const own = Array.from({ length: 52 }, (_, i) => ({ id: String(i + 1), nameZh: `牌${i + 1}`, nameEn: '', image: '' }))
+    const loadCards = vi.fn(async () => own)
+    const draw = useDrawState({ targetCount: computed(() => 3), selectedSpread: ref({ key: 'theme-3' }), loadCards, orientations: false })
+    await draw.setDrawMode('fan')
+    expect(loadCards).toHaveBeenCalledTimes(1)
+    expect(draw.deck.value).toHaveLength(52)
+    expect(draw.deck.value.every((card) => card.orientation === 'upright')).toBe(true)
+    draw.setInputCard(0, own[0]!)
+    draw.toggleInputOrientation(0)
+    expect(draw.inputCards.value[0]!.orientation).toBe('upright')
+  })
+
   it('還沒載過牌庫就洗牌：牌堆是空的（重抽要先走 setDrawMode）', () => {
     const { draw } = setup(1)
     draw.shuffleDeck()

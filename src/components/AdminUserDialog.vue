@@ -143,6 +143,10 @@ const usageGroups = computed(() => {
               { label: '抽牌追問', value: quota(usage.ai.followUpToday ?? null, usage.ai.followUpLimit ?? null) },
             ]
           : []),
+        // 雷諾曼 AI 解讀（v27）舊版後端沒有，沒有就不顯示
+        ...(usage.ai.lenormandToday !== undefined
+          ? [{ label: '雷諾曼 AI 解讀', value: quota(usage.ai.lenormandToday, usage.ai.lenormandLimit ?? null) }]
+          : []),
         { label: '個股深度分析', value: quota(usage.ai.stockToday, usage.ai.stockLimit) },
         { label: '財經新聞分析', value: quota(usage.ai.newsToday, usage.ai.newsLimit) },
         { label: '個股分析紀錄', value: num(usage.ai.stockAnalyses) },
@@ -199,11 +203,11 @@ const BUTTON =
               <span v-if="user.disabled" class="inline-block border-2 border-[#2a1a14] bg-[#2a1a14] px-2 py-0.5 text-caption leading-none text-[#f1e7cf]">
                 已停用
               </span>
-              <!-- 信箱沒驗證過不能開通 AI 與股市（v24 3-1）；舊版後端沒有這個欄位就不顯示 -->
+              <!-- 信箱沒驗證過不能開通 AI、股市與雷諾曼（v24 3-1、v27 3-1）；舊版後端沒有這個欄位就不顯示 -->
               <span
                 v-if="user.role !== 'admin' && user.emailVerified === false"
                 class="inline-block border-2 border-[#b45309] px-2 py-0.5 text-caption leading-none text-[#b45309]"
-                title="信箱還沒驗證，不能開通 AI 與股市權限"
+                title="信箱還沒驗證，不能開通 AI、股市與雷諾曼權限"
               >
                 信箱未驗證
               </span>

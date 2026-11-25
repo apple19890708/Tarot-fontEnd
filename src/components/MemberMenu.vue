@@ -16,7 +16,7 @@ export interface MenuRoute {
   label: string
   tier: 'public' | 'member' | 'stock'
   admin: boolean
-  group?: 'tarot' | 'stock'
+  group?: 'tarot' | 'lenormand' | 'stock'
 }
 
 const props = defineProps<{ routes: MenuRoute[]; wide: boolean }>()
@@ -31,15 +31,18 @@ const panelEl = ref<HTMLElement | null>(null)
 // 頭像：先用名字的第一個字（之後要上傳照片再另外做）
 const initial = computed(() => Array.from(currentUser.value?.displayName?.trim() || '?')[0]!.toUpperCase())
 
-// 分組照路由的 meta.menuGroup：塔羅（塔羅紀錄、占卜月曆）、股市（股市追蹤、股市分析紀錄）；
-// 管理者頁放「管理」，其他（管理者自訂的頁面）放「其他頁面」（2026-11-20 使用者要求：拆掉「我的紀錄」）
+// 分組照路由的 meta.menuGroup：塔羅（塔羅紀錄、占卜月曆）、雷諾曼（之後放雷諾曼紀錄，v27 階段 6；雷諾曼占卜本身在頂欄的「占卜」選單，
+// 這一組現在沒有項目，和其他空的組一樣不顯示；沒權限的人也看不到）、
+// 股市（股市追蹤、股市分析紀錄）；管理者頁放「管理」，其他（管理者自訂的頁面）放「其他頁面」（2026-11-20 使用者要求：拆掉「我的紀錄」）
 const groups = computed(() => {
   const tarot = props.routes.filter((r) => r.group === 'tarot')
+  const lenormand = props.routes.filter((r) => r.group === 'lenormand')
   const stock = props.routes.filter((r) => r.group === 'stock')
   const admin = props.routes.filter((r) => r.admin && !r.group)
   const others = props.routes.filter((r) => !r.group && !r.admin)
   return [
     { key: 'tarot', label: '塔羅', items: tarot },
+    { key: 'lenormand', label: '雷諾曼', items: lenormand },
     { key: 'stock', label: '股市', items: stock },
     { key: 'others', label: '其他頁面', items: others },
     { key: 'admin', label: '管理', items: admin },

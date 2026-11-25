@@ -3,13 +3,14 @@ import { gsap } from 'gsap'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { motionDuration, prefersReducedMotion, type CardPose } from '../lib/motion'
-import type { DeckCard, FanPhase } from '../types'
+import type { FanPhase } from '../types'
 
 // 攤成扇形的牌背。使用者看不到是什麼牌，點了才翻到牌陣上。
 // 流程：洗牌（代表牌交錯插入）→ 切成兩或三落讓使用者選一落 → 只把那一落發成扇形 → 選牌。
 // 牌的順序與正逆位都由外層決定，這裡只決定「顯示哪一落」；對外發出的 index 一律是 deck 裡的位置。
+// 只用得到 id 與 picked，塔羅與雷諾曼的牌堆都能直接傳進來（v27）
 const props = defineProps<{
-  deck: DeckCard[]
+  deck: { id: string; picked: boolean }[]
   // 還能不能再選（選滿牌陣張數就停）
   canPick: boolean
   // 正在飛回扇形的牌（收回時）：飛行期間先藏起來，抵達後再出現

@@ -18,6 +18,9 @@ export default defineConfig(({ command }) => ({
       '/api': process.env.API_PROXY_TARGET || 'http://localhost:4000',
       // 牌卡圖片由後端的 /cards 靜態提供
       '/cards': process.env.API_PROXY_TARGET || 'http://localhost:4000',
+      // 雷諾曼牌面（v27）由後端的 /lenormand 靜態提供。前端也有 /lenormand 這個頁面，
+      // 所以只轉 /lenormand/ 底下的檔案（^ 開頭是正規表示式），重新整理 /lenormand 頁面時才不會被轉去後端
+      '^/lenormand/.+': process.env.API_PROXY_TARGET || 'http://localhost:4000',
     },
   },
 }))

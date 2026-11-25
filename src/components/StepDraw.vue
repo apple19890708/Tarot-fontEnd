@@ -1,42 +1,60 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="C extends DrawableCard">
 import { gsap } from 'gsap'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import CheckboxField from './CheckboxField.vue'
 import FanDeck from './FanDeck.vue'
 import FlyingCard from './FlyingCard.vue'
 import SpreadSlots from './SpreadSlots.vue'
 import { cardImageUrl } from '../lib/cardStyle'
 import { motionDuration, prefersReducedMotion, type CardPose } from '../lib/motion'
 import type {
-  CardSummary,
+  AutoDealResult,
+  CardPickerGroup,
   CustomPosition,
-  DeckCard,
+  DeckOf,
+  DrawableCard,
   DrawMode,
   FanPhase,
-  InputCard,
-  ReadingResponse,
+  InputOf,
   SlotCard,
-  Spread,
+  SpreadShape,
 } from '../types'
 
-const props = defineProps<{
+// v27：牌的型別是泛型（塔羅 CardSummary、雷諾曼 LenormandDrawCard），選牌器分組由外面傳入（lib/cardGroups.ts）；
+// orientations 為 false（雷諾曼）時不顯示正逆位、不能切換；modes 給了就只開放那幾種抽牌方式
+// 布林 prop 沒傳時 Vue 會當成 false（不是 undefined），塔羅沒傳 orientations 就會被當成沒有正逆位；預設要寫成 true（2026-11-25 回歸測試抓到）
+const props = withDefaults(defineProps<{
   mode: DrawMode
-  spread: Spread | null
+  spread: SpreadShape | null
   targetCount: number
   // 手動抽牌：洗好的牌堆與已依序選出的牌
-  deck: DeckCard[]
-  picked: DeckCard[]
+  deck: DeckOf<C>[]
+  picked: DeckOf<C>[]
   // 輸入已抽到的：全牌清單，與放在各個位置上的牌（空位是 undefined）
-  allCards: CardSummary[]
-  inputCards: (InputCard | undefined)[]
+  allCards: C[]
+  inputCards: (InputOf<C> | undefined)[]
   cardSearch: string
   cardsError: string
   isLoading: boolean
   // 不指定牌陣時，使用者自己定義的位置；長度與 targetCount 一致
   customPositions: CustomPosition[]
   // 自動抽牌的結果。拿到之後才知道抽到什麼，動畫才有牌可以發；跑完通知外層進結果頁
-  autoResult: ReadingResponse | null
-}>()
+  autoResult: AutoDealResult | null
+  // 選牌器的分組與按鈕文字
+  groupCards: (cards: C[], search: string) => CardPickerGroup<C>[]
+  cardLabel?: (card: C) => string
+  searchPlaceholder?: string
+  // 有沒有正逆位（沒給就是有）
+  orientations?: boolean
+  // 這個牌陣能用的抽牌方式（沒給就照舊：自動抽牌要有牌陣）
+  modes?: DrawMode[]
+  // 輸入模式照牌陣的格子排（雷諾曼大藍圖 9×4，v27 階段 5）；沒給就是原本一列一個位置的清單
+  inputGrid?: boolean
+}>(), { orientations: true })
+
+const hasOrientation = computed(() => props.orientations)
+const labelOf = (card: C) => (props.cardLabel ? props.cardLabel(card) : card.nameZh)
 
 const emit = defineEmits<{
   'update:mode': [value: DrawMode]
@@ -46,7 +64,7 @@ const emit = defineEmits<{
   reshuffle: []
   pick: [index: number]
   undoPick: []
-  setInputCard: [index: number, card: CardSummary]
+  setInputCard: [index: number, card: C]
   removeInputCard: [index: number]
   toggleInputOrientation: [index: number]
   updateCustomPosition: [index: number, patch: Partial<CustomPosition>]
@@ -57,11 +75,14 @@ const emit = defineEmits<{
 
 // 手動抽牌是這裡的主角（自己洗牌、切牌、挑牌），排在最前面；
 // 自動抽牌走 /api/readings/draw，那支端點一定要牌陣，不指定牌陣時只能手動
-const MODES = computed(() => [
-  { key: 'fan' as const, label: '手動抽牌', enabled: true },
-  { key: 'auto' as const, label: '自動抽牌', enabled: Boolean(props.spread) },
-  { key: 'input' as const, label: '輸入已抽到的', enabled: true },
-])
+const MODES = computed(() => {
+  const allowed = (key: DrawMode) => (props.modes ? props.modes.includes(key) : key !== 'auto' || Boolean(props.spread))
+  return [
+    { key: 'fan' as const, label: '手動抽牌', enabled: allowed('fan') },
+    { key: 'auto' as const, label: '自動抽牌', enabled: allowed('auto') },
+    { key: 'input' as const, label: '輸入已抽到的', enabled: allowed('input') },
+  ]
+})
 
 // 有牌陣就用牌陣定義，否則用使用者自訂的；兩者都沒有才退回「第 N 張」
 const slots = computed(() =>
@@ -177,7 +198,7 @@ function elementPose(el: Element | null | undefined): CardPose | null {
 }
 
 // 清單裡的按鈕是長條形，替身要是一張牌：以按鈕中心為起點、大小與終點的縮圖相同
-async function flyInputCard(card: CardSummary, index: number, source: Element | null) {
+async function flyInputCard(card: C, index: number, source: Element | null) {
   const target = elementPose(inputThumbEls[index])
   const button = elementPose(source)
   if (!target || !button || prefersReducedMotion()) {
@@ -274,7 +295,7 @@ function onAutoDraw() {
   void nextTick(startAutoShuffle)
 }
 
-async function runAutoDeal(result: ReadingResponse) {
+async function runAutoDeal(result: AutoDealResult) {
   stopAutoShuffle()
   autoPhase.value = 'dealing'
   // 等位置格畫出來才量得到終點
@@ -285,7 +306,7 @@ async function runAutoDeal(result: ReadingResponse) {
     id: `${entry.card.id}-${index}`,
     nameZh: entry.card.nameZh,
     image: entry.card.image ?? '',
-    orientation: entry.orientation,
+    orientation: entry.orientation ?? 'upright',
   }))
 
   for (const [index, card] of cards.entries()) {
@@ -414,7 +435,7 @@ function closePicker() {
   pickerIndex.value = null
 }
 
-function chooseCard(card: CardSummary, event: MouseEvent) {
+function chooseCard(card: C, event: MouseEvent) {
   const index = pickerIndex.value
   if (index === null) {
     return
@@ -427,10 +448,38 @@ function chooseCard(card: CardSummary, event: MouseEvent) {
     void flyInputCard(card, index, source)
   }
   closePicker()
+  // 格子模式（大藍圖 36 張）：照著實體牌一張一張輸入，選完直接跳到下一個空格
+  if (gridInput.value && autoAdvance.value) {
+    const next = nextEmptyIndex(index)
+    if (next !== null) void nextTick(() => openPicker(next))
+  }
+}
+
+// ---- 格子模式（v27 大藍圖）----
+// 牌陣有網格、而且外面要求照格子排時才用；位置座標照牌陣定義，一格就是一個宮位
+const gridInput = computed(() => Boolean(props.inputGrid && props.spread?.grid))
+const gridColumns = computed(() => props.spread?.grid?.cols ?? 1)
+// 選完自動跳到下一個空格（預設開）
+const autoAdvance = ref(true)
+
+// 從 index 之後找下一個空格，找到最後再從頭找；全部填滿時是 null
+function nextEmptyIndex(index: number) {
+  const total = props.inputCards.length
+  for (let step = 1; step < total; step += 1) {
+    const candidate = (index + step) % total
+    if (!props.inputCards[candidate]) return candidate
+  }
+  return null
+}
+
+// 這張牌放在哪一格（選牌器標示「已在第 N 格」用）
+function usedSlotNumber(card: C) {
+  const at = props.inputCards.findIndex((item) => item?.id === card.id)
+  return at >= 0 ? at + 1 : null
 }
 
 // 這張牌已經放在別的位置上了（放在目前這個位置的不算，點它等於不換）
-function usedElsewhere(card: CardSummary) {
+function usedElsewhere(card: C) {
   return selectedInputIds.value.has(card.id) && props.inputCards[pickerIndex.value ?? -1]?.id !== card.id
 }
 
@@ -451,47 +500,8 @@ const inputEnough = computed(() => inputFilled.value === props.targetCount)
 
 const selectedInputIds = computed(() => new Set(props.inputCards.filter(Boolean).map((card) => card!.id)))
 
-// 宮廷牌由後端的 kind 判斷（編號在不同牌組不一致）；
-// 舊版後端沒有這個欄位時，退回用小牌編號 11～14 粗略判斷
-function isCourt(card: CardSummary) {
-  return card.kind ? card.kind === 'court' : card.arcanaType === 'minor' && card.number >= 11
-}
-
-// 依搜尋字串過濾，再依大牌／四花色分組。
-// 每個花色裡數字牌在上、宮廷牌另起一排接在下面：同花色的牌放在一起好找，
-// 宮廷牌又和一到十的進程分開一排，不會混在一起。
-const cardGroups = computed(() => {
-  const keyword = props.cardSearch.trim().toLowerCase()
-  const match = (card: CardSummary) =>
-    !keyword ||
-    card.nameZh.toLowerCase().includes(keyword) ||
-    (card.nameEn || '').toLowerCase().includes(keyword)
-
-  // 數字牌一排五張（一到十剛好兩排），宮廷牌一排四張（侍者到國王剛好一排）
-  const groups: { key: string; label: string; cards: CardSummary[]; courts: CardSummary[] }[] = [
-    { key: 'major', label: '大阿爾克那', cards: [], courts: [] },
-    { key: 'wands', label: '權杖', cards: [], courts: [] },
-    { key: 'cups', label: '聖杯', cards: [], courts: [] },
-    { key: 'swords', label: '寶劍', cards: [], courts: [] },
-    { key: 'pentacles', label: '錢幣', cards: [], courts: [] },
-  ]
-  const byKey = Object.fromEntries(groups.map((group) => [group.key, group]))
-
-  props.allCards.filter(match).forEach((card) => {
-    if (card.arcanaType === 'major') {
-      byKey.major?.cards.push(card)
-      return
-    }
-    const bucket = byKey[card.suit ?? '']
-    if (isCourt(card)) {
-      bucket?.courts.push(card)
-    } else {
-      bucket?.cards.push(card)
-    }
-  })
-
-  return groups.filter((group) => group.cards.length > 0 || group.courts.length > 0)
-})
+// 選牌器的分組由外面決定（塔羅依大牌與花色、雷諾曼依牌號），這裡只負責畫
+const cardGroups = computed(() => props.groupCards(props.allCards, props.cardSearch))
 </script>
 
 <template>
@@ -546,7 +556,7 @@ const cardGroups = computed(() => {
     -->
     <div v-if="mode === 'auto'" class="flex flex-1 flex-col space-y-4">
       <p class="border-2 border-tint/10 bg-tint/5 px-4 py-3 text-sm leading-7 text-ink-soft">
-        由系統抽出 {{ targetCount }} 張牌並決定正逆位，直接填入{{ spread?.name }}的各個位置。
+        由系統抽出 {{ targetCount }} 張牌{{ hasOrientation ? '並決定正逆位' : '' }}，直接填入{{ spread?.name }}的各個位置。
       </p>
 
       <div class="flex flex-1 flex-col justify-center space-y-4 sm:space-y-5">
@@ -577,6 +587,7 @@ const cardGroups = computed(() => {
           :labels="positionLabels"
           :cards="autoLanded"
           :hidden-ids="landingIds"
+          :show-orientation="hasOrientation"
           :grid="spread?.grid"
           :layouts="spread?.positions.map((position) => position.layout)"
         />
@@ -655,6 +666,7 @@ const cardGroups = computed(() => {
           :labels="positionLabels"
           :cards="picked"
           :hidden-ids="landingIds"
+          :show-orientation="hasOrientation"
         />
       </Transition>
 
@@ -675,8 +687,11 @@ const cardGroups = computed(() => {
     <div v-else class="space-y-4">
       <p class="text-sm text-ink-soft/85">
         已輸入 {{ inputFilled }} / {{ targetCount }} 張。
-        <span class="hidden md:inline">順序即為位置順序，可以拖曳調整。</span>
-        <span class="md:hidden">點一下位置就可以挑牌。</span>
+        <template v-if="gridInput">照實體牌攤開的樣子，一格一格輸入（一格是一個宮位）；點有牌的格子可以換牌，✕ 清除。</template>
+        <template v-else>
+          <span class="hidden md:inline">順序即為位置順序，可以拖曳調整。</span>
+          <span class="md:hidden">點一下位置就可以挑牌。</span>
+        </template>
       </p>
 
       <!-- 左右並排：左邊是位置與已輸入的牌，右邊是選牌清單。
@@ -721,8 +736,63 @@ const cardGroups = computed(() => {
           </div>
         </div>
 
+        <!--
+          格子模式（雷諾曼大藍圖 9×4）：照牌陣的形狀排，一格一個宮位，點一格就跳出選牌視窗；
+          手機放不下 9 欄，整塊左右捲動（每格至少 5rem：4.5rem 時兩位數宮位的名稱會被 ✕ 擠掉），外面的版面不跟著撐開
+        -->
+        <div v-if="gridInput" class="space-y-2">
+          <CheckboxField v-model="autoAdvance">選完自動跳到下一個空格</CheckboxField>
+          <div class="-mx-1 overflow-x-auto px-1 pb-1">
+            <ul
+              class="grid gap-1.5"
+              :style="{ gridTemplateColumns: `repeat(${gridColumns}, minmax(5rem, 1fr))` }"
+              aria-label="大藍圖的格子"
+            >
+              <li
+                v-for="(slot, index) in slots"
+                :key="index"
+                class="relative min-w-0"
+                :style="spread?.positions[index]?.layout ? { gridColumn: spread.positions[index]!.layout!.col, gridRow: spread.positions[index]!.layout!.row } : undefined"
+              >
+                <button
+                  type="button"
+                  class="flex w-full cursor-pointer flex-col items-center gap-1 border-2 px-1 py-1.5 text-center transition hover:bg-tint/10 active:translate-x-[2px] active:translate-y-[2px]"
+                  :class="inputCards[index] ? 'border-accent-hue/40 bg-accent-hue/8' : 'border-dashed border-tint/20 bg-tint/5'"
+                  :aria-label="`${slot.label}：${inputCards[index] ? labelOf(inputCards[index]!) : '還沒選牌'}`"
+                  @click="openPicker(index)"
+                >
+                  <!-- 有牌時右上角有 ✕，宮位名稱讓出位置，才不會被蓋住（2026-11-25 手機截圖發現） -->
+                  <span class="w-full truncate text-caption text-ink-muted" :class="inputCards[index] ? 'pr-4 text-left' : ''">{{ slot.label }}</span>
+                  <span class="relative h-12 w-7 shrink-0">
+                    <img
+                      v-if="inputCards[index] && cardImageUrl(inputCards[index]!.image)"
+                      :src="cardImageUrl(inputCards[index]!.image)"
+                      :alt="inputCards[index]!.nameZh"
+                      class="absolute inset-0 h-full w-full object-cover"
+                    />
+                    <span v-else class="absolute inset-0 flex items-center justify-center text-ink-muted" aria-hidden="true">＋</span>
+                  </span>
+                  <span class="w-full truncate text-caption" :class="inputCards[index] ? 'text-ink' : 'text-ink-muted'">
+                    {{ inputCards[index] ? labelOf(inputCards[index]!) : '選牌' }}
+                  </span>
+                </button>
+                <button
+                  v-if="inputCards[index]"
+                  type="button"
+                  class="absolute right-0.5 top-0.5 flex h-5 w-5 cursor-pointer items-center justify-center bg-surface/90 text-caption text-ink-soft transition hover:text-danger active:translate-x-[1px] active:translate-y-[1px]"
+                  :aria-label="`清除${slot.label}的牌`"
+                  title="清除這一格"
+                  @click="emit('removeInputCard', index)"
+                >
+                  ✕
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+
         <!-- 每個位置都先排好，還沒放牌的位置也看得到；點一下就跳出選牌視窗。桌機排成兩欄，省下高度 -->
-        <ul class="grid gap-2 md:grid-cols-2">
+        <ul v-else class="grid gap-2 md:grid-cols-2">
           <li
             v-for="(slot, index) in slots"
             :key="index"
@@ -765,7 +835,7 @@ const cardGroups = computed(() => {
                   :src="cardImageUrl(inputCards[index]!.image)"
                   :alt="inputCards[index]!.nameZh"
                   class="absolute inset-0 h-full w-full object-cover"
-                  :class="{ 'rotate-180': inputCards[index]!.orientation === 'reversed' }"
+                  :class="{ 'rotate-180': hasOrientation && inputCards[index]!.orientation === 'reversed' }"
                 />
                 <span
                   v-else
@@ -776,7 +846,7 @@ const cardGroups = computed(() => {
                 </span>
               </span>
               <span v-if="inputCards[index]" class="min-w-0 flex-1 truncate text-sm text-ink">
-                {{ inputCards[index]!.nameZh }}
+                {{ labelOf(inputCards[index]!) }}
               </span>
               <span v-else class="min-w-0 flex-1 truncate text-sm text-ink-muted">
                 點一下選牌
@@ -785,6 +855,7 @@ const cardGroups = computed(() => {
 
             <template v-if="inputCards[index]">
               <button
+                v-if="hasOrientation"
                 class="cursor-pointer border-2 border-tint/15 px-2 py-1 text-[14px] text-ink-soft transition hover:bg-tint/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
                 type="button"
                 @click="emit('toggleInputOrientation', index)"
@@ -841,7 +912,8 @@ const cardGroups = computed(() => {
               <div class="min-w-0">
                 <p class="text-[10px] uppercase tracking-[0.2em] text-ink-muted">選一張牌</p>
                 <p class="truncate text-sm font-medium text-ink">
-                  {{ (pickerIndex ?? 0) + 1 }}. {{ slots[pickerIndex ?? 0]?.label }}
+                  <!-- 格子模式的位置名稱本身就有編號（例如「3 遠行」），不再加「3.」 -->
+                  {{ gridInput ? '' : `${(pickerIndex ?? 0) + 1}. ` }}{{ slots[pickerIndex ?? 0]?.label }}
                 </p>
                 <p v-if="slots[pickerIndex ?? 0]?.prompt" class="truncate text-[11px] text-ink-muted">
                   {{ slots[pickerIndex ?? 0]?.prompt }}
@@ -861,7 +933,7 @@ const cardGroups = computed(() => {
                 :value="cardSearch"
                 type="search"
                 class="w-full border-2 border-tint/10 bg-tint/5 px-4 py-2 text-sm text-ink outline-none transition placeholder:text-ink-muted focus:border-accent-hue/40"
-                placeholder="搜尋牌名…"
+                :placeholder="searchPlaceholder ?? '搜尋牌名…'"
                 @input="emit('update:cardSearch', ($event.target as HTMLInputElement).value)"
               />
               <p v-if="cardsError" class="border-2 border-danger-hue/20 bg-danger-hue/10 px-3 py-2 text-sm text-danger">
@@ -877,12 +949,9 @@ const cardGroups = computed(() => {
                 >
                   {{ group.label }}
                 </p>
-                <!-- 數字牌（或大牌）一排五張，宮廷牌接在下面一排四張；手機放不下牌名，一律一排兩張 -->
+                <!-- 每組可以再分幾排（塔羅：數字牌一排五張、宮廷牌一排四張；手機一律一排兩張），排法見 lib/cardGroups.ts -->
                 <div
-                  v-for="row in [
-                    { key: 'cards', cols: 'grid-cols-2 sm:grid-cols-5', cards: group.cards },
-                    { key: 'courts', cols: 'grid-cols-2 sm:grid-cols-4', cards: group.courts },
-                  ].filter((item) => item.cards.length > 0)"
+                  v-for="row in group.rows"
                   :key="row.key"
                   class="grid gap-1.5 pt-1.5"
                   :class="row.cols"
@@ -895,11 +964,12 @@ const cardGroups = computed(() => {
                       ? 'border-accent-hue/40 bg-accent-hue/20 text-accent'
                       : 'border-tint/10 bg-tint/5 text-ink-soft hover:bg-tint/10'"
                     type="button"
-                    :title="card.nameZh"
+                    :title="labelOf(card)"
                     :disabled="usedElsewhere(card)"
                     @click="chooseCard(card, $event)"
                   >
-                    {{ card.nameZh }}
+                    {{ labelOf(card) }}
+                    <span v-if="gridInput && usedElsewhere(card)" class="block text-caption">已在第 {{ usedSlotNumber(card) }} 格</span>
                   </button>
                 </div>
               </div>

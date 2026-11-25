@@ -1,25 +1,44 @@
 // 占卜步驟 2（抽牌）的狀態（2026-11-21 從 HomeView 搬出來）：三種抽牌方式（自動／手動扇形／輸入已抽到的牌）、
 // 洗好的牌堆、依序選出的牌、輸入的牌、不指定牌陣時的自訂位置。
-// 張數（targetCount）由步驟 1 的牌陣決定；張數一變，輸入的牌與自訂位置補滿或截短，已填的留著
+// 張數（targetCount）由步驟 1 的牌陣決定；張數一變，輸入的牌與自訂位置補滿或截短，已填的留著。
+// v27：牌的型別改成泛型，塔羅（CardSummary，預設）與雷諾曼（LenormandDrawCard）共用；
+// 牌庫由 loadCards 載入，沒給就是塔羅的 /api/cards。orientations 為 false（雷諾曼）時一律正位，不能切換
 import { computed, ref, watch, type Ref } from 'vue'
 
 import { fetchCards } from './api'
-import type { CardSummary, CustomPosition, DeckCard, DrawMode, InputCard, Spread } from '../types'
+import type { CardSummary, CustomPosition, DeckOf, DrawableCard, DrawMode, InputOf } from '../types'
 
-export function useDrawState({ targetCount, selectedSpread }: { targetCount: Readonly<Ref<number>>; selectedSpread: Readonly<Ref<Spread | null>> }) {
+export interface DrawStateOptions<C extends DrawableCard> {
+  targetCount: Readonly<Ref<number>>
+  // 只用來判斷有沒有指定牌陣（沒有時才用自訂位置）
+  selectedSpread: Readonly<Ref<{ key: string } | null>>
+  loadCards?: () => Promise<C[]>
+  // 有沒有正逆位；預設有（塔羅）
+  orientations?: boolean
+}
+
+export function useDrawState<C extends DrawableCard = CardSummary>({
+  targetCount,
+  selectedSpread,
+  loadCards,
+  orientations = true,
+}: DrawStateOptions<C>) {
+  const load = loadCards ?? (fetchCards as unknown as () => Promise<C[]>)
+
   // 預設手動抽牌：自己洗牌挑牌是這個站的重點，自動抽牌是想快一點時才用
   const drawMode = ref<DrawMode>('fan')
-  const allCards = ref<CardSummary[]>([])
+  // 泛型的陣列放進 ref 會被 UnwrapRef 展開成另一個型別，這裡直接標成 Ref<C[]>
+  const allCards = ref([]) as Ref<C[]>
   const cardsError = ref('')
   const cardSearch = ref('')
 
   // 手動抽牌：洗好的牌堆與依序選出的牌
-  const deck = ref<DeckCard[]>([])
-  const picked = ref<DeckCard[]>([])
+  const deck = ref([]) as Ref<DeckOf<C>[]>
+  const picked = ref([]) as Ref<DeckOf<C>[]>
 
   // 輸入已抽到的牌。長度一直等於牌陣張數，index 就是位置順序，空位是 undefined，
   // 使用者才能直接點某個位置把牌放上去，不必照順序一張一張加
-  const inputCards = ref<(InputCard | undefined)[]>([])
+  const inputCards = ref([]) as Ref<(InputOf<C> | undefined)[]>
 
   // 給像素夜景的抽牌事件：每多一張就劃一顆流星、逆位就雲遮月。
   // 自動抽牌是一次出結果，沒有逐張事件，夜景只會跟著步驟明暗
@@ -90,7 +109,7 @@ export function useDrawState({ targetCount, selectedSpread }: { targetCount: Rea
     }
     cardsError.value = ''
     try {
-      allCards.value = await fetchCards()
+      allCards.value = await load()
     } catch (error) {
       cardsError.value = error instanceof Error ? error.message : '無法載入牌卡清單'
     }
@@ -98,13 +117,14 @@ export function useDrawState({ targetCount, selectedSpread }: { targetCount: Rea
 
   // 洗牌：每張配一個亂數鍵再排序（這是均勻的；sort(() => Math.random() - 0.5) 不是）。
   // 正逆位在這裡就決定，不能等使用者選完才抽，否則「手動」只是換個介面的自動抽牌。
+  // 沒有正逆位的牌組一律正位
   function shuffleDeck() {
     deck.value = allCards.value
       .map((card) => ({ card, key: Math.random() }))
       .sort((a, b) => a.key - b.key)
-      .map<DeckCard>(({ card }) => ({
+      .map(({ card }) => ({
         ...card,
-        orientation: Math.random() > 0.5 ? 'upright' : 'reversed',
+        orientation: orientations && Math.random() > 0.5 ? 'reversed' : 'upright',
         picked: false,
       }))
 
@@ -139,7 +159,7 @@ export function useDrawState({ targetCount, selectedSpread }: { targetCount: Rea
   }
 
   // 指定位置放牌。同一張牌原本在別的位置就先清掉，不要同時出現兩次
-  function setInputCard(index: number, card: CardSummary) {
+  function setInputCard(index: number, card: C) {
     const list = inputCards.value
     if (index < 0 || index >= list.length) {
       return
@@ -157,7 +177,7 @@ export function useDrawState({ targetCount, selectedSpread }: { targetCount: Rea
 
   function toggleInputOrientation(index: number) {
     const card = inputCards.value[index]
-    if (card) {
+    if (card && orientations) {
       card.orientation = card.orientation === 'upright' ? 'reversed' : 'upright'
     }
   }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { useRoute, useRouter } from 'vue-router'
 
@@ -19,40 +19,29 @@ import {
 import { canUseAi, canUseStock, isLoggedIn, onLogout } from '../lib/auth'
 import { refreshHealth } from '../lib/health'
 import { installPixelCardBack } from '../lib/pixelArt'
-import { resetSceneBus, sceneBus } from '../lib/sceneBus'
+import { useSceneSync } from '../lib/sceneBus'
 import { clearResultSnapshot, readResultSnapshot, restoredNarrationStatus, writeResultSnapshot } from '../lib/resultSnapshot'
 import { spreadForReading } from '../lib/readingSpread'
-import { useDrawState } from '../lib/useDrawState'
+import { tarotCardGroups } from '../lib/cardGroups'
 import { useFollowUps } from '../lib/useFollowUps'
+import { READING_STEPS as STEPS, useReadingFlow } from '../lib/useReadingFlow'
 import type {
+  CardSummary,
   DrawMode,
   ManualCardPick,
   NarrationStatus,
   MarketSnapshot,
   MarketStatus,
   QuestionDomain,
-  InputCard,
   ReadingResponse,
   SaveStatus,
   Spread,
 } from '../types'
 
-// ---- 步驟 ----
-// 1 問題（問題核心與牌陣）→ 2 抽牌（自動／手動／輸入）→ 3 結果（可加問 AI）
-const step = ref<1 | 2 | 3>(1)
-
 // 像素牌背放進 CSS 變數，要在子元件畫出牌背之前設好
 installPixelCardBack()
 
-const STEPS = [
-  { value: 1, label: '問題' },
-  { value: 2, label: '抽牌' },
-  { value: 3, label: '結果' },
-] as const
-
 // ---- 步驟 1 的狀態 ----
-const spreads = ref<Spread[]>([])
-const selectedSpreadKey = ref('timeline')
 const question = ref('')
 const selectedDomain = ref<QuestionDomain | ''>('')
 // 只在「不指定牌陣」時使用
@@ -72,10 +61,69 @@ watch(
 
 // 未選時不送這個欄位，讓後端自己判斷
 const domainParam = computed(() => selectedDomain.value || undefined)
-const selectedSpread = computed(
-  () => spreads.value.find((spread) => spread.key === selectedSpreadKey.value) || null,
-)
-const targetCount = computed(() => selectedSpread.value?.cardCount ?? freeCardCount.value)
+
+// ---- 三步驟流程 ----
+// 步驟、牌陣選擇、抽牌狀態（useDrawState）、自動抽牌與手動送出、重新開始與重抽都在 useReadingFlow（v27 抽出來，和雷諾曼共用）。
+// 塔羅自己的部分：不指定牌陣、正逆位、AI 解讀、保存、追問、結果快照
+const ALL_DRAW_MODES: DrawMode[] = ['fan', 'auto', 'input']
+const flow = useReadingFlow<Spread, CardSummary, ReadingResponse>({
+  defaultSpreadKey: 'timeline',
+  fetchSpreads,
+  freeCardCount,
+  // 自動抽牌走 /api/readings/draw，那支端點一定要牌陣，不指定牌陣時只能手動或輸入
+  modesFor: (spread) => (spread ? ALL_DRAW_MODES : ['fan', 'input']),
+  drawAuto: async (spread) => {
+    const result = await createReading({
+      question: question.value.trim(),
+      spreadKey: spread.key,
+      domain: domainParam.value,
+    })
+    void refreshHealth()
+    return result
+  },
+  drawManual: async (source, spread) => {
+    const cards: ManualCardPick[] = source.map((card) => ({ id: card.id, orientation: card.orientation }))
+    const result = await createManualReading({
+      question: question.value.trim(),
+      cards,
+      domain: domainParam.value,
+      // 有牌陣就一起送，後端才會套上位置與關係對
+      spreadKey: spread?.key || undefined,
+      // 沒有牌陣時改送自訂位置
+      positions: customPositionsParam.value,
+    })
+    void refreshHealth()
+    return result
+  },
+  onResult: (result) => {
+    resetResult()
+    narrationStatus.value = result.analysis ? 'ready' : 'idle'
+  },
+  onReset: () => {
+    resetResult()
+    clearResultSnapshot()
+  },
+})
+const {
+  step,
+  spreads,
+  selectedSpreadKey,
+  selectedSpread,
+  targetCount,
+  reading,
+  pendingAutoReading,
+  errorMessage,
+  isLoading,
+  isBootstrapping,
+  bootstrap,
+  setDrawMode,
+  goToDraw,
+  handleAutoDraw,
+  onAutoDealDone,
+  handleManualSubmit,
+  restart,
+  redraw,
+} = flow
 
 // ---- 步驟 2 的狀態 ----
 // 牌堆、選的牌、輸入的牌、自訂位置與它們的操作都在 useDrawState（2026-11-21 抽出來）
@@ -93,25 +141,14 @@ const {
   reorderInputCards,
   updateCustomPosition,
   shuffleDeck,
-  setDrawMode: changeDrawMode,
   pickFromDeck,
   undoPick,
   setInputCard,
   removeInputCard,
   toggleInputOrientation,
-  clearPicks,
-} = useDrawState({ targetCount, selectedSpread })
-
-// 換抽牌方式時清掉上一個方式留下的錯誤訊息
-async function setDrawMode(next: DrawMode) {
-  errorMessage.value = ''
-  await changeDrawMode(next)
-}
+} = flow.draw
 
 // ---- 步驟 3 的狀態 ----
-const reading = ref<ReadingResponse | null>(null)
-// 自動抽牌的結果先放這裡，等 StepDraw 把牌一張一張發到牌陣上，動畫跑完才進結果頁
-const pendingAutoReading = ref<ReadingResponse | null>(null)
 const narrationText = ref('')
 const narrationStatus = ref<NarrationStatus>('idle')
 const narrationError = ref('')
@@ -147,31 +184,9 @@ const followUp = useFollowUps({
   },
 })
 
-const errorMessage = ref('')
-const isLoading = ref(false)
-const isBootstrapping = ref(true)
-
 // 結果回傳的 spread 只有基本欄位，排列圖需要完整定義（positions / layout）：用 key 查回來，自選牌用抽到的牌組一個
+// （後端狀態改由 top bar（App.vue）載入與顯示，這裡只載牌陣，見 useReadingFlow 的 bootstrap）
 const resultSpread = computed(() => spreadForReading(spreads.value, reading.value))
-
-// 後端狀態改由 top bar（App.vue）載入與顯示，這裡只載牌陣
-async function bootstrap() {
-  isBootstrapping.value = true
-  errorMessage.value = ''
-
-  try {
-    const spreadResponse = await fetchSpreads()
-    spreads.value = spreadResponse
-
-    if (!spreadResponse.some((spread) => spread.key === selectedSpreadKey.value) && spreadResponse[0]) {
-      selectedSpreadKey.value = spreadResponse[0].key
-    }
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '無法取得初始化資料'
-  } finally {
-    isBootstrapping.value = false
-  }
-}
 
 // 股市諮詢的結果頁改成行情與技術分析，其他問題類型維持原本的塔羅結果頁
 const isStockResult = computed(() => selectedDomain.value === 'stock')
@@ -475,110 +490,8 @@ function resetResult() {
   saveError.value = ''
 }
 
-function onReadingReady(result: ReadingResponse) {
-  reading.value = result
-  resetResult()
-  narrationStatus.value = result.analysis ? 'ready' : 'idle'
-  step.value = 3
-}
-
-async function goToDraw() {
-  errorMessage.value = ''
-  step.value = 2
-  // 上一次抽到、還沒進結果頁的牌不要留到這一次
-  pendingAutoReading.value = null
-  // 換牌陣後張數可能對不上，已選的牌一律清掉重來
-  clearPicks()
-
-  if (!selectedSpread.value && drawMode.value === 'auto') {
-    // 自動抽牌需要牌陣，不指定牌陣時退到手動
-    drawMode.value = 'fan'
-  }
-  await setDrawMode(drawMode.value)
-}
-
-async function handleAutoDraw() {
-  if (!selectedSpread.value) {
-    return
-  }
-  errorMessage.value = ''
-  isLoading.value = true
-  pendingAutoReading.value = null
-
-  try {
-    pendingAutoReading.value = await createReading({
-      question: question.value.trim(),
-      spreadKey: selectedSpreadKey.value,
-      domain: domainParam.value,
-    })
-    void refreshHealth()
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '抽牌失敗'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-function onAutoDealDone() {
-  const result = pendingAutoReading.value
-  pendingAutoReading.value = null
-  if (result) {
-    onReadingReady(result)
-  }
-}
-
-async function handleManualSubmit() {
-  const source =
-    drawMode.value === 'fan'
-      ? picked.value
-      : inputCards.value.filter((card): card is InputCard => Boolean(card))
-  if (source.length !== targetCount.value) {
-    return
-  }
-  errorMessage.value = ''
-  isLoading.value = true
-
-  try {
-    const cards: ManualCardPick[] = source.map((card) => ({ id: card.id, orientation: card.orientation }))
-    onReadingReady(
-      await createManualReading({
-        question: question.value.trim(),
-        cards,
-        domain: domainParam.value,
-        // 有牌陣就一起送，後端才會套上位置與關係對
-        spreadKey: selectedSpreadKey.value || undefined,
-        // 沒有牌陣時改送自訂位置
-        positions: customPositionsParam.value,
-      }),
-    )
-    void refreshHealth()
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '解讀失敗'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// 回到步驟 1：結果直接丟棄，不跳確認
-function restart() {
-  resetResult()
-  clearResultSnapshot()
-  reading.value = null
-  clearPicks()
-  step.value = 1
-}
-
-// 重抽：保留問題與牌陣，只清結果與已選的牌，牌堆重洗。
-// 走和進抽牌一樣的 setDrawMode：重新整理或登入回來還原的結果沒有載過牌庫，
-// 原本直接洗牌會洗出空的牌堆、輸入模式也搜不到牌（2026-11-21 重構後實際走流程時發現）
-async function redraw() {
-  resetResult()
-  clearResultSnapshot()
-  reading.value = null
-  clearPicks()
-  step.value = 2
-  await setDrawMode(drawMode.value)
-}
+// 進結果頁、重新開始、重抽、自動抽牌與手動送出都在 useReadingFlow；
+// 結果出來時清 AI 與保存狀態（onResult），重新開始與重抽時再清掉結果快照（onReset）
 
 // 在占卜頁直接按登出時元件不會重新掛載，要自己回到步驟 1。
 // 只接使用者主動登出；token 過期（401）時保留結果，讓人重新登入後還能保存
@@ -625,12 +538,8 @@ onMounted(() => {
 // 離開頁面時停止 AI 生成，避免繼續計費
 onBeforeUnmount(cancelNarration)
 
-// 把占卜流程交給 App 層的像素世界做反應；離開首頁就重設，別頁的背景才不會停在「抽牌中」
-watchEffect(() => {
-  sceneBus.step = step.value
-  sceneBus.drawn = sceneDrawn.value
-})
-onBeforeUnmount(resetSceneBus)
+// 把占卜流程交給 App 層的像素世界做反應；離開首頁就重設，別頁的背景才不會停在「抽牌中」（和雷諾曼共用）
+useSceneSync(step, sceneDrawn)
 </script>
 
 <template>
@@ -718,6 +627,7 @@ onBeforeUnmount(resetSceneBus)
               :custom-positions="customPositions"
               :auto-result="pendingAutoReading"
               :is-loading="isLoading"
+              :group-cards="tarotCardGroups"
               @update:mode="setDrawMode"
               @update:card-search="cardSearch = $event"
               @back="step = 1"

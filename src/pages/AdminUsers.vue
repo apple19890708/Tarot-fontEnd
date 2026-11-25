@@ -4,7 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AdminUserDialog from '../components/AdminUserDialog.vue'
 import SelectField from '../components/SelectField.vue'
 import SkeletonBlock from '../components/SkeletonBlock.vue'
-import { fetchAdminLogs, fetchAdminUsers, setUserAiAccess, setUserStockAccess } from '../lib/api'
+import { fetchAdminLogs, fetchAdminUsers, setUserAiAccess, setUserLenormandAccess, setUserStockAccess } from '../lib/api'
 import { formatDateTime, isInactive, logActionText, loginMethodsText, personText, relativeTime } from '../lib/adminFormat'
 import { installWashi } from '../lib/pixelArt'
 import type { AdminLogEntry, AdminUser, AdminUserFilter, AdminUserSort, AdminUserStats } from '../types'
@@ -32,6 +32,7 @@ const FILTER_OPTIONS: { value: AdminUserFilter; label: string }[] = [
   { value: 'all', label: '全部會員' },
   { value: 'ai', label: '已開通 AI 解析' },
   { value: 'stock', label: '已開通金融股市' },
+  { value: 'lenormand', label: '已開通雷諾曼' },
   { value: 'inactive', label: '30 天沒有活動' },
   { value: 'disabled', label: '已停用' },
   { value: 'admin', label: '管理者' },
@@ -90,16 +91,20 @@ function replaceUser(updated: AdminUser, before?: AdminUser) {
   if (index >= 0) users.value[index] = updated
   const s = stats.value
   if (!s || !previous || updated.role !== 'member') return
-  const delta = (key: 'aiAccess' | 'stockAccess' | 'disabled') => Number(Boolean(updated[key])) - Number(Boolean(previous[key]))
+  const delta = (key: AccessField | 'disabled') => Number(Boolean(updated[key])) - Number(Boolean(previous[key]))
   s.aiMembers += delta('aiAccess')
   s.stockMembers += delta('stockAccess')
+  // 舊版後端沒有雷諾曼統計，沒有就不加（不然會從 undefined 變成 NaN）
+  if (s.lenormandMembers !== undefined) s.lenormandMembers += delta('lenormandAccess')
   s.disabled += delta('disabled')
 }
 
 // ---- 開通／收回權限（列表上直接按）----
 const updatingId = ref('')
-type AccessField = 'aiAccess' | 'stockAccess'
-const ACCESS_SETTERS = { aiAccess: setUserAiAccess, stockAccess: setUserStockAccess }
+// 表格的權限欄依這個順序排（AI 解析、金融股市、雷諾曼）
+const ACCESS_FIELDS = ['aiAccess', 'stockAccess', 'lenormandAccess'] as const
+type AccessField = (typeof ACCESS_FIELDS)[number]
+const ACCESS_SETTERS = { aiAccess: setUserAiAccess, stockAccess: setUserStockAccess, lenormandAccess: setUserLenormandAccess }
 
 async function toggleAccess(user: AdminUser, field: AccessField) {
   if (updatingId.value || user.role === 'admin') return
@@ -134,6 +139,8 @@ const statCards = computed(() => {
     { label: '本月新註冊', value: s.newThisMonth },
     { label: '開通 AI 解析', value: s.aiMembers },
     { label: '開通金融股市', value: s.stockMembers },
+    // 舊版後端沒有這個統計，就不顯示這張卡
+    ...(s.lenormandMembers !== undefined ? [{ label: '開通雷諾曼', value: s.lenormandMembers }] : []),
     { label: '已停用', value: s.disabled },
   ]
 })
@@ -195,12 +202,12 @@ const PAGER_BUTTON =
     <div class="space-y-1 border-b-2 border-dashed border-frame/30 pb-4">
       <h1 class="font-pixel text-[24px] text-[#2a1a14]">會員管理</h1>
       <p class="text-body text-[#2a1a14]/75">
-        AI 解析與金融股市（股市諮詢、股市追蹤）預設關閉，要分別逐一開通；管理者一律可用。點會員的 Email 看使用量、停用帳號或強制登出。
+        AI 解析、金融股市（股市諮詢、股市追蹤）與雷諾曼占卜預設關閉，要分別逐一開通；管理者一律可用。點會員的 Email 看使用量、停用帳號或強制登出。
       </p>
     </div>
 
     <!-- 頁首統計：第一次載入前放同數量的骨架 -->
-    <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+    <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
       <template v-if="statCards.length">
         <div v-for="card in statCards" :key="card.label" class="border-2 border-frame/40 bg-[#e9dcc0]/50 px-3 py-2">
           <p class="text-caption text-[#2a1a14]/65">{{ card.label }}</p>
@@ -208,7 +215,7 @@ const PAGER_BUTTON =
         </div>
       </template>
       <template v-else-if="loading">
-        <div v-for="n in 6" :key="n" class="space-y-2 border-2 border-frame/40 px-3 py-2">
+        <div v-for="n in 7" :key="n" class="space-y-2 border-2 border-frame/40 px-3 py-2">
           <SkeletonBlock class="h-3.5 w-20 rounded-none bg-frame/15!" />
           <SkeletonBlock class="h-6 w-10 rounded-none bg-frame/15!" />
         </div>
@@ -262,7 +269,7 @@ const PAGER_BUTTON =
 
       <!-- 手機欄位放不下，表格自己橫向捲動，不撐破頁面 -->
       <div class="mt-3 overflow-x-auto border-2 border-frame">
-        <table class="w-full min-w-[60rem] text-left text-body">
+        <table class="w-full min-w-[70rem] text-left text-body">
           <thead class="bg-frame font-pixel text-[12px] text-[#f1e7cf]">
             <tr>
               <th class="sticky left-0 z-10 bg-frame px-3 py-2 font-normal">會員</th>
@@ -270,6 +277,7 @@ const PAGER_BUTTON =
               <th class="px-3 py-2 font-normal">登入方式</th>
               <th class="px-3 py-2 font-normal">AI 解析</th>
               <th class="px-3 py-2 font-normal">金融股市</th>
+              <th class="px-3 py-2 font-normal">雷諾曼</th>
               <th class="px-3 py-2 text-left font-normal">最後活動</th>
               <th class="px-3 py-2 text-left font-normal">註冊時間</th>
             </tr>
@@ -280,14 +288,13 @@ const PAGER_BUTTON =
                 <td class="px-3 py-3" :class="STICKY_WASHI"><SkeletonBlock class="h-4 w-48 rounded-none bg-frame/15!" /><SkeletonBlock class="mt-1.5 h-3.5 w-20 rounded-none bg-frame/15!" /></td>
                 <td class="px-3 py-3"><SkeletonBlock class="h-6 w-16 rounded-none bg-frame/15!" /></td>
                 <td class="px-3 py-3"><SkeletonBlock class="h-4 w-20 rounded-none bg-frame/15!" /></td>
-                <td class="px-3 py-3"><SkeletonBlock class="h-7 w-28 rounded-none bg-frame/15!" /></td>
-                <td class="px-3 py-3"><SkeletonBlock class="h-7 w-28 rounded-none bg-frame/15!" /></td>
+                <td v-for="field in ACCESS_FIELDS" :key="field" class="px-3 py-3"><SkeletonBlock class="h-7 w-28 rounded-none bg-frame/15!" /></td>
                 <td class="px-3 py-3"><SkeletonBlock class="ml-auto h-4 w-20 rounded-none bg-frame/15!" /></td>
                 <td class="px-3 py-3"><SkeletonBlock class="ml-auto h-4 w-32 rounded-none bg-frame/15!" /></td>
               </tr>
             </template>
             <tr v-else-if="!users.length">
-              <td colspan="7" class="px-3 py-6 text-center text-[#2a1a14]/60">
+              <td colspan="8" class="px-3 py-6 text-center text-[#2a1a14]/60">
                 <!-- 讀取失敗時不能說「沒有會員」（上面已顯示錯誤與重試） -->
                 {{ error ? '會員列表沒有讀到。' : hasCondition ? '沒有符合條件的會員。' : '還沒有任何會員。' }}
               </td>
@@ -323,8 +330,10 @@ const PAGER_BUTTON =
                 </div>
               </td>
               <td class="whitespace-nowrap px-3 py-3 text-[#2a1a14]/75">{{ loginMethodsText(user) }}</td>
-              <td v-for="field in (['aiAccess', 'stockAccess'] as const)" :key="field" class="px-3 py-3">
+              <td v-for="field in ACCESS_FIELDS" :key="field" class="px-3 py-3">
                 <span v-if="user.role === 'admin'" class="text-caption text-[#2a1a14]/55">管理者一律可用</span>
+                <!-- 線上後端還是舊版時沒有這個欄位（例如雷諾曼剛加的時候），按了只會 404，先不給按 -->
+                <span v-else-if="user[field] === undefined" class="text-caption text-[#2a1a14]/55">後端尚未支援</span>
                 <button
                   v-else
                   type="button"

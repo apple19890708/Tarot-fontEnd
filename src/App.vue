@@ -4,11 +4,13 @@ import { useRoute, useRouter } from 'vue-router'
 
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import DailyCardDialog from './components/DailyCardDialog.vue'
+import DivinationMenu from './components/DivinationMenu.vue'
 import FloatingMenu from './components/FloatingMenu.vue'
 import MemberMenu from './components/MemberMenu.vue'
+import type { MenuRoute } from './components/MemberMenu.vue'
 import NotificationBell from './components/NotificationBell.vue'
 import PixelWorld from './components/PixelWorld.vue'
-import { canUseStock, currentUser, isLoggedIn, logout } from './lib/auth'
+import { canUseLenormand, canUseStock, currentUser, isLoggedIn, logout } from './lib/auth'
 import { confirmState } from './lib/confirm'
 import { sectionNav } from './lib/sectionNav'
 import { fetchTodayDailyCard } from './lib/api'
@@ -126,6 +128,7 @@ const navRoutes = computed(() =>
     .filter((route) => !route.meta?.auth || isLoggedIn.value)
     .filter((route) => !route.meta?.role || route.meta.role === currentUser.value?.role)
     .filter((route) => !route.meta?.stock || canUseStock.value)
+    .filter((route) => !route.meta?.lenormand || canUseLenormand.value)
     .map((route) => ({
       name: String(route.name),
       path: route.path,
@@ -133,8 +136,8 @@ const navRoutes = computed(() =>
       // 上色用：金融股市權限頁 > 登入才有的頁 > 一般頁（管理者頁維持一般樣式）
       tier: route.meta?.stock ? ('stock' as const) : route.meta?.auth ? ('member' as const) : ('public' as const),
       admin: route.meta?.role === 'admin',
-      // 會員選單的分類（塔羅／股市），沒寫的放「其他頁面」
-      group: route.meta?.menuGroup as 'tarot' | 'stock' | undefined,
+      // 會員選單的分類（塔羅／雷諾曼／股市），沒寫的放「其他頁面」
+      group: route.meta?.menuGroup as MenuRoute['group'],
     })),
 )
 // 會員選單裡的頁面：「占卜」固定在頂欄，帳號設定在選單底部，其他都收進選單（v26 計畫 3）
@@ -225,7 +228,9 @@ router.isReady().then(() => {
 
 				<!-- 會員選單（v26 計畫 3）：頂欄只留「占卜」與會員頭像，其他頁面收進頭像的選單；手機也一樣（拿掉漢堡） -->
 				<nav class="flex shrink-0 items-center gap-3 sm:gap-4" aria-label="主要">
-					<router-link to="/" class="font-pixel text-[12px] transition" :class="navClass('home')">占卜</router-link>
+					<!-- 能用雷諾曼的人：「占卜」是選單（塔羅／雷諾曼）；其他人（含訪客）維持單一連結，不給只有一個選項的選單 -->
+					<DivinationMenu v-if="canUseLenormand" />
+					<router-link v-else to="/" class="font-pixel text-[12px] transition" :class="navClass('home')">占卜</router-link>
 					<!-- 通知鈴鐺（v26 計畫 5）在頭像左邊 -->
 					<NotificationBell v-if="isLoggedIn" :wide="isDesktop" />
 					<MemberMenu v-if="isLoggedIn" :routes="menuRoutes" :wide="isDesktop" @sign-out="signOut" />

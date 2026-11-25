@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 日記頁（v26 計畫 2，2026-11-20 使用者要求「寫日記自己獨立一個頁面」）：
 // 左邊是原本的內容（塔羅紀錄的結果，或這檔股票的所有分析），右邊是日記；上面切換「編輯／唯讀」。
-// 網址：/journal/reading/<紀錄 id>、/journal/stock/<市場>/<代號>（股票一檔一本，v26 計畫 2-2）；
+// 網址：/journal/reading/<紀錄 id>、/journal/lenormand/<雷諾曼紀錄 id>（v27 階段 6）、/journal/stock/<市場>/<代號>（股票一檔一本，v26 計畫 2-2）；
 // 舊的 /journal/stock/<分析 id> 查那筆分析後轉到那檔的日記頁。每日一牌的日記 2026-11-20 使用者決定拿掉。
 // ?mode=edit 編輯（預設唯讀）、?new=1 一進來就打開新的一篇。手機寬度放不下兩欄，改成上方分頁切換「日記／原本的內容」
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -10,12 +10,31 @@ import { useRoute, useRouter } from 'vue-router'
 import SkeletonBlock from '../components/SkeletonBlock.vue'
 import StepResult from '../components/StepResult.vue'
 import StockJournalSide from '../components/journal/StockJournalSide.vue'
-import { fetchReadingDetail, fetchSpreads, fetchStockAnalyses, fetchStockAnalysisRecord, fetchStockJournalInfo } from '../lib/api'
+import LenormandResult from '../components/lenormand/LenormandResult.vue'
+import {
+  fetchLenormandCards,
+  fetchLenormandReadingDetail,
+  fetchLenormandSpreads,
+  fetchReadingDetail,
+  fetchSpreads,
+  fetchStockAnalyses,
+  fetchStockAnalysisRecord,
+  fetchStockJournalInfo,
+} from '../lib/api'
 import { taipeiToday } from '../lib/dailyCard'
 import { spreadForReading } from '../lib/readingSpread'
 import { stockJournalPath, stockKeyFromRoute, stockKeyOf } from '../lib/stockJournal'
 import { useReadingMarket } from '../lib/useReadingMarket'
-import type { ReadingDetail, Spread, StockAnalysisSummary, StockJournalInfo } from '../types'
+import type {
+  LenormandCard,
+  LenormandPlayingCardGuide,
+  LenormandReadingDetail,
+  LenormandSpread,
+  ReadingDetail,
+  Spread,
+  StockAnalysisSummary,
+  StockJournalInfo,
+} from '../types'
 
 // 編輯器（Tiptap）較大，分開載入
 const JournalTimeline = defineAsyncComponent({
@@ -26,11 +45,12 @@ const JournalTimeline = defineAsyncComponent({
 const route = useRoute()
 const router = useRouter()
 
-// reading＝塔羅紀錄；stock＝一檔股票（/journal/stock/<市場>/<代號>）；
+// reading＝塔羅紀錄；lenormand＝雷諾曼紀錄（v27 階段 6）；stock＝一檔股票（/journal/stock/<市場>/<代號>）；
 // legacy-stock＝舊網址 /journal/stock/<分析 id>（2026-11-20 第一版），讀到分析後轉到那檔的日記頁
-const kind = computed<'reading' | 'stock' | 'legacy-stock' | ''>(() => {
+const kind = computed<'reading' | 'lenormand' | 'stock' | 'legacy-stock' | ''>(() => {
   if (route.params.market !== undefined) return 'stock'
   if (route.params.kind === 'reading') return 'reading'
+  if (route.params.kind === 'lenormand') return 'lenormand'
   if (route.params.kind === 'stock') return 'legacy-stock'
   return ''
 })
@@ -165,6 +185,12 @@ const stockInfo = ref<StockJournalInfo | null>(null)
 const stockAnalyses = ref<StockAnalysisSummary[]>([])
 const journalCount = ref<number | null>(null)
 const spreads = ref<Spread[]>([])
+// 雷諾曼紀錄：結果、排列圖的牌陣定義、牌義與花色解說表（/cards，api.ts 快取）
+const lenormand = ref<LenormandReadingDetail | null>(null)
+const lenormandSpreads = ref<LenormandSpread[]>([])
+const lenormandCards = ref(new Map<number, LenormandCard>())
+const lenormandGuide = ref<LenormandPlayingCardGuide | null>(null)
+const lenormandMeaningsError = ref('')
 let loadRequest = 0
 // 股市諮詢的行情：和我的紀錄同一套（沒存到就查最新、更新報價有作用）。
 // 要寫在下面 immediate 的 watch(target, load) 前面：load 一開始就會用到它
@@ -176,6 +202,7 @@ async function load() {
   loading.value = true
   loadError.value = ''
   reading.value = null
+  lenormand.value = null
   stockInfo.value = null
   stockAnalyses.value = []
   journalCount.value = null
@@ -193,6 +220,22 @@ async function load() {
       market.useSaved(detail.narration?.market ?? null)
       reading.value = detail
       spreads.value = list
+    } else if (kind.value === 'lenormand') {
+      // 牌陣定義、牌義讀不到只是少了排列圖或牌義，紀錄本身讀不到才算失敗
+      const [detail, spreadResult, cardResult] = await Promise.all([
+        fetchLenormandReadingDetail(targetId.value),
+        Promise.allSettled([fetchLenormandSpreads()]).then(([result]) => result),
+        Promise.allSettled([fetchLenormandCards()]).then(([result]) => result),
+      ])
+      if (own !== loadRequest) return
+      lenormand.value = detail
+      lenormandSpreads.value = spreadResult?.status === 'fulfilled' ? spreadResult.value.spreads : []
+      if (cardResult?.status === 'fulfilled') {
+        lenormandCards.value = new Map(cardResult.value.cards.map((card) => [card.id, card]))
+        lenormandGuide.value = cardResult.value.playingCardGuide
+      } else {
+        lenormandMeaningsError.value = cardResult?.reason instanceof Error ? cardResult.reason.message : '牌義載入失敗，請重新整理再試一次。'
+      }
     } else if (kind.value === 'legacy-stock') {
       // 舊網址：查那筆分析是哪一檔，轉到那檔的日記頁（保留 ?mode、?entry 這些）
       const { analysis } = await fetchStockAnalysisRecord(targetId.value)
@@ -221,6 +264,7 @@ watch(target, load, { immediate: true })
 
 
 const resultSpread = computed(() => spreadForReading(spreads.value, reading.value?.reading))
+const lenormandSpread = computed(() => lenormandSpreads.value.find((spread) => spread.key === lenormand.value?.spread.key) ?? null)
 const narrationText = computed(() => reading.value?.narration?.text ?? '')
 
 // 股票代號的顯示：台股個股用代號，其他用 symbol（鍵的後半段）
@@ -232,10 +276,17 @@ const stockLabel = computed(() => {
 })
 const subtitle = computed(() => {
   if (kind.value === 'stock') return stockLabel.value ? `${stockLabel.value} 的股票日記` : ''
+  if (kind.value === 'lenormand') return lenormand.value ? lenormand.value.question || '（沒有寫問題）' : ''
   return reading.value ? reading.value.reading.question || '（沒有寫問題）' : ''
 })
-const backLink = computed(() => (kind.value === 'reading' ? { name: 'history', query: { id: targetId.value } } : { name: 'market-records' }))
-const infoLabel = computed(() => (kind.value === 'reading' ? '原本的占卜' : '這檔的分析'))
+// 回到哪裡、左欄叫什麼，依日記寫在哪一種內容底下決定
+const backLink = computed(() => {
+  if (kind.value === 'reading') return { name: 'history', query: { id: targetId.value } }
+  if (kind.value === 'lenormand') return { name: 'lenormand-records', query: { id: targetId.value } }
+  return { name: 'market-records' }
+})
+const backLabel = computed(() => ({ reading: '回到塔羅紀錄', lenormand: '回到雷諾曼紀錄' })[kind.value as 'reading' | 'lenormand'] ?? '回到股市分析紀錄')
+const infoLabel = computed(() => (kind.value === 'reading' || kind.value === 'lenormand' ? '原本的占卜' : '這檔的分析'))
 // 交給日記：市場與現在的股價（新的一篇帶入「寫的時候的股價」）；股價日期用台北時間
 const journalStock = computed(() => {
   if (kind.value !== 'stock') return null
@@ -256,7 +307,7 @@ const segmentClass = (on: boolean) => (on ? 'relative z-[1] border-ink-soft/70 b
     <header class="rounded-[1.75rem] border border-line bg-surface/90 px-5 py-4 sm:px-6">
       <div class="min-w-0 space-y-1">
         <router-link :to="backLink" class="inline-block text-caption text-ink-soft transition hover:text-ink active:translate-y-[1px]">
-          ‹ {{ kind === 'reading' ? '回到塔羅紀錄' : '回到股市分析紀錄' }}
+          ‹ {{ backLabel }}
         </router-link>
         <h1 class="text-display font-semibold text-ink">日記</h1>
         <p v-if="subtitle" class="truncate text-body text-ink-soft" :title="subtitle">{{ subtitle }}</p>
@@ -317,6 +368,22 @@ const segmentClass = (on: boolean) => (on ? 'relative z-[1] border-ink-soft/70 b
           :reading-id="reading.id"
           :narration-feedback="reading.narration?.feedback ?? null"
           is-record
+          hide-flow-actions
+        />
+
+        <LenormandResult
+          v-else-if="lenormand"
+          :reading="lenormand"
+          :spread="lenormandSpread"
+          :cards-by-id="lenormandCards"
+          :guide="lenormandGuide"
+          :meanings-loading="false"
+          :meanings-error="lenormandMeaningsError"
+          :narration="
+            lenormand.narration?.text
+              ? { status: 'done', text: lenormand.narration.text, error: '', saved: null, isRecord: true, readOnly: true }
+              : undefined
+          "
           hide-flow-actions
         />
 

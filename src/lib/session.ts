@@ -22,6 +22,10 @@ export const canUseAi = computed(
 export const canUseStock = computed(
   () => session.user?.role === 'admin' || session.user?.stockAccess === true,
 )
+// 雷諾曼（v27）：獨立開通，不用 AI 權限也能用；同樣只決定畫面，放行在後端
+export const canUseLenormand = computed(
+  () => session.user?.role === 'admin' || session.user?.lenormandAccess === true,
+)
 
 // 無痕視窗或封鎖儲存時 localStorage 會丟例外，一律吞掉，當成沒有登入
 export function getToken(): string {

@@ -50,6 +50,8 @@ export function logActionText(entry: AdminLogEntry) {
       return entry.value ? '開通 AI 解析' : '收回 AI 解析'
     case 'stockAccess':
       return entry.value ? '開通金融股市' : '收回金融股市'
+    case 'lenormandAccess':
+      return entry.value ? '開通雷諾曼' : '收回雷諾曼'
     case 'disable':
       return '停用帳號'
     case 'enable':

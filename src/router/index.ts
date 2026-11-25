@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteLocationNormalized } from 'vue-router'
 
-import { canUseStock, isLoggedIn, onSessionExpired, restore, session } from '../lib/auth'
+import { canUseLenormand, canUseStock, isLoggedIn, onSessionExpired, restore, session } from '../lib/auth'
 import { applySeo } from '../lib/seo'
+import { DIVINATION_SCENE } from '../lib/sceneBus'
 import { claimGuestCardIfAny } from '../lib/dailyCard'
 
 const HomeView = () => import('../pages/HomeView.vue')
@@ -19,16 +20,19 @@ const ResetPasswordView = () => import('../pages/ResetPasswordView.vue')
 const PrivacyView = () => import('../pages/PrivacyView.vue')
 const AccountView = () => import('../pages/AccountView.vue')
 const VerifyEmailView = () => import('../pages/VerifyEmailView.vue')
+const LenormandView = () => import('../pages/LenormandView.vue')
 
 // meta.auth：要登入；meta.role：要指定角色；meta.guest：已登入就不該再看到（登入／註冊頁）
 // meta.wide：資料多的頁面，桌機的內容區放寬到 1600px（一般頁面 1280px）
 // meta.hidden：不列在導覽列（重設密碼頁：從信裡的連結進來，已登入的人也要能打開，所以不能用 guest）
 // meta.stock：要有金融股市權限（admin 或被開通的會員），例如股市追蹤
+// meta.lenormand：要有雷諾曼權限（admin 或被開通的會員，v27）；沒權限的人選單看不到、網址直接打也回首頁
 // meta.scene：像素世界的場景（city 街景、door 居酒屋門口、interior 店內）；沒寫就是 sky 星夜
 // meta.sceneDim：背景壓暗多少（0～1）；沒寫是 0.15（要讀資料的頁面，背景只當畫框）
 // meta.noindex：不給搜尋引擎收錄（v24 4-4）；要登入（auth／role）的頁面一律不收錄，不用另外寫
 const routes = [
-  { path: '/', name: 'home', component: HomeView, meta: { title: '占卜', scene: 'city', sceneDim: 0 } },
+  // 占卜頁的背景（夜晚的像素城市、不壓暗）和雷諾曼共用同一份設定
+  { path: '/', name: 'home', component: HomeView, meta: { title: '占卜', ...DIVINATION_SCENE } },
   // 「我的紀錄」拆成兩頁（2026-11-20 使用者要求）：塔羅紀錄在這裡；股票分析與財經新聞分析搬到股市分析紀錄。
   // 舊網址 /history?tab=stock|news 轉過去，存下來的連結不會壞
   {
@@ -50,6 +54,13 @@ const routes = [
     meta: { auth: true, stock: true, hidden: true, title: '股票日記', scene: 'interior', wide: true },
   },
   { path: '/market', name: 'market', component: MarketTrackView, meta: { auth: true, stock: true, title: '股市追蹤', scene: 'interior', wide: true, menuGroup: 'stock', menuOrder: 1 } },
+  // 雷諾曼占卜（v27 3-9）：第二套牌「靜謐花園雷諾曼」。入口在頂欄的「占卜」選單（DivinationMenu，2026-11-25 使用者要求），
+  // 不列在會員選單（hidden）；會員選單的「雷諾曼」一組之後只放雷諾曼紀錄（階段 6）。權限照樣由 meta.lenormand 擋。
+  // 背景和塔羅首頁一樣（2026-11-25 使用者要求；原本是 interior 酒吧室內）
+  { path: '/lenormand', name: 'lenormand', component: LenormandView, meta: { auth: true, lenormand: true, hidden: true, title: '雷諾曼占卜', ...DIVINATION_SCENE } },
+  // 雷諾曼紀錄（v27 階段 6）：和塔羅紀錄、股市分析紀錄同一頁（HistoryView），分頁由 recordTabs 決定。
+  // 放在會員選單的「雷諾曼」一組（D8：這一組只放紀錄），沒權限的人看不到
+  { path: '/lenormand/records', name: 'lenormand-records', component: HistoryView, meta: { auth: true, lenormand: true, title: '雷諾曼紀錄', scene: 'interior', menuGroup: 'lenormand', menuOrder: 1, recordTabs: ['lenormand'] } },
   // 股市分析紀錄：原本「我的紀錄」的股票分析與財經新聞分析（2026-11-20 拆出來），排在股市追蹤後面
   { path: '/market/records', name: 'market-records', component: HistoryView, meta: { auth: true, stock: true, title: '股市分析紀錄', scene: 'interior', menuGroup: 'stock', menuOrder: 2, recordTabs: ['stock', 'news'] } },
   { path: '/login', name: 'login', component: LoginView, meta: { guest: true, title: '登入', scene: 'door', sceneDim: 0.1 } },
@@ -92,6 +103,11 @@ router.beforeEach(async (to) => {
 
   // 股市追蹤這類金融股市功能：沒被開通就回首頁（真正的放行在後端）
   if (to.meta.stock && !canUseStock.value) {
+    return { path: '/' }
+  }
+
+  // 雷諾曼：同上，沒被開通就回首頁（真正的放行在後端）
+  if (to.meta.lenormand && !canUseLenormand.value) {
     return { path: '/' }
   }
 

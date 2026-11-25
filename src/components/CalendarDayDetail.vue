@@ -8,7 +8,7 @@ import { cardImageUrl } from '../lib/cardStyle'
 import { dayTitle, timeOf } from '../lib/calendarDays'
 import { outcomeLabel } from '../lib/journal'
 import { journalPathOf } from '../lib/stockJournal'
-import type { CalendarDay } from '../types'
+import type { CalendarDay, CalendarReading } from '../types'
 import DailyCardViewDialog from './DailyCardViewDialog.vue'
 
 const props = defineProps<{ date: string; day: CalendarDay | null; today: string }>()
@@ -18,6 +18,18 @@ const props = defineProps<{ date: string; day: CalendarDay | null; today: string
 const journalPath = journalPathOf
 
 const isFuture = () => props.date > props.today
+
+// 當天的占卜依牌組連到各自的紀錄頁（v27 3-10）：塔羅到塔羅紀錄、雷諾曼到雷諾曼紀錄；舊版後端沒有 deck，一律當塔羅
+function readingLink(reading: CalendarReading) {
+  return reading.deck === 'lenormand' ? { name: 'lenormand-records', query: { id: reading.id } } : { name: 'history', query: { id: reading.id } }
+}
+
+// 日記寫在哪一種內容底下（標籤用）
+function journalKindLabel(target: string) {
+  if (target.startsWith('stock:')) return '股票日記'
+  if (target.startsWith('lenormand:')) return '雷諾曼紀錄'
+  return '占卜紀錄'
+}
 
 // 那天的牌的小彈窗；換一天就關掉
 const cardOpen = ref(false)
@@ -68,11 +80,15 @@ watch(
         <ul v-else class="space-y-2">
           <li v-for="reading in day.readings" :key="reading.id">
             <router-link
-              :to="{ name: 'history', query: { id: reading.id } }"
+              :to="readingLink(reading)"
               class="block border border-line bg-raised px-3 py-2 transition hover:border-accent-hue/40 hover:bg-tint/10 active:translate-x-[1px] active:translate-y-[1px]"
             >
               <p class="flex items-baseline justify-between gap-2">
-                <span class="min-w-0 truncate text-body text-ink" :title="reading.question || '（沒有寫問題）'">{{ reading.question || '（沒有寫問題）' }}</span>
+                <span class="flex min-w-0 items-baseline gap-1.5">
+                  <!-- 雷諾曼的紀錄加一個小標，和塔羅分得出來 -->
+                  <span v-if="reading.deck === 'lenormand'" class="shrink-0 border border-accent-hue/40 px-1 text-caption leading-tight text-accent">雷諾曼</span>
+                  <span class="min-w-0 truncate text-body text-ink" :title="reading.question || '（沒有寫問題）'">{{ reading.question || '（沒有寫問題）' }}</span>
+                </span>
                 <span class="shrink-0 text-caption tabular-nums text-ink-muted">{{ timeOf(reading.createdAt) }}</span>
               </p>
               <p class="mt-0.5 truncate text-caption text-ink-muted">
@@ -92,7 +108,7 @@ watch(
               :to="{ path: journalPath(journal.target), query: { entry: journal.id } }"
               class="block border border-line bg-raised px-3 py-2 transition hover:border-accent-hue/40 hover:bg-tint/10 active:translate-x-[1px] active:translate-y-[1px]"
             >
-              <p class="text-caption text-accent">{{ journal.target.startsWith('stock:') ? '股票日記' : '占卜紀錄' }}．{{ outcomeLabel(journal.outcome) }}</p>
+              <p class="text-caption text-accent">{{ journalKindLabel(journal.target) }}．{{ outcomeLabel(journal.outcome) }}</p>
               <p class="mt-0.5 truncate text-body font-semibold text-ink">{{ journal.title || journal.text || '（只標了結果）' }}</p>
               <p v-if="journal.title && journal.text" class="truncate text-caption text-ink-muted">{{ journal.text }}</p>
             </router-link>

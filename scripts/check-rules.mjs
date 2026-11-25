@@ -120,6 +120,15 @@ const RULES = [
     pattern: /(?::\s*any\b|\bas\s+any\b|<any>)/g,
     message: '避免 any；型別跟著後端走（src/types.ts）。',
   },
+  {
+    // 例：v27 StepDraw 的 orientations?: boolean 用 props.orientations !== false 判斷，塔羅沒傳，
+    // Vue 把沒傳的布林 prop 當成 false，塔羅的正逆位按鈕就不見了（2026-11-25 回歸測試抓到）
+    id: 'boolean-prop-absent',
+    level: 'error',
+    files: /\.vue$/,
+    pattern: /\bprops\.\w+\s*!==\s*false\b/g,
+    message: '布林 prop 沒傳時 Vue 會給 false（不是 undefined），!== false 永遠擋不住；用 withDefaults 給預設值 true，直接判斷 props.xxx。',
+  },
 ]
 
 // ---------- 取得改動的行 ----------

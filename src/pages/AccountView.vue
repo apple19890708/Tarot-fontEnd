@@ -4,12 +4,13 @@ import { useRouter } from 'vue-router'
 
 import GoogleSignInButton from '../components/GoogleSignInButton.vue'
 import SkeletonBlock from '../components/SkeletonBlock.vue'
-import { fetchAccount, resendVerificationRequest } from '../lib/api'
+import { deleteMyLenormandData, fetchAccount, fetchMyLenormandData, resendVerificationRequest } from '../lib/api'
 import { changePassword, deleteAccount, logoutEverywhere } from '../lib/auth'
 import { confirmDialog } from '../lib/confirm'
 import type { AccountInfo } from '../types'
 
 // 帳號設定（v24 階段 2）：看登入方式、改密碼、登出所有裝置、刪除帳號。
+// v27：刪除我的雷諾曼紀錄（有資料才顯示；被收回雷諾曼權限的人看不到紀錄清單，從這裡清掉自己的資料）。
 // 從導覽列點自己的名字進來；真正的檢查（舊密碼、身分確認、管理者不能刪自己）都在後端
 const router = useRouter()
 
@@ -106,6 +107,45 @@ async function onLogoutAll() {
     logoutError.value = error instanceof Error ? error.message : '暫時登出不了，請稍後再試。'
   } finally {
     loggingOut.value = false
+  }
+}
+
+// ---- 刪除我的雷諾曼紀錄（v27，3-13）----
+// 只要登入、不需要雷諾曼權限。筆數讀不到（例如舊版後端沒有這支）就整塊不顯示，不影響帳號設定的其他功能
+const lenormandData = ref<{ readings: number; journals: number } | null>(null)
+const lenormandDeleting = ref(false)
+const lenormandError = ref('')
+const lenormandDone = ref('')
+
+async function loadLenormandData() {
+  try {
+    lenormandData.value = await fetchMyLenormandData()
+  } catch {
+    lenormandData.value = null
+  }
+}
+onMounted(loadLenormandData)
+
+async function onDeleteLenormand() {
+  const data = lenormandData.value
+  if (!data || lenormandDeleting.value) return
+  const ok = await confirmDialog({
+    title: '刪除我的雷諾曼紀錄',
+    message: `會刪掉你所有的雷諾曼紀錄（${data.readings} 筆）和寫在它們底下的日記（${data.journals} 篇），無法復原。\n塔羅的紀錄與日記不受影響。確定要刪除嗎？`,
+    confirmText: '全部刪除',
+    danger: true,
+  })
+  if (!ok) return
+  lenormandDeleting.value = true
+  lenormandError.value = ''
+  try {
+    const result = await deleteMyLenormandData()
+    lenormandDone.value = `已刪除 ${result.deletedReadings} 筆雷諾曼紀錄、${result.deletedJournals} 篇日記。`
+    lenormandData.value = { readings: 0, journals: 0 }
+  } catch (error) {
+    lenormandError.value = error instanceof Error ? error.message : '暫時刪不了，請稍後再試。'
+  } finally {
+    lenormandDeleting.value = false
   }
 }
 
@@ -269,6 +309,27 @@ const LABEL = 'text-caption text-ink-muted'
         >
           {{ loggingOut ? '登出中…' : '登出所有裝置' }}
         </button>
+      </section>
+
+      <!-- 刪除我的雷諾曼紀錄：有紀錄或日記才出現；剛刪完的那一次留著顯示結果 -->
+      <section v-if="lenormandData && (lenormandData.readings + lenormandData.journals > 0 || lenormandDone)" :class="CARD">
+        <h2 class="text-subtitle font-semibold text-accent">雷諾曼紀錄</h2>
+        <p v-if="lenormandDone" class="text-body text-ok">{{ lenormandDone }}</p>
+        <template v-else>
+          <p class="text-body leading-7 text-ink-soft">
+            你有 {{ lenormandData.readings }} 筆雷諾曼紀錄、{{ lenormandData.journals }} 篇寫在它們底下的日記。
+            可以一次全部刪除，塔羅的紀錄與日記不受影響；刪除後無法復原。
+          </p>
+          <p v-if="lenormandError" class="text-body text-danger">{{ lenormandError }}</p>
+          <button
+            type="button"
+            :disabled="lenormandDeleting"
+            class="cursor-pointer rounded-xl border border-danger-hue/40 px-4 py-2 text-button text-danger hover:bg-danger-hue/10 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+            @click="onDeleteLenormand"
+          >
+            {{ lenormandDeleting ? '刪除中…' : '刪除我的雷諾曼紀錄' }}
+          </button>
+        </template>
       </section>
 
       <!-- 刪除帳號 -->

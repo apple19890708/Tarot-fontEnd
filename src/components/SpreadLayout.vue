@@ -2,12 +2,18 @@
 import { computed, reactive, watch } from 'vue'
 
 import { cardImageUrl } from '../lib/cardStyle'
-import type { ReadingCard, Spread } from '../types'
+import type { Orientation, SpreadShape } from '../types'
+
+// 位置上的一張牌：塔羅的 ReadingCard、雷諾曼的結果都符合。沒有正逆位的牌組不給 orientation，就不轉、不寫正逆位（v27）
+interface LayoutCard {
+  card: { nameZh: string; image?: string }
+  orientation?: Orientation
+}
 
 // 畫出牌陣的實際排列。cards 省略時為預覽（空格＋位置名稱），帶入時填上實際抽到的牌。
 const props = defineProps<{
-  spread: Spread
-  cards?: ReadingCard[]
+  spread: SpreadShape
+  cards?: LayoutCard[]
 }>()
 
 // 已翻到背面的位置。背面顯示這個位置代表什麼，取代原本列在下方的說明。
@@ -53,8 +59,8 @@ const slots = computed(() =>
   })),
 )
 
-function orientationLabel(card: ReadingCard | null) {
-  if (!card) {
+function orientationLabel(card: LayoutCard | null) {
+  if (!card?.orientation) {
     return ''
   }
   return card.orientation === 'upright' ? '正位' : '逆位'

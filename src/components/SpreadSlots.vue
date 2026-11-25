@@ -7,7 +7,8 @@ import type { PositionLayout, SlotCard } from '../types'
 
 // 牌陣的位置格：每個位置一格，抽到的牌落在上面。
 // 自動抽牌與手動抽牌共用這個元件，飛牌動畫的終點也從這裡量。
-const props = defineProps<{
+// showOrientation 沒傳時要是 true（布林 prop 沒傳會被當成 false）
+const props = withDefaults(defineProps<{
   labels: string[]
   // 依位置排好的牌，還沒抽到的位置留 undefined
   cards: (SlotCard | undefined)[]
@@ -16,7 +17,15 @@ const props = defineProps<{
   // 給了網格與每個位置的座標，就照牌陣的實際形狀排；否則排成一列
   grid?: { cols: number; rows: number }
   layouts?: (PositionLayout | undefined)[]
-}>()
+  // 沒有正逆位的牌組（雷諾曼）傳 false：牌名下面不寫正逆位（v27）
+  showOrientation?: boolean
+}>(), { showOrientation: true })
+
+// 牌名下第二行：有正逆位才寫；沒有時那一行留空，格子高度不變
+function orientationText(card: SlotCard | undefined) {
+  if (!card?.orientation || !props.showOrientation) return ''
+  return card.orientation === 'upright' ? '正位' : '逆位'
+}
 
 const isGrid = computed(
   () => Boolean(props.grid) && props.labels.every((_, index) => Boolean(props.layouts?.[index])),
@@ -125,12 +134,12 @@ defineExpose({ poseOf })
           />
         </Transition>
       </span>
-      <!-- 牌名與正逆位兩行，沒有牌時也先佔好高度 -->
+      <!-- 牌名與正逆位兩行，沒有牌時也先佔好高度（沒有正逆位的牌組第二行留空，高度一樣） -->
       <span class="h-[1.4rem] w-full text-[9px] leading-tight text-ink-muted sm:h-[1.6rem] sm:text-[10px]">
         <template v-if="props.cards[index]">
           <span class="block truncate">{{ props.cards[index]!.nameZh }}</span>
           <span class="block text-ink-muted">
-            {{ props.cards[index]!.orientation === 'upright' ? '正位' : '逆位' }}
+            {{ orientationText(props.cards[index]) }}
           </span>
         </template>
       </span>

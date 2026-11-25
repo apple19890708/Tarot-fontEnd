@@ -48,9 +48,13 @@ export function setCardStyle(style: CardStyle) {
 
 if (cardStyle.value === 'pixel') ensureEngine()
 
+// 雷諾曼的原創 SVG（v27 3-3）：像素引擎只對應塔羅，雷諾曼一律顯示原圖
+const LENORMAND_IMAGE_PREFIX = '/lenormand/'
+
 // 牌面圖片網址：像素版對得上就用像素圖，否則用後端的原圖
 export function cardImageUrl(image?: string) {
   if (!image) return ''
+  if (image.startsWith(LENORMAND_IMAGE_PREFIX)) return imageUrl(image)
   if (cardStyle.value === 'pixel' && pixelUrlOf.value) {
     const url = pixelUrlOf.value(image)
     if (url) return url
