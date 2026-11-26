@@ -115,7 +115,7 @@ export function describeFailures(failures) {
 // ---------- 保護規則 ----------
 
 // .env、.env.local、.env.production…；.env.example 不算（裡面沒有密鑰）。
-// env.yaml／env.yml：Cloud Run 部署用的環境變數檔，裡面也是明文密鑰（v28 項目 8）
+// env.yaml／env.yml：Cloud Run 部署用的環境變數檔，裡面也是明文密鑰（v29 項目 8）
 export const ENV_IN_COMMAND = /(^|[\s'"`=/\\(:,])(?:\.env(?!\.example\b)(\.[\w.-]+)?|env\.ya?ml)(?=$|[\s'"`|;&)<>,*])/im
 export function isEnvPath(p) {
   if (!p) return false
