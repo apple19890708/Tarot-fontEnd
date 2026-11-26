@@ -7,6 +7,7 @@ import {
   loginRequest,
   logoutAllRequest,
   registerRequest,
+  UnauthorizedError,
 } from './api'
 import { confirmDialog } from './confirm'
 import { clearResultSnapshot } from './resultSnapshot'
@@ -129,7 +130,39 @@ export async function deleteAccount(payload: { password?: string; credential?: s
 }
 
 // 重新整理後用 token 向後端換回使用者。沒有這一步，守衛會把已登入的 admin 誤判成未登入。
+// 2026-11-26 前端優化 1：只有 401（token 過期、被撤銷）才當成登出、清掉 token。
+// 網路暫時斷線、後端逾時或 5xx 時保留 token，這次先當成未登入讓畫面出來，背景再試幾次；
+// 原本任何錯誤都清 token，手機剛連上網、後端剛重啟時就會被莫名登出
 let restoring: Promise<void> | null = null
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+// 背景重試的間隔（毫秒）；試完還是失敗就等下一次重新整理
+export const RESTORE_RETRY_DELAYS = [2000, 5000, 15000]
+
+async function fetchUser(): Promise<'ok' | 'unauthorized' | 'failed'> {
+  try {
+    const { user } = await fetchMe()
+    setSession(user)
+    return 'ok'
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      clearSession()
+      return 'unauthorized'
+    }
+    return 'failed'
+  }
+}
+
+function scheduleRetry(attempt: number) {
+  if (retryTimer) clearTimeout(retryTimer)
+  const delay = RESTORE_RETRY_DELAYS[attempt]
+  if (delay === undefined) return
+  retryTimer = setTimeout(async () => {
+    retryTimer = null
+    // 這段期間已經登入、登出（token 換了或沒了）就不用再試
+    if (session.user || !getToken()) return
+    if ((await fetchUser()) === 'failed') scheduleRetry(attempt + 1)
+  }, delay)
+}
 
 export function restore(): Promise<void> {
   if (session.ready) {
@@ -148,11 +181,7 @@ export function restore(): Promise<void> {
     }
 
     try {
-      const { user } = await fetchMe()
-      setSession(user)
-    } catch {
-      // token 過期、後端還是舊版（沒有 /api/auth/me）都當成未登入
-      clearSession()
+      if ((await fetchUser()) === 'failed') scheduleRetry(0)
     } finally {
       session.ready = true
       restoring = null

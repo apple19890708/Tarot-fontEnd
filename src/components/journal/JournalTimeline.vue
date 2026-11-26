@@ -145,16 +145,29 @@ function openInitial() {
 
 // 編輯中自動存草稿（停手半秒後存）
 let draftTimer: ReturnType<typeof setTimeout> | undefined
+// 還在等那半秒的草稿；儲存、放棄時 clearTimeout 之後它就不會再被存
+let pendingDraft: (() => void) | null = null
 watch(
   composer,
   (value) => {
     clearTimeout(draftTimer)
+    pendingDraft = null
     if (!value) return
     const target = props.target
-    draftTimer = setTimeout(() => saveDraft(target, value), 500)
+    const write = () => {
+      pendingDraft = null
+      saveDraft(target, value)
+    }
+    pendingDraft = write
+    draftTimer = setTimeout(write, 500)
   },
   { deep: true },
 )
+// 停手不到半秒就離開頁面（換頁、關掉彈窗）：最後打的字先存起來，不要丟掉（2026-11-26 前端優化 10）
+onBeforeUnmount(() => {
+  clearTimeout(draftTimer)
+  pendingDraft?.()
+})
 
 const composing = computed(() => Boolean(composer.value) && props.mode === 'edit')
 
@@ -211,6 +224,7 @@ async function save() {
       (a, b) => a.entryDate.localeCompare(b.entryDate) || a.createdAt.localeCompare(b.createdAt),
     )
     clearTimeout(draftTimer)
+    pendingDraft = null
     clearDraft(props.target)
     composer.value = null
     emit('changed')
@@ -240,6 +254,7 @@ async function cancel() {
     : Boolean(value.title.trim()) || hasText(value.content) || value.outcome !== null || stockChanged
   if (changed && !(await confirmDialog({ title: '放棄這次的修改？', message: '還沒儲存的內容會不見。', confirmText: '放棄', danger: true }))) return
   clearTimeout(draftTimer)
+  pendingDraft = null
   clearDraft(props.target)
   composer.value = null
 }
@@ -263,6 +278,7 @@ async function remove(entry: JournalEntry) {
     entries.value = entries.value.filter((item) => item.id !== entry.id)
     if (composer.value?.entryId === entry.id) {
       clearTimeout(draftTimer)
+      pendingDraft = null
       clearDraft(props.target)
       composer.value = null
     }
@@ -309,7 +325,9 @@ watch(
 watch(
   () => props.target,
   () => {
+    // 上一個對象還沒存的草稿先存好（它記著的是上一個對象）
     clearTimeout(draftTimer)
+    pendingDraft?.()
     void load()
     openInitial()
   },

@@ -1,43 +1,22 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import { confirmState, settleConfirm } from '../lib/confirm'
+import { useDialogFocus } from '../lib/useDialogFocus'
 import { useScrollLock } from '../lib/useScrollLock'
 
 // 全站共用的確認彈窗（呼叫方式見 lib/confirm.ts）。App.vue 在有待確認的事時才掛上，關閉就卸載。
 // 按 Esc 或點背景等於取消；刪除類動作焦點預設停在「取消」，避免按 Enter 誤刪
+// 焦點管理（移進來、Tab 只在兩顆按鈕間循環、Esc、關掉後還回原本的焦點）交給 useDialogFocus
 useScrollLock()
 
+const dialogEl = ref<HTMLElement | null>(null)
 const cancelButton = ref<HTMLButtonElement | null>(null)
 const confirmButton = ref<HTMLButtonElement | null>(null)
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
-    // 只關確認彈窗，不要讓底下的彈窗也收到 Esc 一起關掉
-    event.stopImmediatePropagation()
-    settleConfirm(false)
-  }
-  // 焦點只在兩顆按鈕之間切換
-  if (event.key === 'Tab') {
-    event.preventDefault()
-    const next = document.activeElement === cancelButton.value ? confirmButton.value : (cancelButton.value ?? confirmButton.value)
-    next?.focus()
-  }
-}
-
-// 彈窗開之前的焦點，關掉後還回去
-let previousFocus: HTMLElement | null = null
-
-onMounted(async () => {
-  previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
-  window.addEventListener('keydown', onKeydown, true)
-  await nextTick()
-  ;(confirmState.value?.danger ? cancelButton.value : confirmButton.value)?.focus()
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeydown, true)
-  previousFocus?.focus()
+useDialogFocus(dialogEl, {
+  initialFocus: computed(() => (confirmState.value?.danger ? cancelButton.value : null) ?? confirmButton.value),
+  onEscape: () => settleConfirm(false),
 })
 </script>
 
@@ -49,6 +28,7 @@ onBeforeUnmount(() => {
       @click.self="settleConfirm(false)"
     >
       <div
+        ref="dialogEl"
         class="w-full max-w-sm border-2 border-frame bg-surface text-ink shadow-[6px_6px_0_var(--c-shade)]"
         role="alertdialog"
         aria-modal="true"

@@ -4,7 +4,7 @@
 import { ref } from 'vue'
 
 import { anyMarketOpen } from './marketHours'
-import { checkMarketAlerts, createMarketAlert, deleteMarketAlert, fetchMarketAlerts, reactivateMarketAlert } from './api'
+import { checkMarketAlerts, createMarketAlert, deleteMarketAlert, reactivateMarketAlert } from './api'
 import type { MarketAlert, MarketAlertTarget } from '../types'
 
 const CHECK_INTERVAL_MS = 3 * 60 * 1000
@@ -49,11 +49,6 @@ export async function requestAlertPermission() {
       // 使用者拒絕或瀏覽器不支援，都不影響提醒本身
     }
   }
-}
-
-export async function refreshMarketAlerts() {
-  const { alerts } = await fetchMarketAlerts()
-  marketAlerts.value = alerts
 }
 
 export async function checkAlertsNow() {

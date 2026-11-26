@@ -2,6 +2,7 @@
 import { gsap } from 'gsap'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
+import { CARD_IMAGE_HEIGHT, CARD_IMAGE_WIDTH } from '../lib/cardStyle'
 import type { CardPose } from '../lib/motion'
 
 // 抽牌時在畫面最上層飛行的替身牌：從 from 飛到 to，途中翻面。
@@ -75,6 +76,8 @@ onBeforeUnmount(() => {
         <img
           v-if="image"
           :src="image"
+          :width="CARD_IMAGE_WIDTH" :height="CARD_IMAGE_HEIGHT"
+          decoding="async"
           :alt="alt"
           class="absolute inset-0 h-full w-full object-cover shadow-xl shadow-black/50 rotate-y-180 backface-hidden"
         />

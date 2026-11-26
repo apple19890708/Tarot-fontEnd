@@ -170,6 +170,10 @@ function isRedSuit(index: number) {
           <img
             v-if="cardImageUrl(entry.card.image)"
             :src="cardImageUrl(entry.card.image)"
+            width="350"
+            height="600"
+            loading="lazy"
+            decoding="async"
             :alt="entry.card.nameZh"
             class="h-24 w-14 shrink-0 object-cover shadow-lg"
           />

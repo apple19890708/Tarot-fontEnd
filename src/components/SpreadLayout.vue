@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 
-import { cardImageUrl } from '../lib/cardStyle'
+import CardZoomDialog from './CardZoomDialog.vue'
+import { CARD_IMAGE_HEIGHT, CARD_IMAGE_WIDTH, cardImageUrl, cardSrcset } from '../lib/cardStyle'
 import type { Orientation, SpreadShape } from '../types'
 
 // 位置上的一張牌：塔羅的 ReadingCard、雷諾曼的結果都符合。沒有正逆位的牌組不給 orientation，就不轉、不寫正逆位（v27）
@@ -18,6 +19,8 @@ const props = defineProps<{
 
 // 已翻到背面的位置。背面顯示這個位置代表什麼，取代原本列在下方的說明。
 // 只用點擊切換：滑過就翻會讓整排牌跟著游標亂翻。
+// 2026-11-26 使用者要求：有牌的位置（結果頁）點一下改成「滿版放大」（CardZoomDialog，放大後再點才翻面）；
+// 沒有牌的預覽（問題步驟）照舊在原地翻面；「全部翻面」照舊在原地翻。
 const flippedKeys = reactive(new Set<string>())
 
 // 圖片載入失敗的位置，改顯示牌名而不是破圖（OneDrive 雲端檔案偶爾會讀取失敗）
@@ -29,6 +32,17 @@ function toggleFlip(key: string) {
   } else {
     flippedKeys.add(key)
   }
+}
+
+// 放大中的位置（index）；null＝沒開
+const zoomIndex = ref<number | null>(null)
+const zoomSlot = computed(() => (zoomIndex.value === null ? null : (slots.value[zoomIndex.value] ?? null)))
+
+function onSlotClick(index: number) {
+  const slot = slots.value[index]
+  if (!slot) return
+  if (slot.card) zoomIndex.value = index
+  else toggleFlip(slot.position.key)
 }
 
 const allFlipped = computed(() => props.spread.positions.every((position) => flippedKeys.has(position.key)))
@@ -44,7 +58,10 @@ function toggleAll() {
 // 換牌陣或重抽時全部翻回正面，否則會留著上一個牌陣的 key
 watch(
   () => [props.spread.key, props.cards],
-  () => flippedKeys.clear(),
+  () => {
+    flippedKeys.clear()
+    zoomIndex.value = null
+  },
 )
 
 const grid = computed(() => props.spread.grid ?? { cols: props.spread.cardCount, rows: 1 })
@@ -91,10 +108,11 @@ function orientationLabel(card: LayoutCard | null) {
           <button
             type="button"
             class="group block w-full cursor-pointer text-left [perspective:600px] active:translate-x-[2px] active:translate-y-[2px]"
-            :aria-pressed="flippedKeys.has(slot.position.key)"
-            :aria-label="`${slot.position.label}：${slot.position.prompt}`"
+            :aria-pressed="slot.card ? undefined : flippedKeys.has(slot.position.key)"
+            :aria-haspopup="slot.card ? 'dialog' : undefined"
+            :aria-label="slot.card ? `${slot.position.label}：${slot.card.card.nameZh}，點一下放大` : `${slot.position.label}：${slot.position.prompt}`"
             :title="`${slot.position.label}：${slot.position.prompt}`"
-            @click="toggleFlip(slot.position.key)"
+            @click="onSlotClick(slot.index)"
           >
             <!-- 翻面容器：正反面各自絕對定位疊在一起，整個容器繞 Y 軸轉 -->
             <span
@@ -108,6 +126,10 @@ function orientationLabel(card: LayoutCard | null) {
                 <img
                   v-if="slot.card && cardImageUrl(slot.card.card.image) && !failedImages.has(slot.position.key)"
                   :src="cardImageUrl(slot.card.card.image)"
+                  :srcset="cardSrcset(slot.card.card.image)"
+                  sizes="(min-width: 768px) 144px, 96px"
+                  :width="CARD_IMAGE_WIDTH" :height="CARD_IMAGE_HEIGHT"
+                  decoding="async"
                   :alt="slot.card.card.nameZh"
                   class="h-full w-full object-cover"
                   :class="{ 'rotate-180': slot.card.orientation === 'reversed' }"
@@ -156,7 +178,7 @@ function orientationLabel(card: LayoutCard | null) {
 
     <!-- 位置說明已經移到卡背，這裡只留操作提示與一次翻完的捷徑 -->
     <div class="flex items-center justify-between gap-3 text-xs text-ink-muted">
-      <span>點一下牌，翻到背面看這個位置代表什麼。</span>
+      <span>{{ cards?.length ? '點一下牌放大，再點一下翻到背面看這個位置代表什麼。' : '點一下牌，翻到背面看這個位置代表什麼。' }}</span>
       <button
         type="button"
         class="shrink-0 border-2 border-tint/15 px-3 py-1 transition hover:border-accent-hue/50 hover:text-accent active:translate-x-[2px] active:translate-y-[2px] font-pixel"
@@ -165,5 +187,16 @@ function orientationLabel(card: LayoutCard | null) {
         {{ allFlipped ? '全部翻回正面' : '全部翻面' }}
       </button>
     </div>
+
+    <!-- 點牌放大：先顯示正面（原圖），點牌翻面；點空白處或 Esc 關閉，焦點回到這張牌 -->
+    <CardZoomDialog
+      v-if="zoomSlot && zoomSlot.card"
+      :image="cardImageUrl(zoomSlot.card.card.image)"
+      :name="zoomSlot.card.card.nameZh + (orientationLabel(zoomSlot.card) ? `（${orientationLabel(zoomSlot.card)}）` : '')"
+      :reversed="zoomSlot.card.orientation === 'reversed'"
+      :label="zoomSlot.position.label"
+      :prompt="zoomSlot.position.prompt"
+      @close="zoomIndex = null"
+    />
   </div>
 </template>

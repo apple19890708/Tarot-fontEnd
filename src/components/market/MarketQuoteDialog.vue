@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Line } from 'vue-chartjs'
 
 import { fetchFuturesChart, fetchIndexChart } from '../../lib/api'
 import { axis, CHART_COLORS, formatNumber, formatSigned } from '../../lib/marketChart'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useScrollLock } from '../../lib/useScrollLock'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import type { IndexChart, IndexChartRange, MarketFuturesQuote } from '../../types'
@@ -199,21 +200,19 @@ const stats = computed(() => {
 function close() {
   emit('close')
 }
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') close()
-}
+const dialogEl = ref<HTMLElement | null>(null)
+useDialogFocus(dialogEl, { onEscape: close })
 
 onMounted(() => {
-  window.addEventListener('keydown', onKeydown)
   void load()
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-overlay md:p-6" @click.self="close">
       <div
+        ref="dialogEl"
         class="flex h-full w-full flex-col bg-surface text-ink md:h-auto md:max-h-[90vh] md:max-w-3xl md:border-2 md:border-frame md:shadow-[6px_6px_0_var(--c-shade)]"
         role="dialog"
         aria-modal="true"

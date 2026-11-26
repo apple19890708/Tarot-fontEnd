@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { cardImageUrl } from '../lib/cardStyle'
+import { CARD_IMAGE_HEIGHT, CARD_IMAGE_WIDTH, cardImageUrl, cardSrcset } from '../lib/cardStyle'
 import type { CardPose } from '../lib/motion'
 import type { PositionLayout, SlotCard } from '../types'
 
@@ -128,6 +128,10 @@ defineExpose({ poseOf })
           <img
             v-if="props.cards[index] && cardImageUrl(props.cards[index]!.image)"
             :src="cardImageUrl(props.cards[index]!.image)"
+            :srcset="cardSrcset(props.cards[index]!.image)"
+            sizes="(min-width: 640px) 96px, 64px"
+            :width="CARD_IMAGE_WIDTH" :height="CARD_IMAGE_HEIGHT"
+            decoding="async"
             :alt="props.cards[index]!.nameZh"
             class="absolute inset-0 h-full w-full object-cover"
             :class="{ 'rotate-180': props.cards[index]!.orientation === 'reversed' }"

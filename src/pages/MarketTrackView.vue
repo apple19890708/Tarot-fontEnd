@@ -3,16 +3,21 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import BackToTop from '../components/BackToTop.vue'
-import MarketAlertsPanel from '../components/market/MarketAlertsPanel.vue'
-import MarketFinanceNews from '../components/market/MarketFinanceNews.vue'
-import MarketHitRate from '../components/market/MarketHitRate.vue'
-import MarketIncome from '../components/market/MarketIncome.vue'
-import MarketSimulator from '../components/market/MarketSimulator.vue'
-import MarketOverview from '../components/market/MarketOverview.vue'
-import MarketScreener from '../components/market/MarketScreener.vue'
-import MarketWatchlist from '../components/market/MarketWatchlist.vue'
+import { asyncPanel } from '../lib/asyncPanel'
 import { marketAlerts } from '../lib/marketAlerts'
 import type { MarketAlertTarget } from '../types'
+
+// 2026-11-26 前端優化 7：分頁改成需要時才載入。
+// 八個分頁原本全部打包在同一塊，一進頁面就得下載全部（含 chart.js）；改成切到哪個分頁才載入那個分頁的程式。
+// 載入中先顯示骨架；載入後由下面的 KeepAlive 保留，切回來不會重新載入
+const MarketAlertsPanel = asyncPanel(() => import('../components/market/MarketAlertsPanel.vue'))
+const MarketFinanceNews = asyncPanel(() => import('../components/market/MarketFinanceNews.vue'))
+const MarketHitRate = asyncPanel(() => import('../components/market/MarketHitRate.vue'))
+const MarketIncome = asyncPanel(() => import('../components/market/MarketIncome.vue'))
+const MarketSimulator = asyncPanel(() => import('../components/market/MarketSimulator.vue'))
+const MarketOverview = asyncPanel(() => import('../components/market/MarketOverview.vue'))
+const MarketScreener = asyncPanel(() => import('../components/market/MarketScreener.vue'))
+const MarketWatchlist = asyncPanel(() => import('../components/market/MarketWatchlist.vue'))
 
 // 股市追蹤：自訂股票追蹤、股利獲利與預測（v20）、存股試算、股市總覽（原大盤概況）、財經新聞、選股、參考命中（建議自動對答案）、價位提醒等分頁。
 // 限 admin 與開通金融股市的會員（路由 meta.stock）。目前的分頁放在網址 ?tab=，重新整理或分享時會停在同一頁

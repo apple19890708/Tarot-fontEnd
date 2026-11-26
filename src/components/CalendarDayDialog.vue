@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // 手機版：月曆點某一天時開的彈窗（置中、從上方滑下；桌機改在月曆右邊直接顯示，不開彈窗）。
 // 照 ui-check 的彈出層規則：背景鎖捲動、Esc／點外面／按關閉都會關
-import { onBeforeUnmount, onMounted } from 'vue'
+import { ref } from 'vue'
 
+import { useDialogFocus } from '../lib/useDialogFocus'
 import { useScrollLock } from '../lib/useScrollLock'
 import { dayTitle } from '../lib/calendarDays'
 import type { CalendarDay } from '../types'
@@ -12,11 +13,8 @@ const props = defineProps<{ date: string; day: CalendarDay | null; today: string
 const emit = defineEmits<{ close: [] }>()
 
 useScrollLock()
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') emit('close')
-}
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+const dialogEl = ref<HTMLElement | null>(null)
+useDialogFocus(dialogEl, { onEscape: () => emit('close') })
 </script>
 
 <template>
@@ -29,6 +27,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         enter-from-class="opacity-0 -translate-y-4"
       >
         <div
+          ref="dialogEl"
           class="flex max-h-[85vh] w-full max-w-xl flex-col border-2 border-frame bg-surface text-ink shadow-[6px_6px_0_var(--c-shade)]"
           role="dialog"
           aria-modal="true"

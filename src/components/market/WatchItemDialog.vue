@@ -1,27 +1,30 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue'
+import { ref } from 'vue'
 
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useScrollLock } from '../../lib/useScrollLock'
 
 // 自訂股票追蹤的「詳細」彈窗外框：卡片／表格點一檔就開，內容（行情摘要、技術判讀、重大訊息、走勢與籌碼、持股編輯、
 // 清單、提醒、移除）由父元件放進預設插槽，沿用原本展開後的那一段。外觀和個股分析彈窗一致：手機全螢幕、桌機置中。
-// escDisabled：上面又疊了一個彈窗（個股分析）時，Esc 只關最上面那個
+// escDisabled：上面又疊了一個彈窗（個股分析）時，Esc 只關最上面那個（useDialogFocus 本來就只讓最上層處理 Esc，這裡多擋一層）
 const props = defineProps<{ title: string; escDisabled?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
 useScrollLock()
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && !props.escDisabled) emit('close')
-}
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+const dialogEl = ref<HTMLElement | null>(null)
+useDialogFocus(dialogEl, {
+  onEscape: () => {
+    if (!props.escDisabled) emit('close')
+  },
+})
 </script>
 
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-overlay md:p-6" @click.self="emit('close')">
       <div
+        ref="dialogEl"
         class="flex h-full w-full flex-col bg-surface text-ink md:h-auto md:max-h-[90vh] md:max-w-3xl md:border-2 md:border-frame md:shadow-[6px_6px_0_var(--c-shade)]"
         role="dialog"
         aria-modal="true"

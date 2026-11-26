@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 一張每日一牌的內容：桌機（sm 以上）牌在左、文字在右，手機牌在上、文字在下（2026-11-20 使用者要求佔版小一點）。
 // 「今天的牌」面板與月曆點牌開的小彈窗共用，兩邊顯示的東西才會一樣。文字都由後端給，這裡不組句子
-import { cardImageUrl } from '../lib/cardStyle'
+import { CARD_IMAGE_HEIGHT, CARD_IMAGE_WIDTH, cardImageUrl, cardSrcset } from '../lib/cardStyle'
 import { taipeiToday } from '../lib/dailyCard'
 import type { DailyCard } from '../types'
 
@@ -13,6 +13,10 @@ defineProps<{ dailyCard: DailyCard }>()
     <img
       v-if="cardImageUrl(dailyCard.card.image)"
       :src="cardImageUrl(dailyCard.card.image)"
+      :srcset="cardSrcset(dailyCard.card.image)"
+      sizes="96px"
+      :width="CARD_IMAGE_WIDTH" :height="CARD_IMAGE_HEIGHT"
+      decoding="async"
       :alt="`${dailyCard.card.nameZh}${dailyCard.orientation === 'reversed' ? '（逆位）' : ''}`"
       class="w-24 shrink-0 rounded-md shadow-[4px_4px_0_var(--c-shade)]"
       :class="dailyCard.orientation === 'reversed' ? 'rotate-180' : ''"

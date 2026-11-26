@@ -7,14 +7,19 @@ import { canUseAi, isLoggedIn } from '../lib/auth'
 import BackToTop from './BackToTop.vue'
 import ExportButton from './ExportButton.vue'
 import FollowUpPanel from './FollowUpPanel.vue'
-import MarketPanel from './MarketPanel.vue'
 import NarrationFeedback from './NarrationFeedback.vue'
 import PixelChevron from './PixelChevron.vue'
-import QuantPanel from './QuantPanel.vue'
 import ReadingAnalysisPanel from './ReadingAnalysisPanel.vue'
 import SkeletonBlock from './SkeletonBlock.vue'
 import SpreadLayout from './SpreadLayout.vue'
-import { cardImageUrl } from '../lib/cardStyle'
+
+// 股市圖表（chart.js、hammerjs 縮放）只有股市諮詢與量化分析才用得到，分開載入（2026-11-26 前端優化 3）：
+// 原本靜態 import，首頁一打開就多下載約 120KB（gzip）。寫法照 JournalView 的 JournalTimeline
+const MarketPanel = asyncPanel(() => import('./MarketPanel.vue'))
+const QuantPanel = asyncPanel(() => import('./QuantPanel.vue'))
+import { asyncPanel } from '../lib/asyncPanel'
+import type { NarrationView } from '../lib/useTarotNarration'
+import { CARD_IMAGE_HEIGHT, CARD_IMAGE_WIDTH, cardImageUrl, cardSrcset } from '../lib/cardStyle'
 import { prefersReducedMotion, scrollParentOf, smoothScrollToElement } from '../lib/motion'
 import { tarotExport } from '../lib/recordExport'
 import { provideSectionNav, type SectionNavItem } from '../lib/sectionNav'
@@ -24,7 +29,6 @@ import type {
   MarketSnapshot,
   MarketStatus,
   NarrationFeedback as NarrationFeedbackData,
-  NarrationStatus,
   ReadingResponse,
   SaveStatus,
   Spread,
@@ -34,9 +38,8 @@ const props = defineProps<{
   reading: ReadingResponse
   // 結果回傳的 spread 只有基本欄位，排列圖需要完整定義（positions / layout）
   resultSpread: Spread | null
-  narrationStatus: NarrationStatus
-  narrationText: string
-  narrationError: string
+  // AI 解讀的狀態、文字與操作（見 lib/useTarotNarration 的 NarrationView）
+  narration: NarrationView
   // 回顧舊紀錄時沒有「重抽／重新開始」可言，由外層自己放刪除與返回
   hideFlowActions?: boolean
   // 保存紀錄；回顧舊紀錄時不給（本來就已經是紀錄了）
@@ -44,8 +47,6 @@ const props = defineProps<{
   saveError?: string
   // 回顧「我的紀錄」時為 true：這筆本來就是紀錄，重新產生會取代裡面的解讀
   isRecord?: boolean
-  // 最近一次 AI 解讀有沒有存回紀錄（null＝沒有對應的紀錄或不知道）
-  narrationSaved?: boolean | null
   // 股市諮詢：結果頁順序是「AI 股市分析 → 牌面輔助 → 牌義 → 行情與分析（最下面）」，不顯示一般塔羅的判斷依據與結語
   stockMode?: boolean
   market?: MarketSnapshot | null
@@ -57,8 +58,6 @@ const props = defineProps<{
   followUp?: FollowUpController
   // 這次結果對應的紀錄 id（還沒保存是空字串）。有 id 才顯示 AI 解讀的回饋（v25）
   readingId?: string
-  // 紀錄裡這篇解讀原本的回饋（回顧「我的紀錄」時才有）
-  narrationFeedback?: NarrationFeedbackData | null
   // 占卜當下的結果頁：最下面放「匯出」（我的紀錄的匯出按鈕在外層的標題列，這裡不放）
   exportable?: boolean
 }>()
@@ -66,8 +65,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   restart: []
   redraw: []
-  requestNarration: []
-  stopNarration: []
   saveReading: []
   refreshMarket: []
 }>()
@@ -75,9 +72,9 @@ const emit = defineEmits<{
 // 判斷依據：還沒有 AI 解讀時預設展開；解讀開始出現就自動收合，讓位給解讀。
 // 只在「出現」時收合，文字被清空時不自動展開 —— 按重新產生會先清空舊文字，
 // 那時把下方整片判斷依據展開、等新文字出來又收起，整頁高度大起大落，畫面就會亂跳。
-const analysisOpen = ref(!props.narrationText)
+const analysisOpen = ref(!props.narration.text)
 watch(
-  () => Boolean(props.narrationText),
+  () => Boolean(props.narration.text),
   (hasText) => {
     if (hasText) analysisOpen.value = false
   },
@@ -86,7 +83,7 @@ watch(
 // AI 解讀的收合。開始產生新的解讀時一律展開，否則按了重新產生卻什麼都看不到
 const narrationOpen = ref(true)
 watch(
-  () => props.narrationStatus,
+  () => props.narration.status,
   (status) => {
     if (status === 'loading') narrationOpen.value = true
   },
@@ -96,16 +93,16 @@ const narrationEl = ref<HTMLElement | null>(null)
 
 // 回饋：重新產生後是新的一篇，回饋從頭來；換一筆紀錄時用那筆原本的回饋。
 // 用 key 換一個新的回饋元件，元件裡的狀態就不會帶到另一篇
-const feedbackInitial = ref<NarrationFeedbackData | null>(props.narrationFeedback ?? null)
+const feedbackInitial = ref<NarrationFeedbackData | null>(props.narration.feedback ?? null)
 const feedbackRound = ref(0)
 watch(
-  () => props.narrationFeedback,
+  () => props.narration.feedback,
   (value) => {
     feedbackInitial.value = value ?? null
   },
 )
 watch(
-  () => props.narrationStatus,
+  () => props.narration.status,
   (status) => {
     if (status === 'loading') {
       feedbackInitial.value = null
@@ -134,7 +131,7 @@ function regenerateNarration() {
   narrationOpen.value = true
   const el = narrationEl.value
   if (el) smoothScrollToElement(el)
-  emit('requestNarration')
+  props.narration.request?.()
 }
 
 // 未登入時按鈕照樣顯示，點了會先存快照再帶去登入頁
@@ -149,13 +146,13 @@ const saveLabel = computed(() => {
 })
 
 // AI 回覆是 Markdown；轉 HTML、DOMPurify 清理、方向表上色、分區卡片都在 renderAiMarkdown
-const narrationHtml = computed(() => renderAiMarkdown(props.narrationText, { sections: true }))
+const narrationHtml = computed(() => renderAiMarkdown(props.narration.text, { sections: true }))
 
 // 這次結果已經是一筆紀錄：首頁按過保存，或是在「我的紀錄」裡回顧
 const isRecorded = computed(() => props.isRecord || props.saveStatus === 'saved')
 
 const isNarrating = computed(
-  () => props.narrationStatus === 'loading' || props.narrationStatus === 'streaming',
+  () => props.narration.status === 'loading' || props.narration.status === 'streaming',
 )
 
 const courtRoles = computed(() => {
@@ -231,11 +228,11 @@ const canExport = computed(
     !(props.followUp && ['loading', 'streaming'].includes(props.followUp.narrationStatus)),
 )
 function buildExport() {
-  const hasNarration = !['idle', 'ready', 'loading'].includes(props.narrationStatus)
+  const hasNarration = !['idle', 'ready', 'loading'].includes(props.narration.status)
   return tarotExport({
     reading: props.reading,
     stockMode: props.stockMode,
-    narrationText: hasNarration ? props.narrationText : '',
+    narrationText: hasNarration ? props.narration.text : '',
     followUps: props.followUp?.rounds,
     followUpText: props.followUp?.narrationText,
   })
@@ -367,6 +364,11 @@ function formatSuit(suit: string | null) {
             <img
               v-if="cardImageUrl(entry.card.image)"
               :src="cardImageUrl(entry.card.image)"
+              :srcset="cardSrcset(entry.card.image)"
+              sizes="(min-width: 640px) 56px, 46px"
+              :width="CARD_IMAGE_WIDTH" :height="CARD_IMAGE_HEIGHT"
+              loading="lazy"
+              decoding="async"
               :alt="entry.card.nameZh"
               class="h-20 w-[2.9rem] flex-shrink-0 object-cover shadow-lg transition sm:h-24 sm:w-14"
               :class="{ 'rotate-180': entry.orientation === 'reversed' }"
@@ -435,7 +437,7 @@ function formatSuit(suit: string | null) {
     </div>
 
     <div
-      v-if="narrationStatus !== 'idle'"
+      v-if="narration.status !== 'idle'"
       ref="narrationEl"
       :data-nav="stockMode ? 'AI 股市分析' : 'AI 解讀'"
       class="border-2 border-accent-hue/15 bg-gradient-to-br from-accent-hue/10 via-tint/5 to-up-hue/10 p-4 sm:p-6"
@@ -446,14 +448,14 @@ function formatSuit(suit: string | null) {
         還沒請 AI 解讀時只有一顆按鈕，不需要收合，標題列就是一般文字
       -->
       <component
-        :is="narrationStatus !== 'ready' ? 'button' : 'div'"
-        :type="narrationStatus !== 'ready' ? 'button' : undefined"
+        :is="narration.status !== 'ready' ? 'button' : 'div'"
+        :type="narration.status !== 'ready' ? 'button' : undefined"
         class="flex w-full items-center justify-between gap-3 text-left"
-        :class="narrationStatus !== 'ready' ? 'cursor-pointer sm:-mr-2 sm:w-[calc(100%+0.5rem)]' : ''"
-        :aria-expanded="narrationStatus !== 'ready' ? narrationOpen : undefined"
-        :aria-controls="narrationStatus !== 'ready' ? 'narration-body' : undefined"
-        :aria-label="narrationStatus !== 'ready' ? (narrationOpen ? '收合 AI 解讀' : '展開 AI 解讀') : undefined"
-        @click="narrationStatus !== 'ready' && toggleNarration()"
+        :class="narration.status !== 'ready' ? 'cursor-pointer sm:-mr-2 sm:w-[calc(100%+0.5rem)]' : ''"
+        :aria-expanded="narration.status !== 'ready' ? narrationOpen : undefined"
+        :aria-controls="narration.status !== 'ready' ? 'narration-body' : undefined"
+        :aria-label="narration.status !== 'ready' ? (narrationOpen ? '收合 AI 解讀' : '展開 AI 解讀') : undefined"
+        @click="narration.status !== 'ready' && toggleNarration()"
       >
         <span class="block min-w-0">
           <span class="block text-[10px] uppercase tracking-[0.2em] text-ink-muted sm:text-xs sm:tracking-[0.3em]">
@@ -463,10 +465,10 @@ function formatSuit(suit: string | null) {
             {{ stockMode ? 'AI 股市分析' : '這組牌想說的事' }}
           </span>
         </span>
-        <PixelChevron v-if="narrationStatus !== 'ready'" class="text-ink-muted" :open="narrationOpen" />
+        <PixelChevron v-if="narration.status !== 'ready'" class="text-ink-muted" :open="narrationOpen" />
       </component>
 
-      <div v-if="narrationStatus === 'ready'" class="mt-4 space-y-4">
+      <div v-if="narration.status === 'ready'" class="mt-4 space-y-4">
         <p v-if="stockMode" class="text-sm leading-7 text-ink-muted">
           AI 會先逐張解讀這組牌對你這次操作的提醒，再依頁面最下面的即時行情與技術指標，寫出附觸發價位的操作情境與短線判斷。文字會陸續出現，隨時可以停止；完整寫完會自動存進「塔羅紀錄」。
         </p>
@@ -477,7 +479,7 @@ function formatSuit(suit: string | null) {
           v-if="canUseAi"
           class="cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-5 py-2.5 text-[14px] font-medium text-accent transition hover:bg-accent-hue/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
           type="button"
-          @click="emit('requestNarration')"
+          @click="narration.request?.()"
         >
           {{ stockMode ? '請 AI 分析行情' : '請 AI 解讀這組牌' }}
         </button>
@@ -487,7 +489,7 @@ function formatSuit(suit: string | null) {
           <button
             class="cursor-pointer border-2 border-accent-hue/40 bg-accent-hue/15 px-5 py-2.5 text-[14px] font-medium text-accent transition hover:bg-accent-hue/25 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
-            @click="emit('requestNarration')"
+            @click="narration.request?.()"
           >
             請 AI 解讀這組牌（需登入）
           </button>
@@ -516,7 +518,7 @@ function formatSuit(suit: string | null) {
         :inert="!narrationOpen"
       >
       <div class="min-h-0 overflow-hidden">
-        <div v-if="narrationStatus === 'loading'" class="mt-4 space-y-5">
+        <div v-if="narration.status === 'loading'" class="mt-4 space-y-5">
           <div class="space-y-2.5">
             <SkeletonBlock class="h-3 w-full" />
             <SkeletonBlock class="h-3 w-11/12" />
@@ -532,7 +534,7 @@ function formatSuit(suit: string | null) {
         </div>
 
         <div
-          v-if="narrationText"
+          v-if="narration.text"
           :class="AI_TABLE_CLASS"
           class="mt-4 min-w-0 space-y-4 break-words text-body leading-7 text-ink/90 [&_pre]:overflow-x-auto sm:leading-8 [&_h2]:text-subtitle [&_h2]:font-semibold [&_h2]:text-accent [&_h3]:mt-6 [&_h3]:font-semibold [&_h3]:text-ink [&_li]:my-1 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_strong]:font-semibold [&_strong]:text-accent [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6 [&_ul]:marker:text-warn"
           v-html="narrationHtml"
@@ -544,12 +546,12 @@ function formatSuit(suit: string | null) {
           aria-live="polite"
         >
           <span class="text-sm text-ink-muted">
-            {{ narrationStatus === 'loading' ? '正在整理這次的解讀…' : 'AI 正在撰寫…' }}
+            {{ narration.status === 'loading' ? '正在整理這次的解讀…' : 'AI 正在撰寫…' }}
           </span>
           <button
             class="cursor-pointer border-2 border-tint/15 bg-tint/5 px-4 py-1.5 text-[14px] text-ink transition hover:bg-tint/10 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
-            @click="emit('stopNarration')"
+            @click="narration.stop?.()"
           >
             停止
           </button>
@@ -564,7 +566,7 @@ function formatSuit(suit: string | null) {
           這時登入可能已經過期，只在開通時才顯示的話整列會不見（2026-11-12 使用者回報「重新產生的畫面沒了」）
         -->
         <div
-          v-else-if="narrationStatus === 'done'"
+          v-else-if="narration.status === 'done'"
           class="mt-5 flex flex-wrap items-center gap-3 border-t border-tint/10 pt-4"
         >
           <!-- 回饋（v25）：已經是紀錄才有地方存，放在重新產生的上面一列 -->
@@ -578,8 +580,8 @@ function formatSuit(suit: string | null) {
           />
           <template v-if="canUseAi">
             <span class="text-sm leading-7 text-ink-muted">
-              <template v-if="narrationSaved === true">已更新到這筆紀錄。</template>
-              <template v-else-if="narrationSaved === false">這篇沒有存進紀錄，可以再產生一次。</template>
+              <template v-if="narration.saved === true">已更新到這筆紀錄。</template>
+              <template v-else-if="narration.saved === false">這篇沒有存進紀錄，可以再產生一次。</template>
               {{ isRecorded ? '重新產生的解讀完成後，會取代紀錄裡的這一篇。' : '不滿意可以重新產生一篇。' }}
             </span>
             <button
@@ -596,7 +598,7 @@ function formatSuit(suit: string | null) {
             <button
               class="cursor-pointer border-2 border-accent-hue/30 bg-accent-hue/10 px-4 py-1.5 text-[14px] font-medium text-accent transition hover:bg-accent-hue/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
               type="button"
-              @click="emit('requestNarration')"
+              @click="narration.request?.()"
             >
               重新產生（需登入）
             </button>
@@ -605,20 +607,20 @@ function formatSuit(suit: string | null) {
         </div>
 
         <div
-          v-else-if="narrationStatus === 'stopped' || narrationStatus === 'error'"
+          v-else-if="narration.status === 'stopped' || narration.status === 'error'"
           class="mt-5 flex flex-wrap items-center gap-3 border-t border-tint/10 pt-4"
         >
           <span class="text-sm leading-7 text-ink-muted">
-            <template v-if="narrationStatus === 'stopped'">已停止產生，以上是目前寫出的部分。</template>
-            <template v-else-if="stockMode">{{ narrationError }}可以先參考頁面最下面的行情與技術指標，或稍後再試一次。</template>
-            <template v-else>{{ narrationError }}可以先參考下方規則分析的結果，或稍後再試一次。</template>
+            <template v-if="narration.status === 'stopped'">已停止產生，以上是目前寫出的部分。</template>
+            <template v-else-if="stockMode">{{ narration.error }}可以先參考頁面最下面的行情與技術指標，或稍後再試一次。</template>
+            <template v-else>{{ narration.error }}可以先參考下方規則分析的結果，或稍後再試一次。</template>
           </span>
           <button
             class="cursor-pointer border-2 border-accent-hue/30 bg-accent-hue/10 px-4 py-1.5 text-[14px] font-medium text-accent transition hover:bg-accent-hue/20 active:translate-x-[2px] active:translate-y-[2px] font-pixel"
             type="button"
             @click="regenerateNarration"
           >
-            {{ narrationStatus === 'stopped' ? '重新產生' : '再試一次' }}
+            {{ narration.status === 'stopped' ? '重新產生' : '再試一次' }}
           </button>
         </div>
       </div>
@@ -633,7 +635,7 @@ function formatSuit(suit: string | null) {
       data-nav="追問與補充牌"
       :class="{ 'order-5': stockMode }"
       :follow-up="followUp"
-      @request-login="emit('requestNarration')"
+      @request-login="narration.request?.()"
     />
 
     <!-- 原生 details 收合時沒辦法做動畫，改用 grid-rows 0fr↔1fr 展開收合，不必量高度 -->
@@ -682,7 +684,7 @@ function formatSuit(suit: string | null) {
       :class="{ 'order-7': stockMode }"
     >
       <ExportButton :build="buildExport" />
-      <span class="text-caption text-ink-muted">把這次的牌、分析{{ narrationText ? '與 AI 解讀' : '' }}存成一份檔案。</span>
+      <span class="text-caption text-ink-muted">把這次的牌、分析{{ narration.text ? '與 AI 解讀' : '' }}存成一份檔案。</span>
     </div>
 
     <!-- 結果頁很長，捲超過一個畫面高就給一顆回頂的按鈕 -->

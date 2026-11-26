@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { confirmDialog } from '../lib/confirm'
 
@@ -10,6 +10,7 @@ import SkeletonBlock from '../components/SkeletonBlock.vue'
 import StepResult from '../components/StepResult.vue'
 import { useFollowUps } from '../lib/useFollowUps'
 import { useReadingMarket } from '../lib/useReadingMarket'
+import { useTarotNarration, type NarrationView } from '../lib/useTarotNarration'
 import FinanceNewsAnalysisHistory from '../components/market/FinanceNewsAnalysisHistory.vue'
 import StockAnalysisHistory from '../components/market/StockAnalysisHistory.vue'
 import LenormandHistory from '../components/lenormand/LenormandHistory.vue'
@@ -18,7 +19,6 @@ import {
   fetchReadingDetail,
   fetchReadingHistory,
   fetchSpreads,
-  streamNarration,
   UnauthorizedError,
 } from '../lib/api'
 import { canUseAi, canUseLenormand, canUseStock } from '../lib/auth'
@@ -26,7 +26,7 @@ import { smoothScrollTo } from '../lib/motion'
 import { installWashi } from '../lib/pixelArt'
 import { tarotExport } from '../lib/recordExport'
 import { spreadForReading } from '../lib/readingSpread'
-import type { NarrationStatus, ReadingDetail, ReadingSummary, Spread } from '../types'
+import type { ReadingDetail, ReadingSummary, Spread } from '../types'
 
 
 // 右側的紀錄是和紙菜單，紋理要在畫出來之前放進 CSS 變數
@@ -93,16 +93,20 @@ const deleteError = ref('')
 const isMobileIndexOpen = ref(false)
 
 // ---- AI 解讀（沒用過的紀錄仍可補做）----
-const narrationText = ref('')
-const narrationStatus = ref<NarrationStatus>('idle')
-const narrationError = ref('')
-// 最近一次重新產生的解讀有沒有存回這筆紀錄
-const narrationSaved = ref<boolean | null>(null)
 // 股市諮詢的行情：先顯示當時存下來的那一份，沒存到就查最新的（和日記頁共用 useReadingMarket）
 const market = useReadingMarket(detail)
 const { snapshot: marketSnapshot, status: marketStatus, error: marketError, isSaved: marketIsSaved } = market
 const refreshMarket = market.refresh
-let narrationController: AbortController | null = null
+// 串流與狀態和占卜頁共用 useTarotNarration（2026-11-26 前端優化 5）；離開頁面時它會自己中斷，避免繼續計費
+const narration = useTarotNarration({ onMarket: (snapshot) => market.useStreamed(snapshot) })
+const {
+  text: narrationText,
+  status: narrationStatus,
+  error: narrationError,
+  // 最近一次重新產生的解讀有沒有存回這筆紀錄
+  saved: narrationSaved,
+} = narration
+const cancelNarration = narration.cancel
 
 // 抽牌追問（v23）：紀錄裡存下來的補充牌與延伸回答；在這裡也可以繼續追問，會直接存回這筆紀錄。
 // 要寫在下面 immediate 的 watch(selectedId) 前面：loadDetail 一開始就會用到它
@@ -279,11 +283,6 @@ async function confirmDelete(id: string) {
   }
 }
 
-function cancelNarration() {
-  narrationController?.abort()
-  narrationController = null
-}
-
 async function requestNarration() {
   const current = detail.value
   if (!current || !canUseAi.value) {
@@ -294,61 +293,34 @@ async function requestNarration() {
     return
   }
 
-  cancelNarration()
-  const controller = new AbortController()
-  narrationController = controller
-  narrationText.value = ''
-  narrationError.value = ''
-  narrationSaved.value = null
-  // 行情不清掉：AI 開始寫之前畫面上照樣有數字，收到 AI 用的那一份再換掉
-  narrationStatus.value = 'loading'
-
-  try {
-    const { saved } = await streamNarration(current.reading, {
-      signal: controller.signal,
-      domain: current.domain || undefined,
-      // 回顧舊紀錄時 reading 本身沒有 id，要用紀錄的 id，解讀才會存回同一筆
-      readingId: current.id,
-      onMarket: (snapshot) => {
-        if (controller === narrationController) {
-          // AI 用的是這一份，畫面跟著換成同一份，兩邊講的數字才會一致
-          market.useStreamed(snapshot)
-        }
-      },
-      onDelta: (text) => {
-        if (controller === narrationController) {
-          narrationText.value += text
-          narrationStatus.value = 'streaming'
-        }
-      },
-    })
-    if (controller === narrationController) {
-      narrationStatus.value = 'done'
-      narrationSaved.value = saved
-      // 後端已把文字存進這筆紀錄（重新產生時是覆蓋同一筆），讓「有 AI 解讀」篩選跟著更新。
-      // 明確回報失敗時不改；舊版後端回 null，照舊當成有存
-      const summary = readings.value.find((item) => item.id === current.id)
-      if (summary && saved !== false) {
-        summary.hasNarration = true
-      }
-    }
-  } catch (error) {
-    if (controller !== narrationController) {
-      return
-    }
-    narrationError.value = error instanceof Error ? error.message : 'AI 解讀暫時無法使用'
-    narrationStatus.value = 'error'
-  } finally {
-    if (controller === narrationController) {
-      narrationController = null
-    }
+  const result = await narration.request(current.reading, {
+    domain: current.domain || undefined,
+    // 回顧舊紀錄時 reading 本身沒有 id，要用紀錄的 id，解讀才會存回同一筆
+    readingId: current.id,
+  })
+  if (!result) return
+  // 後端已把文字存進這筆紀錄（重新產生時是覆蓋同一筆），讓「有 AI 解讀」篩選跟著更新。
+  // 明確回報失敗時不改；舊版後端回 null，照舊當成有存
+  const summary = readings.value.find((item) => item.id === current.id)
+  if (summary && result.saved !== false) {
+    summary.hasNarration = true
   }
 }
 
 function stopNarration() {
-  cancelNarration()
-  narrationStatus.value = narrationText.value ? 'stopped' : 'ready'
+  narration.stop()
 }
+
+// 結果頁（StepResult）用的 AI 解讀；回饋是這筆紀錄原本的那一份
+const narrationView: NarrationView = reactive({
+  status: narrationStatus,
+  text: narrationText,
+  error: narrationError,
+  saved: narrationSaved,
+  feedback: computed(() => detail.value?.narration?.feedback ?? null),
+  request: requestNarration,
+  stop: stopNarration,
+})
 
 // 匯出：畫面上現在看到的這一份（含剛重新產生的解讀與追問）
 function buildExport() {
@@ -383,10 +355,6 @@ onMounted(async () => {
   }
 })
 
-onBeforeUnmount(() => {
-  // 離開頁面時停止 AI 生成，避免繼續計費
-  cancelNarration()
-})
 </script>
 
 <template>
@@ -605,10 +573,7 @@ onBeforeUnmount(() => {
             <StepResult
               :reading="detail.reading"
               :result-spread="detailSpread"
-              :narration-status="narrationStatus"
-              :narration-text="narrationText"
-              :narration-error="narrationError"
-              :narration-saved="narrationSaved"
+              :narration="narrationView"
               :stock-mode="detail.domain === 'stock'"
               :market="marketSnapshot"
               :market-status="marketStatus"
@@ -616,12 +581,9 @@ onBeforeUnmount(() => {
               :market-is-saved="marketIsSaved"
               :follow-up="followUp"
               :reading-id="detail.id"
-              :narration-feedback="detail.narration?.feedback ?? null"
               @refresh-market="refreshMarket"
               is-record
               hide-flow-actions
-              @request-narration="requestNarration"
-              @stop-narration="stopNarration"
             />
           </template>
         </template>

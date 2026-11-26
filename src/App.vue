@@ -230,7 +230,9 @@ router.isReady().then(() => {
 				<nav class="flex shrink-0 items-center gap-3 sm:gap-4" aria-label="主要">
 					<!-- 能用雷諾曼的人：「占卜」是選單（塔羅／雷諾曼）；其他人（含訪客）維持單一連結，不給只有一個選項的選單 -->
 					<DivinationMenu v-if="canUseLenormand" />
-					<router-link v-else to="/" class="font-pixel text-[12px] transition" :class="navClass('home')">占卜</router-link>
+					<!-- 觸控目標至少 44px 高（2026-11-26 前端優化 10） -->
+					<!-- check-rules-ignore-next-line 頂欄的像素字固定 12px，這次只改高度 -->
+					<router-link v-else to="/" class="inline-flex min-h-11 items-center font-pixel text-[12px] transition" :class="navClass('home')">占卜</router-link>
 					<!-- 通知鈴鐺（v26 計畫 5）在頭像左邊 -->
 					<NotificationBell v-if="isLoggedIn" :wide="isDesktop" />
 					<MemberMenu v-if="isLoggedIn" :routes="menuRoutes" :wide="isDesktop" @sign-out="signOut" />

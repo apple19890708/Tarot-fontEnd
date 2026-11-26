@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import SkeletonBlock from './SkeletonBlock.vue'
 import { fetchAdminUser, forceLogoutUser, setUserDisabled } from '../lib/api'
 import { currentUser } from '../lib/auth'
 import { confirmDialog } from '../lib/confirm'
+import { useDialogFocus } from '../lib/useDialogFocus'
 import { useScrollLock } from '../lib/useScrollLock'
 import {
   formatDateTime,
@@ -22,12 +23,8 @@ const props = defineProps<{ user: AdminUser }>()
 const emit = defineEmits<{ close: []; updated: [user: AdminUser] }>()
 
 useScrollLock()
-
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') emit('close')
-}
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+const dialogEl = ref<HTMLElement | null>(null)
+useDialogFocus(dialogEl, { onEscape: () => emit('close') })
 
 const detail = ref<AdminUserDetail | null>(null)
 const status = ref<'loading' | 'ready' | 'error'>('loading')
@@ -185,6 +182,7 @@ const BUTTON =
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-overlay md:p-6" @click.self="emit('close')">
       <div
+        ref="dialogEl"
         class="flex h-full w-full flex-col border-frame bg-[#f1e7cf] [background-image:var(--pixel-washi)] [background-size:192px_192px] text-[#2a1a14] md:h-auto md:max-h-[90vh] md:max-w-2xl md:border-4 md:shadow-[6px_6px_0_var(--c-shade)]"
         role="dialog"
         aria-modal="true"

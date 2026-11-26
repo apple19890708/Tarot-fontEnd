@@ -2,10 +2,11 @@
 // 每日一牌彈窗（2026-11-20 使用者要求）：每天第一次打開網站時跳出，訪客與會員都會，可以關掉。
 // 訪客抽完提示登入或註冊：登入後剛抽的那張會自動存進月曆（伺服器簽的領取憑證，見 lib/dailyCard.ts）。
 // 照 ui-check 的彈出層規則：背景鎖捲動、Esc／點外面／按關閉都會關
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { ref } from 'vue'
 
 import { drawDailyCard } from '../lib/api'
 import { guestCardToday, saveGuestCard, todayStatus } from '../lib/dailyCard'
+import { useDialogFocus } from '../lib/useDialogFocus'
 import { useScrollLock } from '../lib/useScrollLock'
 import type { DailyCard } from '../types'
 import DailyCardPanel from './DailyCardPanel.vue'
@@ -14,11 +15,8 @@ const props = defineProps<{ loggedIn: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
 useScrollLock()
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') emit('close')
-}
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+const dialogEl = ref<HTMLElement | null>(null)
+useDialogFocus(dialogEl, { onEscape: () => emit('close') })
 
 // 訪客今天已經抽過（同一台瀏覽器）就直接顯示那張，不重抽
 const dailyCard = ref<DailyCard | null>(props.loggedIn ? null : (guestCardToday()?.dailyCard ?? null))
@@ -57,6 +55,7 @@ const go = () => emit('close')
         enter-from-class="opacity-0 -translate-y-4"
       >
       <div
+        ref="dialogEl"
         class="flex max-h-[90vh] w-full max-w-xl flex-col border-2 border-frame bg-surface text-ink shadow-[6px_6px_0_var(--c-shade)]"
         role="dialog"
         aria-modal="true"

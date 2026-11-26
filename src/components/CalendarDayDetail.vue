@@ -4,7 +4,7 @@
 // 計畫 2：列出當天寫的日記（點了到那篇的日記頁）。每日一牌的日記 2026-11-20 使用者決定拿掉
 import { ref, watch } from 'vue'
 
-import { cardImageUrl } from '../lib/cardStyle'
+import { CARD_IMAGE_HEIGHT, CARD_IMAGE_WIDTH, cardImageUrl, cardSrcset } from '../lib/cardStyle'
 import { dayTitle, timeOf } from '../lib/calendarDays'
 import { outcomeLabel } from '../lib/journal'
 import { journalPathOf } from '../lib/stockJournal'
@@ -59,6 +59,11 @@ watch(
         <img
           v-if="cardImageUrl(day.dailyCard.image)"
           :src="cardImageUrl(day.dailyCard.image)"
+          :srcset="cardSrcset(day.dailyCard.image)"
+          sizes="56px"
+          :width="CARD_IMAGE_WIDTH" :height="CARD_IMAGE_HEIGHT"
+          loading="lazy"
+          decoding="async"
           :alt="day.dailyCard.nameZh"
           class="w-14 shrink-0 rounded"
           :class="day.dailyCard.orientation === 'reversed' ? 'rotate-180' : ''"

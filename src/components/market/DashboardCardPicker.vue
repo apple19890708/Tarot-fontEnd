@@ -66,9 +66,10 @@ const reorder = usePointerReorder(listEl, move, () => selected.value.length, 'wr
               : 'border-ink-soft/40 bg-tint/10 text-ink'
           "
         >
+          <!-- 觸控螢幕（pointer-coarse）把手與 × 放大到 44px，桌機維持原尺寸（2026-11-26 前端優化 10） -->
           <button
             type="button"
-            class="flex h-7 w-5 shrink-0 cursor-grab touch-none select-none items-center justify-center text-ink-muted hover:text-ink active:cursor-grabbing"
+            class="flex h-7 w-5 shrink-0 cursor-grab pointer-coarse:h-11 pointer-coarse:w-8 touch-none select-none items-center justify-center text-ink-muted hover:text-ink active:cursor-grabbing"
             :aria-label="`拖曳排序：${labelOf(id)}（也可以用左右方向鍵）`"
             @pointerdown="reorder.onPointerDown($event, index)"
             @keydown="reorder.onKeydown($event, index)"
@@ -82,7 +83,7 @@ const reorder = usePointerReorder(listEl, move, () => selected.value.length, 'wr
           <span class="whitespace-nowrap">{{ labelOf(id) }}</span>
           <button
             type="button"
-            class="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center text-ink-muted transition hover:bg-danger-hue/10 hover:text-danger"
+            class="ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center text-ink-muted transition hover:bg-danger-hue/10 hover:text-danger"
             :aria-label="`拿掉${labelOf(id)}`"
             @click="remove(id)"
           >
@@ -103,7 +104,7 @@ const reorder = usePointerReorder(listEl, move, () => selected.value.length, 'wr
             v-for="card in group.cards"
             :key="card.id"
             type="button"
-            class="cursor-pointer border-2 border-dashed border-tint/20 px-2 py-0.5 text-button text-ink-muted transition hover:border-ink-soft/60 hover:text-ink active:translate-x-[1px] active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-50"
+            class="cursor-pointer border-2 border-dashed border-tint/20 px-2 py-0.5 pointer-coarse:min-h-11 text-button text-ink-muted transition hover:border-ink-soft/60 hover:text-ink active:translate-x-[1px] active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="full"
             :title="card.hint"
             @click="add(card.id)"

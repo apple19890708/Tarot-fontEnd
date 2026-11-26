@@ -110,6 +110,7 @@ const {
   handleManualSubmit,
   restart,
   redraw,
+  backToQuestion,
 } = flow
 
 const {
@@ -331,7 +332,7 @@ onMounted(bootstrap)
               :input-grid="GRID_INPUT_SPREADS.has(selectedSpreadKey)"
               @update:mode="setDrawMode"
               @update:card-search="cardSearch = $event"
-              @back="step = 1"
+              @back="backToQuestion"
               @auto-draw="handleAutoDraw"
               @auto-deal-done="onAutoDealDone"
               @reshuffle="shuffleDeck"

@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { fetchStockAnalysis, streamStockAnalysis } from '../../lib/api'
 import { canUseAi } from '../../lib/auth'
 import { formatNumber, formatSigned } from '../../lib/marketChart'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useScrollLock } from '../../lib/useScrollLock'
 import { prefersReducedMotion } from '../../lib/motion'
 import { stockAnalysisExport } from '../../lib/recordExport'
@@ -242,12 +243,11 @@ function close() {
   emit('close')
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') close()
-}
+// Esc 關閉；「跳到段落」選單開著時 Esc 只收起選單（useDialogFocus 會讓給展開中的 aria-haspopup）
+const dialogEl = ref<HTMLElement | null>(null)
+useDialogFocus(dialogEl, { onEscape: close })
 
 onMounted(() => {
-  window.addEventListener('keydown', onKeydown)
   void load()
 })
 
@@ -268,7 +268,6 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeydown)
   clearInterval(clock)
   // 關閉彈窗就停止 AI（後端會跟著停止計費）
   controller?.abort()
@@ -281,6 +280,7 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-overlay md:p-6" @click.self="close">
       <div
+        ref="dialogEl"
         class="flex h-full w-full flex-col bg-surface text-ink md:h-auto md:max-h-[90vh] md:max-w-4xl md:border-2 md:border-frame md:shadow-[6px_6px_0_var(--c-shade)]"
         role="dialog"
         aria-modal="true"

@@ -4,7 +4,7 @@
 // 網址：/journal/reading/<紀錄 id>、/journal/lenormand/<雷諾曼紀錄 id>（v27 階段 6）、/journal/stock/<市場>/<代號>（股票一檔一本，v26 計畫 2-2）；
 // 舊的 /journal/stock/<分析 id> 查那筆分析後轉到那檔的日記頁。每日一牌的日記 2026-11-20 使用者決定拿掉。
 // ?mode=edit 編輯（預設唯讀）、?new=1 一進來就打開新的一篇。手機寬度放不下兩欄，改成上方分頁切換「日記／原本的內容」
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import SkeletonBlock from '../components/SkeletonBlock.vue'
@@ -21,10 +21,12 @@ import {
   fetchStockAnalysisRecord,
   fetchStockJournalInfo,
 } from '../lib/api'
+import { asyncPanel } from '../lib/asyncPanel'
 import { taipeiToday } from '../lib/dailyCard'
 import { spreadForReading } from '../lib/readingSpread'
 import { stockJournalPath, stockKeyFromRoute, stockKeyOf } from '../lib/stockJournal'
 import { useReadingMarket } from '../lib/useReadingMarket'
+import type { NarrationView } from '../lib/useTarotNarration'
 import type {
   LenormandCard,
   LenormandPlayingCardGuide,
@@ -37,10 +39,7 @@ import type {
 } from '../types'
 
 // 編輯器（Tiptap）較大，分開載入
-const JournalTimeline = defineAsyncComponent({
-  loader: () => import('../components/journal/JournalTimeline.vue'),
-  loadingComponent: SkeletonBlock,
-})
+const JournalTimeline = asyncPanel(() => import('../components/journal/JournalTimeline.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -266,6 +265,14 @@ watch(target, load, { immediate: true })
 const resultSpread = computed(() => spreadForReading(spreads.value, reading.value?.reading))
 const lenormandSpread = computed(() => lenormandSpreads.value.find((spread) => spread.key === lenormand.value?.spread.key) ?? null)
 const narrationText = computed(() => reading.value?.narration?.text ?? '')
+// 結果頁（StepResult）用的 AI 解讀：日記頁只顯示存下來的那一篇，不能重新產生（沒有 request／stop）
+const narrationView: NarrationView = reactive({
+  status: computed(() => (narrationText.value ? 'done' : 'idle')),
+  text: narrationText,
+  error: '',
+  saved: computed(() => Boolean(narrationText.value)),
+  feedback: computed(() => reading.value?.narration?.feedback ?? null),
+})
 
 // 股票代號的顯示：台股個股用代號，其他用 symbol（鍵的後半段）
 const stockLabel = computed(() => {
@@ -355,10 +362,7 @@ const segmentClass = (on: boolean) => (on ? 'relative z-[1] border-ink-soft/70 b
           v-else-if="reading"
           :reading="reading.reading"
           :result-spread="resultSpread"
-          :narration-status="narrationText ? 'done' : 'idle'"
-          :narration-text="narrationText"
-          narration-error=""
-          :narration-saved="Boolean(narrationText)"
+          :narration="narrationView"
           :stock-mode="reading.domain === 'stock'"
           :market="marketSnapshot"
           :market-status="marketStatus"
@@ -366,7 +370,6 @@ const segmentClass = (on: boolean) => (on ? 'relative z-[1] border-ink-soft/70 b
           :market-is-saved="marketIsSaved"
           @refresh-market="market.refresh"
           :reading-id="reading.id"
-          :narration-feedback="reading.narration?.feedback ?? null"
           is-record
           hide-flow-actions
         />

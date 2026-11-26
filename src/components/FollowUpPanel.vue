@@ -7,7 +7,7 @@ import NarrationFeedback from './NarrationFeedback.vue'
 import SkeletonBlock from './SkeletonBlock.vue'
 import { splitFollowUpAnswer } from '../lib/aiMarkdown'
 import { canUseAi, isLoggedIn } from '../lib/auth'
-import { cardImageUrl } from '../lib/cardStyle'
+import { CARD_IMAGE_HEIGHT, CARD_IMAGE_WIDTH, cardImageUrl, cardSrcset } from '../lib/cardStyle'
 import { smoothScrollTo } from '../lib/motion'
 import type { FollowUpController } from '../lib/useFollowUps'
 import { FOLLOW_UP_MAX_CARDS, FOLLOW_UP_MAX_ROUNDS, FOLLOW_UP_QUESTION_MAX, type ManualCardPick } from '../types'
@@ -161,6 +161,11 @@ const orientationLabel = (orientation: 'upright' | 'reversed') => (orientation =
             <img
               v-if="cardImageUrl(entry.card.image)"
               :src="cardImageUrl(entry.card.image)"
+              :srcset="cardSrcset(entry.card.image)"
+              sizes="56px"
+              :width="CARD_IMAGE_WIDTH" :height="CARD_IMAGE_HEIGHT"
+              loading="lazy"
+              decoding="async"
               :alt="entry.card.nameZh"
               class="h-24 w-14 object-cover shadow-lg"
               :class="{ 'rotate-180': entry.orientation === 'reversed' }"

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, ref } from 'vue'
 
 import HelpTip from '../HelpTip.vue'
 import { formatNumber } from '../../lib/marketChart'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useScrollLock } from '../../lib/useScrollLock'
 import type { IncomeCalendarEntry, IncomeSource } from '../../types'
 
@@ -13,11 +14,8 @@ const props = defineProps<{ month: string; entries: IncomeCalendarEntry[]; total
 const emit = defineEmits<{ close: []; open: [id: string] }>()
 
 useScrollLock()
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') emit('close')
-}
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+const dialogEl = ref<HTMLElement | null>(null)
+useDialogFocus(dialogEl, { onEscape: () => emit('close') })
 
 const SOURCE_LABELS: Record<IncomeSource, string> = { announced: '已公告', exDone: '已除息', estimated: '推估', decided: '董事會已決議' }
 // 推估的可信度：這一檔過去用同樣方法（最近一次配息）估，誤差在 10% 內幾次
@@ -40,7 +38,7 @@ const otherEntries = computed(() => props.entries.filter((entry) => !entry.held 
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4" @click.self="emit('close')">
-      <div class="flex max-h-[85vh] w-full max-w-md flex-col border-2 border-frame bg-surface text-ink shadow-[6px_6px_0_var(--c-shade)]" role="dialog" aria-modal="true" :aria-label="`${title}股利`">
+      <div ref="dialogEl" class="flex max-h-[85vh] w-full max-w-md flex-col border-2 border-frame bg-surface text-ink shadow-[6px_6px_0_var(--c-shade)]" role="dialog" aria-modal="true" :aria-label="`${title}股利`">
         <div class="flex items-center justify-between gap-2 border-b-2 border-frame px-4 py-3">
           <p class="text-subtitle font-semibold text-ink">
             {{ title }}<span v-if="total" class="ml-2 text-body font-normal tabular-nums text-accent">合計 {{ total }}</span>

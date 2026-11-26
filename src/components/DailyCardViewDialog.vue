@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // 月曆點某一天的每日一牌：開小彈窗看那張牌的完整內容，和「今天的牌」一樣（DailyCardFace，2026-11-20 使用者要求）。
-// 手機時會疊在當天彈窗上面：Esc 用 capture 先攔下來只關這一層（ui-check 第 3 類：巢狀時 Esc 只關最上面那層）
-import { onBeforeUnmount, onMounted } from 'vue'
+// 手機時會疊在當天彈窗上面：Esc 只關這一層（ui-check 第 3 類：巢狀時 Esc 只關最上面那層），誰是最上層由 useDialogFocus 判斷
+import { ref } from 'vue'
 
 import { dayTitle } from '../lib/calendarDays'
+import { useDialogFocus } from '../lib/useDialogFocus'
 import { useScrollLock } from '../lib/useScrollLock'
 import type { DailyCard } from '../types'
 import DailyCardFace from './DailyCardFace.vue'
@@ -12,13 +13,8 @@ const props = defineProps<{ dailyCard: DailyCard; today: string }>()
 const emit = defineEmits<{ close: [] }>()
 
 useScrollLock()
-function onKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Escape') return
-  event.stopPropagation()
-  emit('close')
-}
-onMounted(() => window.addEventListener('keydown', onKeydown, true))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, true))
+const dialogEl = ref<HTMLElement | null>(null)
+useDialogFocus(dialogEl, { onEscape: () => emit('close') })
 </script>
 
 <template>
@@ -30,6 +26,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, true))
         enter-from-class="opacity-0 -translate-y-4"
       >
         <div
+          ref="dialogEl"
           class="flex max-h-[90vh] w-full max-w-md flex-col border-2 border-frame bg-surface text-ink shadow-[6px_6px_0_var(--c-shade)]"
           role="dialog"
           aria-modal="true"

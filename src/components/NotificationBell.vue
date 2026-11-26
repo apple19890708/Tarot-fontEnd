@@ -2,19 +2,25 @@
 // 頂欄的通知鈴鐺（v26 計畫 5）：放在會員頭像左邊，顯示未讀數（超過 99 顯示 99+）。
 // 點了打開通知面板：桌機從鈴鐺往下展開，手機是底部彈窗（背景壓暗、不能捲）。
 // 照 ui-check 彈出層規則：點外面、Esc、換頁都會關；確認彈窗（清除已讀）開著時不算點外面，Esc 也只關確認彈窗
-import { onBeforeUnmount, ref, watch } from 'vue'
+// 焦點：手機的底部彈窗是真的彈窗（背景壓暗、不能捲），用 useDialogFocus 把焦點移進去、Tab 不跑出去、關掉後還回鈴鐺；
+// 桌機是鈴鐺下面的小面板（不擋頁面、點外面就關），不困住 Tab，只做 Esc 關閉並把焦點還給鈴鐺
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { confirmState } from '../lib/confirm'
 import { badgeText, refreshUnreadNotifications, unreadNotifications } from '../lib/notifications'
+import { useDialogFocus } from '../lib/useDialogFocus'
 import NotificationPanel from './NotificationPanel.vue'
 
-defineProps<{ wide: boolean }>()
+const props = defineProps<{ wide: boolean }>()
 
 const route = useRoute()
 const open = ref(false)
 const rootEl = ref<HTMLElement | null>(null)
 const buttonEl = ref<HTMLButtonElement | null>(null)
+const panelEl = ref<HTMLElement | null>(null)
+
+useDialogFocus(panelEl, { active: computed(() => open.value && !props.wide), onEscape: () => close(true) })
 
 function toggle() {
   open.value = !open.value
@@ -35,8 +41,9 @@ watch(
   },
 )
 
+// 桌機的小面板才在這裡處理 Esc；手機底部彈窗的 Esc 交給 useDialogFocus（確認彈窗疊在上面時它只讓最上層處理）
 function onKeydown(event: KeyboardEvent) {
-  if (!open.value || event.key !== 'Escape' || confirmState.value) return
+  if (!open.value || !props.wide || event.key !== 'Escape' || confirmState.value) return
   event.stopPropagation()
   close(true)
 }
@@ -99,7 +106,9 @@ onBeforeUnmount(() => {
     >
       <div
         v-if="open"
+        ref="panelEl"
         role="dialog"
+        :aria-modal="wide ? undefined : 'true'"
         aria-label="通知"
         class="z-50 flex flex-col border-frame bg-surface"
         :class="

@@ -9,9 +9,9 @@ tools: Read, Edit, Glob, Grep, Bash
 ## 作法
 
 1. 先讀後端的真實回傳來源：`../Tbackend/src/server.js`、`src/routes/auth.js`、`src/routes/admin.js`、`src/services/readingService.js`、`src/services/analysisFormatter.js`。以程式碼為準，不要靠文件猜。
-2. 對照 `src/types.ts`，補上或修正欄位。
+2. 對照 `src/types/` 底下對應領域的檔案（`src/types.ts` 只負責轉出），補上或修正欄位。
 3. **新增欄位一律設為可選（`?`）**：Render 上的後端可能還是舊版，前端要能容忍欄位不存在。
-4. 新的呼叫寫進 `src/lib/api.ts`，走 `request()` 以自動帶 Authorization；不走 `request()` 的（例如 `streamNarration`）要自己帶 `authHeaders()`。
+4. 新的呼叫寫進 `src/lib/api/` 底下對應領域的檔案（`src/lib/api.ts` 只負責轉出），走 `request()` 以自動帶 Authorization；AI 串流走 `postStream()`。
 5. 401 視為登出；錯誤訊息沿用後端回傳的原因。
 6. `npm run build` 驗證型別。
 

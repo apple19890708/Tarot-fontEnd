@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, ref } from 'vue'
 
 import { financeNewsExport } from '../../lib/recordExport'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useScrollLock } from '../../lib/useScrollLock'
 import ExportButton from '../ExportButton.vue'
 import StockAiText from './StockAiText.vue'
@@ -46,18 +47,15 @@ function buildExport() {
   })
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') emit('close')
-}
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
-
+const dialogEl = ref<HTMLElement | null>(null)
+useDialogFocus(dialogEl, { onEscape: () => emit('close') })
 </script>
 
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-overlay md:p-6" @click.self="emit('close')">
       <div
+        ref="dialogEl"
         class="flex h-full w-full flex-col bg-surface text-ink md:h-auto md:max-h-[90vh] md:max-w-3xl md:border-2 md:border-frame md:shadow-[6px_6px_0_var(--c-shade)]"
         role="dialog"
         aria-modal="true"

@@ -2,7 +2,7 @@
 // 欄數用 container query（@container／@md: 這類）照元件自己的寬度決定，不照螢幕寬度：放進日記頁的半寬欄也不會擠壞（2026-11-20）
 import { computed } from 'vue'
 
-import { cardImageUrl } from '../lib/cardStyle'
+import { CARD_IMAGE_HEIGHT, CARD_IMAGE_WIDTH, cardImageUrl, cardSrcset } from '../lib/cardStyle'
 import type { Element, NumberStageStep, PairRelation, ReadingAnalysis, ReadingCard, Suit } from '../types'
 
 const props = defineProps<{
@@ -212,6 +212,11 @@ function positionLabel(index: number) {
               <img
                 v-if="cardImageUrl(cardAt(pair.from)?.card.image)"
                 :src="cardImageUrl(cardAt(pair.from)?.card.image)"
+                :srcset="cardSrcset(cardAt(pair.from)?.card.image)"
+                sizes="28px"
+                :width="CARD_IMAGE_WIDTH" :height="CARD_IMAGE_HEIGHT"
+                loading="lazy"
+                decoding="async"
                 :alt="cardName(pair.from)"
                 class="h-12 w-7 shrink-0 rounded object-cover shadow"
                 :class="{ 'rotate-180': cardAt(pair.from)?.orientation === 'reversed' }"
@@ -229,6 +234,11 @@ function positionLabel(index: number) {
               <img
                 v-if="cardImageUrl(cardAt(pair.to)?.card.image)"
                 :src="cardImageUrl(cardAt(pair.to)?.card.image)"
+                :srcset="cardSrcset(cardAt(pair.to)?.card.image)"
+                sizes="28px"
+                :width="CARD_IMAGE_WIDTH" :height="CARD_IMAGE_HEIGHT"
+                loading="lazy"
+                decoding="async"
                 :alt="cardName(pair.to)"
                 class="h-12 w-7 shrink-0 rounded object-cover shadow"
                 :class="{ 'rotate-180': cardAt(pair.to)?.orientation === 'reversed' }"

@@ -1,13 +1,19 @@
-// 股市諮詢紀錄的行情（我的紀錄、日記頁共用，2026-11-20 抽出來）：
+// 股市諮詢紀錄的行情（我的紀錄、日記頁共用，2026-11-20 抽出來；2026-11-26 占卜頁也改用這一份）：
 // - 紀錄裡有存下當時的行情（做過 AI 解讀）就先顯示那一份（isSaved = true）
 // - 沒存到（例如當時沒做 AI 解讀）就自動查最新報價；按「更新報價」也是查最新的
 // 原本只寫在 HistoryView，日記頁直接把存下來的那一份傳給 StepResult，沒存到時「行情與技術指標」只剩標題、按更新也沒反應
 import { ref, watch, type Ref } from 'vue'
 
 import { fetchMarketSnapshot } from './api'
-import type { MarketSnapshot, MarketStatus, ReadingDetail } from '../types'
+import type { MarketSnapshot, MarketStatus } from '../types'
 
-export function useReadingMarket(detail: Ref<ReadingDetail | null>) {
+// 只用得到問題類型與問題文字：紀錄（ReadingDetail）、占卜頁剛抽完的結果（2026-11-26 起 HomeView 也用這一份）都能傳進來
+export interface MarketSource {
+  domain?: string | null
+  reading: { question: string }
+}
+
+export function useReadingMarket(detail: Readonly<Ref<MarketSource | null>>) {
   const snapshot = ref<MarketSnapshot | null>(null)
   const status = ref<MarketStatus>('idle')
   const error = ref('')

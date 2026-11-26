@@ -43,8 +43,10 @@
 
 - `src/pages/HomeView.vue`：主畫面（抽牌、牌卡、AI 解讀、組合分析）
 - `src/components/ReadingAnalysisPanel.vue`：規則引擎的組合分析（可折疊的「判斷依據」）
-- `src/lib/api.ts`：所有後端呼叫集中在這裡
-- `src/types.ts`：對應後端回傳的型別
+- `src/lib/api.ts`：所有後端呼叫集中在這裡；實作依領域放在 `src/lib/api/`（client／auth／tarot／lenormand／market／journal），`api.ts` 只轉出（2026-11-26 拆檔）。元件一律從 `lib/api` import；`request()`、`postStream()` 只給 `api/` 底下用
+- `src/types.ts`：對應後端回傳的型別；實作依領域放在 `src/types/`（tarot／auth／records／market／marketTrack／news／income／journal／lenormand），新型別放進對應的檔，元件照舊從 `../types` import
+- `src/components/StepDraw.vue`：抽牌步驟的外框，三種方式各是一個子元件（`StepDrawAuto`／`StepDrawFan`／`StepDrawInput`＋選牌視窗 `CardPickerDialog`），飛牌替身共用 `lib/useCardFlights.ts`
+- `src/lib/useTarotNarration.ts`：塔羅 AI 解讀的串流狀態（占卜頁、紀錄頁共用）；結果頁 `StepResult` 的 `narration` prop 是它的 `NarrationView`
 - `src/lib/session.ts`：token（localStorage）與登入狀態；`src/lib/auth.ts`：login／register／logout／restore，元件只 import 這一個
 - `src/pages/LoginView.vue`、`RegisterView.vue`、`AdminUsers.vue`：會員與管理者頁
 - `src/components/MemberMenu.vue`：頂欄的會員頭像選單（v26 計畫 3），頁面清單來自 `App.vue` 的 `navRoutes`；分類與順序看路由的 `meta.menuGroup`（tarot／stock）與 `meta.menuOrder`
@@ -55,11 +57,11 @@
 ## 編輯規則
 
 - **解讀文字由後端產生**：牌義、組合分析、AI 解讀都直接顯示後端的 `text`。前端只用結構化欄位做標籤、顏色、統計，不自行組句子，也不在前端重寫規則（例如大牌元素表）。
-- **型別跟著後端走**：後端回傳格式改了，同步更新 `src/types.ts`。新增的欄位設為可選（`?`），因為線上（Cloud Run）的後端可能還是舊版。
+- **型別跟著後端走**：後端回傳格式改了，同步更新 `src/types/` 底下對應領域的檔案。新增的欄位設為可選（`?`），因為線上（Cloud Run）的後端可能還是舊版。
 - **沿用既有樣式**：深色玻璃質感（`bg-white/5`、`border-white/10`、`rounded-[1.75rem]`、amber／rose 點綴）。延續現有 Tailwind class，不另外寫 CSS。
 - **AI 解析權限**：`canUseAi`（admin 或被開通的 member）只用來決定畫面顯示哪一種提示，真正的放行在後端；收到 403 要把原因顯示出來，不要只說失敗。
 - **權限**：路由用 `meta.auth`／`meta.role`／`meta.guest` 宣告，判斷集中在 `router.beforeEach`，元件不要自己擋。守衛會先 `await restore()`，不要繞過它。
-- **帶 token**：`api.ts` 的 `request()` 會自動加 Authorization；不走 `request()` 的呼叫（例如 `streamNarration`）要自己帶 `authHeaders()`。收到 401 一律當成登出。
+- **帶 token**：`api/client.ts` 的 `request()` 會自動加 Authorization 與 20 秒逾時；AI 串流走 `postStream()`（不設逾時，401 也當登出）。收到 401 一律當成登出。
 - 非同步請求要處理載入中、失敗兩種狀態；可能被重複觸發的請求要忽略過期的回應（參考 `loadNarration` 的 request id 作法）。
 - **`immediate` 的 watch 放在它會用到的 ref 後面**：`watch(..., { immediate: true })` 在建立元件當下就執行，callback 呼叫的函式裡用到、但寫在後面才宣告的 `const` 會丟 `Cannot access … before initialization`（型別檢查抓不到，網址帶著 id 進頁面才會爆）。
 - **畫面慣例在 `ui-check`**：骨架、更新按鈕的冷卻、回到頂端、刪除確認、指標說明、彈窗捲動鎖定、按鈕字級等 UI 規則都寫在 `.claude/skills/ui-check/SKILL.md` 的「本專案的 UI 慣例」；寫畫面前先看，交付前照它自檢。

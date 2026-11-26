@@ -50,15 +50,19 @@ function pick(value: string) {
   open.value = null
 }
 
-// 點外面、按 Esc 關閉
+// 點外面、按 Esc 關閉。這是欄位下面的小選單（不擋頁面、點外面就關），不是全畫面彈窗，所以不困住 Tab（不用 useDialogFocus）；
+// 按 Esc 關掉時把焦點還給那個欄位的按鈕，鍵盤使用者不會掉到頁面最上面
 const root = ref<HTMLElement | null>(null)
+const fieldButtons: Partial<Record<'start' | 'end', HTMLButtonElement>> = {}
 function onDocumentClick(event: MouseEvent) {
   if (open.value && root.value && event.target instanceof Node && !root.value.contains(event.target)) open.value = null
 }
 function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && open.value) {
     event.stopPropagation()
+    const field = open.value
     open.value = null
+    fieldButtons[field]?.focus()
   }
 }
 onMounted(() => {
@@ -83,10 +87,12 @@ const NAV =
       <!-- 每個欄位自己一個定位框：選單從欄位左邊往下展開，不會跑出畫面 -->
       <div class="relative">
         <button
+          :ref="(el) => (fieldButtons[field] = (el as HTMLButtonElement | null) ?? undefined)"
           type="button"
           class="flex min-w-[8.5em] cursor-pointer items-center justify-between gap-3 border-2 bg-tint/5 px-3 py-1.5 text-body tabular-nums text-ink transition hover:bg-tint/10"
           :class="open === field ? 'border-accent-hue' : 'border-tint/15'"
           :aria-label="field === 'start' ? '起始月份' : '結束月份'"
+          aria-haspopup="dialog"
           :aria-expanded="open === field"
           @click="toggle(field)"
         >

@@ -56,12 +56,8 @@ export function shortDate(date: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(5).replace('-', '/') : date
 }
 
-export function formatNumber(value: number | null | undefined, digits = 2) {
-  if (value === null || value === undefined) {
-    return '—'
-  }
-  return value.toLocaleString('en-US', { maximumFractionDigits: digits })
-}
+// 數字格式化搬到 numberFormat.ts（不會拉進 chart.js），這裡照樣轉出，舊的 import 不用改
+export { formatNumber, formatSigned } from './numberFormat'
 
 // 開、高、低和昨收比的顏色（台灣看盤習慣：比昨收高紅、低綠、一樣白）。個股分析與股市總覽的股票卡片共用
 export function vsPrevClass(value: number | null | undefined, prevClose: number | null | undefined) {
@@ -69,9 +65,3 @@ export function vsPrevClass(value: number | null | undefined, prevClose: number 
   return value > prevClose ? 'text-up' : 'text-down'
 }
 
-export function formatSigned(value: number | null | undefined, suffix = '') {
-  if (value === null || value === undefined) {
-    return '—'
-  }
-  return `${value > 0 ? '+' : ''}${formatNumber(value)}${suffix}`
-}

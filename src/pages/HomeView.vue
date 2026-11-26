@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 import { useRoute, useRouter } from 'vue-router'
 
@@ -12,8 +12,6 @@ import {
   fetchSpreads,
   saveReadingRecord,
   updateReadingNarration,
-  fetchMarketSnapshot,
-  streamNarration,
   toFollowUpPayload,
 } from '../lib/api'
 import { canUseAi, canUseStock, isLoggedIn, onLogout } from '../lib/auth'
@@ -24,14 +22,13 @@ import { clearResultSnapshot, readResultSnapshot, restoredNarrationStatus, write
 import { spreadForReading } from '../lib/readingSpread'
 import { tarotCardGroups } from '../lib/cardGroups'
 import { useFollowUps } from '../lib/useFollowUps'
+import { useReadingMarket } from '../lib/useReadingMarket'
+import { useTarotNarration, type NarrationView } from '../lib/useTarotNarration'
 import { READING_STEPS as STEPS, useReadingFlow } from '../lib/useReadingFlow'
 import type {
   CardSummary,
   DrawMode,
   ManualCardPick,
-  NarrationStatus,
-  MarketSnapshot,
-  MarketStatus,
   QuestionDomain,
   ReadingResponse,
   SaveStatus,
@@ -123,6 +120,7 @@ const {
   handleManualSubmit,
   restart,
   redraw,
+  backToQuestion,
 } = flow
 
 // ---- 步驟 2 的狀態 ----
@@ -149,21 +147,25 @@ const {
 } = flow.draw
 
 // ---- 步驟 3 的狀態 ----
-const narrationText = ref('')
-const narrationStatus = ref<NarrationStatus>('idle')
-const narrationError = ref('')
-// 最近一次解讀有沒有存回紀錄（null＝還沒保存成紀錄，或後端沒回報）
-const narrationSaved = ref<boolean | null>(null)
-// 最近一次完整產生的解讀用的模型（自動保存、補存時一起送）
-const narrationModel = ref('')
 // 股市諮詢的行情與技術指標：結果頁一出來就查，AI 解讀時再換成 AI 用的那一份
-const marketSnapshot = ref<MarketSnapshot | null>(null)
-const marketStatus = ref<MarketStatus>('idle')
-const marketError = ref('')
-// 重複按「更新報價」或換了結果時，只採用最新一次的回應
-let marketRequestId = 0
-// 進行中的 AI 請求；中斷它會讓後端一併停止 AI 生成
-let narrationController: AbortController | null = null
+// （2026-11-26 前端優化 5：改用和紀錄頁、日記頁共用的 useReadingMarket，原本這裡自己寫一份 loadMarket）
+const market = useReadingMarket(
+  computed(() => (reading.value ? { domain: selectedDomain.value, reading: reading.value } : null)),
+)
+const { snapshot: marketSnapshot, status: marketStatus, error: marketError } = market
+
+// AI 解讀的串流（2026-11-26 前端優化 5：和 HistoryView 共用 useTarotNarration）。
+// 換結果、重新開始、離開頁面都會中斷，後端跟著停止 AI 生成
+const narration = useTarotNarration({ onMarket: (snapshot) => market.useStreamed(snapshot) })
+const {
+  text: narrationText,
+  status: narrationStatus,
+  error: narrationError,
+  // 最近一次解讀有沒有存回紀錄（null＝還沒保存成紀錄，或後端沒回報）
+  saved: narrationSaved,
+  // 最近一次完整產生的解讀用的模型（自動保存、補存時一起送）
+  model: narrationModel,
+} = narration
 
 // 保存紀錄：預設不存，使用者在結果頁自己決定。存成功後記住 id，
 // 之後產生的 AI 解讀才知道要存回哪一筆
@@ -191,96 +193,18 @@ const resultSpread = computed(() => spreadForReading(spreads.value, reading.valu
 // 股市諮詢的結果頁改成行情與技術分析，其他問題類型維持原本的塔羅結果頁
 const isStockResult = computed(() => selectedDomain.value === 'stock')
 
-// ---- 股市諮詢的行情 ----
-async function loadMarket() {
-  const question = reading.value && isStockResult.value ? reading.value.question : null
-  if (question === null) {
-    return
-  }
-  const requestId = (marketRequestId += 1)
-  marketStatus.value = 'loading'
-  marketError.value = ''
-  try {
-    const { snapshot } = await fetchMarketSnapshot(question)
-    if (requestId === marketRequestId) {
-      marketSnapshot.value = snapshot
-      marketStatus.value = 'ready'
-    }
-  } catch (error) {
-    if (requestId === marketRequestId) {
-      marketError.value = error instanceof Error ? error.message : '行情暫時查不到，請稍後再試。'
-      marketStatus.value = 'error'
-    }
-  }
-}
-
-// 進到股市諮詢的結果（新抽的、或登入回來還原的）就查行情
-watch(reading, (current) => {
-  if (current && isStockResult.value && !marketSnapshot.value) {
-    void loadMarket()
-  }
-})
-
 // ---- AI 解讀 ----
 
-function cancelNarration() {
-  narrationController?.abort()
-  narrationController = null
-}
-
 async function loadNarration(current: ReadingResponse) {
-  cancelNarration()
-  const controller = new AbortController()
-  narrationController = controller
-  narrationText.value = ''
-  narrationError.value = ''
-  narrationSaved.value = null
-  narrationModel.value = ''
-  // 行情不清掉：AI 開始寫之前畫面上照樣有數字，收到 AI 用的那一份再換掉
-  narrationStatus.value = 'loading'
   // 開始時已經保存過，後端寫完會自己存回那一筆；寫的過程中才保存的，要等完成後由前端補存
   const readingIdAtStart = savedReadingId.value
-
-  try {
-    const { model, saved } = await streamNarration(current, {
-      signal: controller.signal,
-      domain: domainParam.value,
-      // 已經保存過才有 id；後端會在完整產生後把解讀存回那筆紀錄
-      readingId: savedReadingId.value || undefined,
-      onMarket: (snapshot) => {
-        if (controller === narrationController) {
-          // AI 用的是這一份，畫面跟著換成同一份，兩邊講的數字才會一致
-          marketRequestId += 1
-          marketSnapshot.value = snapshot
-          marketStatus.value = 'ready'
-          marketError.value = ''
-        }
-      },
-      onDelta: (text) => {
-        if (controller === narrationController) {
-          narrationText.value += text
-          narrationStatus.value = 'streaming'
-        }
-      },
-    })
-    if (controller === narrationController) {
-      narrationStatus.value = 'done'
-      narrationSaved.value = saved
-      narrationModel.value = model || ''
-      void autoSaveNarration(current, { readingIdAtStart, saved })
-    }
-  } catch (error) {
-    // 被停止或被新的請求取代時，狀態已由呼叫端處理
-    if (controller !== narrationController) {
-      return
-    }
-    narrationError.value = error instanceof Error ? error.message : 'AI 解讀暫時無法使用'
-    narrationStatus.value = 'error'
-  } finally {
-    if (controller === narrationController) {
-      narrationController = null
-    }
-  }
+  const result = await narration.request(current, {
+    domain: domainParam.value,
+    // 已經保存過才有 id；後端會在完整產生後把解讀存回那筆紀錄
+    readingId: savedReadingId.value || undefined,
+  })
+  // 被停止、被新的請求取代、失敗時是 null，不自動保存
+  if (result) void autoSaveNarration(current, { readingIdAtStart, saved: result.saved })
 }
 
 const router = useRouter()
@@ -360,9 +284,18 @@ function requestNarration() {
 }
 
 function stopNarration() {
-  cancelNarration()
-  narrationStatus.value = narrationText.value ? 'stopped' : 'ready'
+  narration.stop()
 }
+
+// 結果頁（StepResult）用的 AI 解讀：狀態、文字與按鈕要做的事收成一個物件
+const narrationView: NarrationView = reactive({
+  status: narrationStatus,
+  text: narrationText,
+  error: narrationError,
+  saved: narrationSaved,
+  request: requestNarration,
+  stop: stopNarration,
+})
 
 // ---- 保存紀錄 ----
 
@@ -473,17 +406,14 @@ async function handleSaveReading() {
 // 清掉這次結果的 AI 解讀、行情、保存狀態與追問（進新結果、重新開始、重抽共用）。
 // 原本三處各寫一份，重新開始與重抽漏清 AI 的錯誤訊息與模型名稱（2026-11-21 graphify 分析時發現）
 function resetResult() {
-  cancelNarration()
+  narration.cancel()
   followUp.reset()
   narrationText.value = ''
   narrationError.value = ''
   narrationStatus.value = 'idle'
   narrationSaved.value = null
   narrationModel.value = ''
-  marketSnapshot.value = null
-  marketStatus.value = 'idle'
-  marketError.value = ''
-  marketRequestId += 1
+  market.reset()
   // 新的一次占卜是新的結果，保存狀態重來
   savedReadingId.value = ''
   saveStatus.value = 'idle'
@@ -535,8 +465,7 @@ onMounted(() => {
   bootstrap()
 })
 
-// 離開頁面時停止 AI 生成，避免繼續計費
-onBeforeUnmount(cancelNarration)
+// 離開頁面時停止 AI 生成：useTarotNarration 卸載時會自己中斷
 
 // 把占卜流程交給 App 層的像素世界做反應；離開首頁就重設，別頁的背景才不會停在「抽牌中」（和雷諾曼共用）
 useSceneSync(step, sceneDrawn)
@@ -630,7 +559,7 @@ useSceneSync(step, sceneDrawn)
               :group-cards="tarotCardGroups"
               @update:mode="setDrawMode"
               @update:card-search="cardSearch = $event"
-              @back="step = 1"
+              @back="backToQuestion"
               @auto-draw="handleAutoDraw"
               @auto-deal-done="onAutoDealDone"
               @reshuffle="shuffleDeck"
@@ -648,15 +577,12 @@ useSceneSync(step, sceneDrawn)
               v-else-if="reading"
               :reading="reading"
               :result-spread="resultSpread"
-              :narration-status="narrationStatus"
-              :narration-text="narrationText"
-              :narration-error="narrationError"
-              :narration-saved="narrationSaved"
+              :narration="narrationView"
               :stock-mode="isStockResult"
               :market="marketSnapshot"
               :market-status="marketStatus"
               :market-error="marketError"
-              @refresh-market="loadMarket"
+              @refresh-market="market.refresh"
               :save-status="saveStatus"
               :save-error="saveError"
               :follow-up="followUp"
@@ -665,8 +591,6 @@ useSceneSync(step, sceneDrawn)
               @save-reading="handleSaveReading"
               @restart="restart"
               @redraw="redraw"
-              @request-narration="requestNarration"
-              @stop-narration="stopNarration"
             />
           </div>
         </Transition>

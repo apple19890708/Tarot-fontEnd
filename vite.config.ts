@@ -11,6 +11,13 @@ const GITHUB_PAGES_BASE = '/Tarot-fontEnd/'
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? process.env.VITE_BASE_PATH || GITHUB_PAGES_BASE : '/',
   plugins: [vue(), tailwindcss()],
+  build: {
+    // 首頁 JS 大小預算（scripts/js-budget.mjs）要靠 manifest 找出首頁一定會下載的 chunk
+    manifest: true,
+    // 唯一超過 500KB 的是匯出 PDF 的 recordPdf（jspdf＋html2canvas-pro），只有按「匯出 PDF」才載入，不影響首頁。
+    // 首頁真正會下載多少改由 scripts/js-budget.mjs 把關，這裡把警告門檻放到 700KB，避免每次 build 都出現同一則警告
+    chunkSizeWarningLimit: 700,
+  },
   server: {
     port: 5173,
     proxy: {

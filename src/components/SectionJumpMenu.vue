@@ -63,6 +63,7 @@ onBeforeUnmount(() => {
         open ? 'text-orb-glow' : 'text-orb hover:text-orb-glow',
       ]"
       :aria-expanded="open"
+      aria-haspopup="true"
       aria-label="跳到段落"
       title="跳到段落"
       @click="open = !open"

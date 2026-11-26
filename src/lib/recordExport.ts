@@ -1,5 +1,6 @@
 import { cardImageUrl } from './cardStyle'
-import { formatNumber, formatSigned } from './marketChart'
+// 只 import 數字格式化，不要從 marketChart 拿（會連 chart.js 一起拉進首頁）
+import { formatNumber, formatSigned } from './numberFormat'
 import type {
   FinanceNewsAnalysisRef,
   FollowUpCard,

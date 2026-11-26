@@ -65,6 +65,15 @@ export function useReadingFlow<S extends SpreadShape, C extends DrawableCard, R>
   const isLoading = ref(false)
   const isBootstrapping = ref(true)
 
+  // 抽牌請求的編號（2026-11-26 前端優化 2，照 useReadingMarket 的寫法）：換步驟（回到問題、重新開始、重抽、重新進抽牌）
+  // 就加一，還在路上的回應回來時編號對不上就丟掉。原本按「回到問題」後，晚到的結果還是會把畫面帶到結果頁
+  let drawRequestId = 0
+  function invalidateDraws() {
+    drawRequestId += 1
+    isLoading.value = false
+    pendingAutoReading.value = null
+  }
+
   // 載牌陣清單；預設的牌陣不在清單裡就改用第一個
   async function bootstrap() {
     isBootstrapping.value = true
@@ -97,6 +106,7 @@ export function useReadingFlow<S extends SpreadShape, C extends DrawableCard, R>
   }
 
   async function goToDraw() {
+    invalidateDraws()
     errorMessage.value = ''
     step.value = 2
     // 上一次抽到、還沒進結果頁的牌不要留到這一次
@@ -117,16 +127,18 @@ export function useReadingFlow<S extends SpreadShape, C extends DrawableCard, R>
     if (!spread) {
       return
     }
+    const requestId = (drawRequestId += 1)
     errorMessage.value = ''
     isLoading.value = true
     pendingAutoReading.value = null
 
     try {
-      pendingAutoReading.value = await options.drawAuto(spread)
+      const result = await options.drawAuto(spread)
+      if (requestId === drawRequestId) pendingAutoReading.value = result
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '抽牌失敗'
+      if (requestId === drawRequestId) errorMessage.value = error instanceof Error ? error.message : '抽牌失敗'
     } finally {
-      isLoading.value = false
+      if (requestId === drawRequestId) isLoading.value = false
     }
   }
 
@@ -146,20 +158,30 @@ export function useReadingFlow<S extends SpreadShape, C extends DrawableCard, R>
     if (source.length !== targetCount.value) {
       return
     }
+    const requestId = (drawRequestId += 1)
     errorMessage.value = ''
     isLoading.value = true
 
     try {
-      onReadingReady(await options.drawManual(source, selectedSpread.value))
+      const result = await options.drawManual(source, selectedSpread.value)
+      if (requestId === drawRequestId) onReadingReady(result)
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '解讀失敗'
+      if (requestId === drawRequestId) errorMessage.value = error instanceof Error ? error.message : '解讀失敗'
     } finally {
-      isLoading.value = false
+      if (requestId === drawRequestId) isLoading.value = false
     }
+  }
+
+  // 抽牌步驟的「回到問題」：還在路上的抽牌結果丟掉，不會晚一步把畫面帶去結果頁
+  function backToQuestion() {
+    invalidateDraws()
+    errorMessage.value = ''
+    step.value = 1
   }
 
   // 回到步驟 1：結果直接丟棄，不跳確認
   function restart() {
+    invalidateDraws()
     options.onReset?.()
     reading.value = null
     draw.clearPicks()
@@ -170,6 +192,7 @@ export function useReadingFlow<S extends SpreadShape, C extends DrawableCard, R>
   // 走和進抽牌一樣的 setDrawMode：重新整理或登入回來還原的結果沒有載過牌庫，
   // 原本直接洗牌會洗出空的牌堆、輸入模式也搜不到牌（2026-11-21 重構後實際走流程時發現）
   async function redraw() {
+    invalidateDraws()
     options.onReset?.()
     reading.value = null
     draw.clearPicks()
@@ -199,5 +222,6 @@ export function useReadingFlow<S extends SpreadShape, C extends DrawableCard, R>
     handleManualSubmit,
     restart,
     redraw,
+    backToQuestion,
   }
 }

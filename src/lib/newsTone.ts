@@ -4,5 +4,3 @@ export const NEWS_TONES = {
   negative: { label: '語氣偏空', class: 'border-down-hue/40 bg-down-hue/10 text-down-ink' },
   neutral: { label: '語氣中性', class: 'border-tint/15 bg-tint/5 text-ink-muted' },
 } as const
-
-export type NewsTone = keyof typeof NEWS_TONES

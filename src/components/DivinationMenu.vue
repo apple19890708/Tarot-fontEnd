@@ -76,10 +76,12 @@ const ITEM = 'flex w-full items-center gap-2 px-4 py-2 text-left font-pixel text
 
 <template>
   <div ref="rootEl" class="relative">
+    <!-- 觸控目標至少 44px 高（2026-11-26 前端優化 10）；頂欄高度本來就超過 44px，版面不變 -->
+    <!-- check-rules-ignore-next-line 頂欄的像素字和旁邊的連結一樣固定 12px，這次只改高度 -->
     <button
       ref="buttonEl"
       type="button"
-      class="flex cursor-pointer items-center gap-1 border-2 border-transparent px-1 py-0.5 font-pixel text-[12px] transition hover:border-tint/20 active:translate-x-[1px] active:translate-y-[1px]"
+      class="flex min-h-11 cursor-pointer items-center gap-1 border-2 border-transparent px-2 font-pixel text-[12px] transition hover:border-tint/20 active:translate-x-[1px] active:translate-y-[1px]"
       :class="[inDivination ? 'text-warn' : 'text-ink-soft hover:text-warn', open ? 'border-tint/30 bg-tint/10' : '']"
       aria-haspopup="menu"
       :aria-expanded="open"

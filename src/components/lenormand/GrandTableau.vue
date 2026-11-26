@@ -247,6 +247,9 @@ const detail = computed(() => {
             <img
               v-if="cardImageUrl(entry.card.image)"
               :src="cardImageUrl(entry.card.image)"
+              width="350"
+              height="600"
+              decoding="async"
               :alt="entry.card.nameZh"
               class="aspect-[7/12] w-full object-cover"
               :class="cellTone(index) === FAR && index !== centerIndex && index !== themeIndex ? 'opacity-60' : ''"

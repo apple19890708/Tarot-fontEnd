@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { fetchFinanceNewsDigest } from '../../lib/api'
 import { NEWS_TONES } from '../../lib/newsTone'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { useScrollLock } from '../../lib/useScrollLock'
 import SkeletonBlock from '../SkeletonBlock.vue'
 import type { FinanceNewsDigest, FinanceNewsItem, FinanceNewsTheme } from '../../types'
@@ -76,12 +77,10 @@ function close() {
   emit('close')
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') close()
-}
+const dialogEl = ref<HTMLElement | null>(null)
+useDialogFocus(dialogEl, { onEscape: close })
 
 onMounted(() => {
-  window.addEventListener('keydown', onKeydown)
   void load()
 })
 
@@ -96,7 +95,6 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeydown)
   requestId += 1
 })
 </script>
@@ -105,6 +103,7 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-overlay md:p-6" @click.self="close">
       <div
+        ref="dialogEl"
         class="flex h-full w-full flex-col bg-surface text-ink md:h-auto md:max-h-[90vh] md:max-w-2xl md:border-2 md:border-frame md:shadow-[6px_6px_0_var(--c-shade)]"
         role="dialog"
         aria-modal="true"
